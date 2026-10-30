@@ -1,0 +1,37 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Cap,Inter Display SemiBold,46,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,1.2,0,1,0,1.5,5,80,80,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:03.80,0:00:05.57,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}Before the sun's even up
+Dialogue: 0,0:00:05.60,0:00:07.04,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I'm out training for an {\c&H3BC2FF&}Ironman.{\c&HFFFFFF&}
+Dialogue: 0,0:00:07.34,0:00:09.48,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}Miles in the dark, nobody watching.
+Dialogue: 0,0:00:10.85,0:00:12.49,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}That's where I learned {\c&H3BC2FF&}discipline{\c&HFFFFFF&}
+Dialogue: 0,0:00:12.69,0:00:14.45,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and I bring it to everything I build.
+Dialogue: 0,0:00:15.75,0:00:18.14,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}And when my family cabinetry business was struggling
+Dialogue: 0,0:00:18.17,0:00:20.27,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}with messy paper quotes and slow workflows.
+Dialogue: 0,0:00:20.34,0:00:21.64,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I didn't just wait around.
+Dialogue: 0,0:00:21.71,0:00:24.04,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I wrote the software, built the {\c&H3BC2FF&}CAD{\c&HFFFFFF&} {\c&H3BC2FF&}pipeline{\c&HFFFFFF&}
+Dialogue: 0,0:00:24.32,0:00:26.39,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and set up the core infrastructure for the company.
+Dialogue: 0,0:00:26.60,0:00:29.64,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}Then I took that same mindset and launched {\c&H3BC2FF&}Tradesmonk{\c&HFFFFFF&}
+Dialogue: 0,0:00:29.67,0:00:32.89,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}a local marketplace connecting homeowners to verified contractors
+Dialogue: 0,0:00:33.37,0:00:35.30,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and this drove over {\c&H3BC2FF&}$30K{\c&HFFFFFF&} in sales.
+Dialogue: 0,0:00:36.04,0:00:38.63,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}For me, {\c&H3BC2FF&}entrepreneurship{\c&HFFFFFF&} isn't just about sitting back
+Dialogue: 0,0:00:38.66,0:00:40.21,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and waiting for perfect conditions.
+Dialogue: 0,0:00:40.24,0:00:41.83,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}It's about taking the {\c&H3BC2FF&}initiative{\c&HFFFFFF&}
+Dialogue: 0,0:00:41.86,0:00:43.52,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}finding those roadblocks and getting straight to work.
+Dialogue: 0,0:00:43.60,0:00:45.61,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I love diving into messy real-world problems
+Dialogue: 0,0:00:45.64,0:00:48.14,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and building solutions that actually {\c&H3BC2FF&}scale.{\c&HFFFFFF&}
+Dialogue: 0,0:00:48.19,0:00:51.20,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}{\c&H3BC2FF&}Babson's{\c&HFFFFFF&} entire focus on {\c&H3BC2FF&}entrepreneurial{\c&HFFFFFF&} {\c&H3BC2FF&}thought{\c&HFFFFFF&} and {\c&H3BC2FF&}action{\c&HFFFFFF&}
+Dialogue: 0,0:00:51.23,0:00:53.21,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}is the exact place I want to build my next company.
+Dialogue: 0,0:00:53.37,0:00:54.49,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}Hi {\c&H3BC2FF&}Babson{\c&HFFFFFF&}
+Dialogue: 0,0:00:54.67,0:00:55.50,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}my name is {\c&H3BC2FF&}Yash{\c&HFFFFFF&} {\c&H3BC2FF&}Patil{\c&HFFFFFF&}
+Dialogue: 0,0:00:55.53,0:00:57.53,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and I can't wait to build as a {\c&H3BC2FF&}Beaver.{\c&HFFFFFF&}
