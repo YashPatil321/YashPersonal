@@ -32,21 +32,23 @@ for i,(src,sin,ts,te) in enumerate(V):
         open('sw.txt','w').write(''.join(f"file '{p}'\n" for p in parts))
         run(['ffmpeg','-v','error','-y','-f','concat','-safe','0','-i','sw.txt','-c','copy',out])
     elif src=='DESK':
-        # drawing -> coding -> code close-up -> drawing IYA on the board, soft dissolves on the beats
-        X=0.4; cuts=[b[29],b[33],b[39]]
-        clips=[('4691',3.0),('4679',1.0),('4684',0.6),('4708',None)]
-        bounds=[ts]+cuts+[te]; lens=[]
-        for j in range(4):
-            L=bounds[j+1]-bounds[j]+(X/2 if j>0 else 0)+(X/2 if j<3 else 0); lens.append(L)
+        # drawing -> coding -> code close-up -> CNC gantry moving -> whiteboard, soft dissolves on the beats
+        X=0.4; cuts=[b[29],b[33],b[35],b[39]]
+        clips=[('4691',3.0),('4679',1.0),('4684',0.0),('4803',0.2),('4708',None)]
+        n=len(clips); bounds=[ts]+cuts+[te]; lens=[]
+        for j in range(n):
+            lens.append(bounds[j+1]-bounds[j]+(X/2 if j>0 else 0)+(X/2 if j<n-1 else 0))
         inp=[]
         for (c,s0),L in zip(clips,lens):
             if s0 is None: s0=5.76-L
             inp+=['-ss',f'{s0:.3f}','-t',f'{L+0.1:.3f}','-i',C+f'IMG_{c}.MOV']
         pre=f'{SC},fps={FPS},settb=AVTB,setsar=1,format=yuv420p'
-        fc=''.join(f'[{j}:v]{pre},trim=duration={lens[j]:.3f}[v{j}];' for j in range(4))
-        off=lens[0]-X; fc+=f'[v0][v1]xfade=transition=fade:duration={X}:offset={off:.3f}[x1];'
-        off+=lens[1]-X; fc+=f'[x1][v2]xfade=transition=fade:duration={X}:offset={off:.3f}[x2];'
-        off+=lens[2]-X; fc+=f'[x2][v3]xfade=transition=fade:duration={X}:offset={off:.3f}[v]'
+        fc=''.join(f'[{j}:v]{pre},trim=duration={lens[j]:.3f}[v{j}];' for j in range(n))
+        off=0; prev='v0'
+        for j in range(1,n):
+            off+=lens[j-1]-X; lab='v' if j==n-1 else f'x{j}'
+            fc+=f'[{prev}][v{j}]xfade=transition=fade:duration={X}:offset={off:.3f}[{lab}]'+(';' if j<n-1 else '')
+            prev=lab
         run(['ffmpeg','-v','error','-y',*inp,'-filter_complex',fc,'-map','[v]','-frames:v',str(N),*ENC,out])
     else:
         run(['ffmpeg','-v','error','-y','-ss',str(sin),'-i',C+f'IMG_{src}.MOV','-vf',f'{SC},fps={FPS},setsar=1','-frames:v',str(N),*ENC,out])
