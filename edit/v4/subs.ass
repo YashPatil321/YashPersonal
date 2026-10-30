@@ -1,0 +1,29 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Cap,Inter Display SemiBold,46,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,1.2,0,1,0,1.5,5,80,80,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:34.79,0:00:35.84,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}And that is why
+Dialogue: 0,0:00:35.87,0:00:37.39,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I want to be at {\c&H3BC2FF&}USC{\c&HFFFFFF&} {\c&H3BC2FF&}IYA.{\c&HFFFFFF&}
+Dialogue: 0,0:00:37.59,0:00:39.14,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}My family cabinetry business was struggling
+Dialogue: 0,0:00:39.17,0:00:41.29,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}with messy paper quotes and slow workflows.
+Dialogue: 0,0:00:41.55,0:00:42.61,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I didn't just wait around.
+Dialogue: 0,0:00:42.77,0:00:43.85,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I wrote the {\c&H3BC2FF&}software{\c&HFFFFFF&}
+Dialogue: 0,0:00:44.01,0:00:45.31,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}set up the {\c&H3BC2FF&}CAD{\c&HFFFFFF&} {\c&H3BC2FF&}pipeline{\c&HFFFFFF&}
+Dialogue: 0,0:00:45.63,0:00:46.54,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and built the core {\c&H3BC2FF&}infrastructure.{\c&HFFFFFF&}
+Dialogue: 0,0:00:46.57,0:00:48.54,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I'll learn to take real physical operations
+Dialogue: 0,0:00:48.57,0:00:50.74,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and turn them into smooth {\c&H3BC2FF&}automated{\c&HFFFFFF&} {\c&H3BC2FF&}systems.{\c&HFFFFFF&}
+Dialogue: 0,0:00:50.77,0:00:52.50,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I don't just want to study tech
+Dialogue: 0,0:00:52.53,0:00:54.15,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I want to build things that {\c&H3BC2FF&}actually{\c&HFFFFFF&} {\c&H3BC2FF&}matter.{\c&HFFFFFF&}
+Dialogue: 0,0:00:54.37,0:00:55.10,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}Hi USC
+Dialogue: 0,0:00:55.13,0:00:56.23,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}my name is {\c&H3BC2FF&}Yash{\c&HFFFFFF&} {\c&H3BC2FF&}Patil{\c&HFFFFFF&}
+Dialogue: 0,0:00:56.33,0:00:57.75,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and I'm ready to make things happen.
+Dialogue: 0,0:00:58.01,0:00:58.81,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}{\c&H3BC2FF&}Fight{\c&HFFFFFF&} {\c&H3BC2FF&}on.{\c&HFFFFFF&}
