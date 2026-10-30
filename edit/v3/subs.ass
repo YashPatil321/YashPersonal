@@ -1,0 +1,29 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Cap,Inter SemiBold,42,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,0,0,0,0,100,100,1.5,0,1,0,2,2,80,80,46,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:33.65,0:00:34.71,Cap,,0,0,0,,{\fad(110,110)}And that is why
+Dialogue: 0,0:00:34.73,0:00:36.23,Cap,,0,0,0,,{\fad(110,110)}I want to be at USC IYA.
+Dialogue: 0,0:00:36.45,0:00:38.01,Cap,,0,0,0,,{\fad(110,110)}My family cabinetry business was struggling
+Dialogue: 0,0:00:38.03,0:00:40.13,Cap,,0,0,0,,{\fad(110,110)}with messy paper quotes and slow workflows.
+Dialogue: 0,0:00:40.41,0:00:41.45,Cap,,0,0,0,,{\fad(110,110)}I didn't just wait around.
+Dialogue: 0,0:00:41.63,0:00:42.69,Cap,,0,0,0,,{\fad(110,110)}I wrote the software
+Dialogue: 0,0:00:42.87,0:00:44.15,Cap,,0,0,0,,{\fad(110,110)}set up the CAD pipeline
+Dialogue: 0,0:00:44.49,0:00:45.41,Cap,,0,0,0,,{\fad(110,110)}and built the core infrastructure.
+Dialogue: 0,0:00:45.43,0:00:47.41,Cap,,0,0,0,,{\fad(110,110)}I'll learn to take real physical operations
+Dialogue: 0,0:00:47.43,0:00:49.61,Cap,,0,0,0,,{\fad(110,110)}and turn them into smooth automated systems.
+Dialogue: 0,0:00:49.63,0:00:51.37,Cap,,0,0,0,,{\fad(110,110)}I don't just want to study tech
+Dialogue: 0,0:00:51.39,0:00:52.99,Cap,,0,0,0,,{\fad(110,110)}I want to build things that actually matter.
+Dialogue: 0,0:00:53.23,0:00:53.97,Cap,,0,0,0,,{\fad(110,110)}Hi USC
+Dialogue: 0,0:00:53.99,0:00:55.07,Cap,,0,0,0,,{\fad(110,110)}my name is Yash Patil
+Dialogue: 0,0:00:55.19,0:00:56.59,Cap,,0,0,0,,{\fad(110,110)}and I'm ready to make things happen.
+Dialogue: 0,0:00:56.87,0:00:57.62,Cap,,0,0,0,,{\fad(110,110)}Fight on.
