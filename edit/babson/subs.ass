@@ -21,8 +21,9 @@ Dialogue: 0,0:00:18.17,0:00:20.27,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200
 Dialogue: 0,0:00:20.34,0:00:21.64,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I didn't just wait around.
 Dialogue: 0,0:00:21.71,0:00:24.04,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}I wrote the software, built the {\c&H3BC2FF&}CAD{\c&HFFFFFF&} {\c&H3BC2FF&}pipeline{\c&HFFFFFF&}
 Dialogue: 0,0:00:24.32,0:00:26.39,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and set up the core infrastructure for the company.
-Dialogue: 0,0:00:26.60,0:00:29.64,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}Then I took that same mindset and launched {\c&H3BC2FF&}Tradesmonk{\c&HFFFFFF&}
-Dialogue: 0,0:00:29.67,0:00:32.89,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}a local marketplace connecting homeowners to verified contractors
+Dialogue: 0,0:00:26.60,0:00:28.80,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}Then I took that same mindset and launched
+Dialogue: 0,0:00:28.83,0:00:30.30,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}{\c&H3BC2FF&}Tradesmonk{\c&HFFFFFF&} (now {\c&H3BC2FF&}Mantelkeep{\c&HFFFFFF&})
+Dialogue: 0,0:00:30.33,0:00:32.89,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}a local marketplace connecting homeowners to verified contractors
 Dialogue: 0,0:00:33.37,0:00:35.30,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and this drove over {\c&H3BC2FF&}$30K{\c&HFFFFFF&} in sales.
 Dialogue: 0,0:00:36.04,0:00:38.63,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}For me, {\c&H3BC2FF&}entrepreneurship{\c&HFFFFFF&} isn't just about sitting back
 Dialogue: 0,0:00:38.66,0:00:40.21,Cap,,0,0,0,,{\an5\move(960,1020,960,1011,0,200)\fad(160,140)}and waiting for perfect conditions.
