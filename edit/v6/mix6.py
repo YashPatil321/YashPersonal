@@ -25,11 +25,10 @@ for name,T0,dur in VP: sp.append(add(f'{name}.wav',0,dur,T0,'anull','s'))
 # natural sound only from clips with no voices in them
 NAT=[('4732',8.02,b[0]-0.163,0.45,0.9),('4738',0.55,b[2],b[4]-b[2],0.4),('4753',5.30,b[4],b[7]-b[4]+0.15,0.9),
      ('4778',0.2,b[10],b[13]-b[10],0.55),('4786',1.40,b[13],b[15]-b[13],0.4),('4786',4.60,b[15],3.4,0.6),
-     ('4792',0.3,b[22],b[24]-b[22],0.22),('4899',0.6,b[24],b[25]-b[24],0.25),('4902',0.2,b[25],b[26]-b[25],0.2)]
+     ('4795',1.27,b[21]-0.15,b[22]-b[21]+0.15,0.6),('4792',0.3,b[22],b[24]-0.25-b[22],0.3),('4899',0.61,b[24]-0.25,0.55,0.75),('4902',0.28,b[25]-0.2,0.716,0.6)]
 nat=[add(C+f'IMG_{s}.MOV',a,d,T0,f'volume={g},{fade(d,0.02,0.35 if (s=="4786" and a>4) else 0.06)}','n') for s,a,T0,d,g in NAT]
 SFX=[('snap',b[2]+0.47-0.09,0.55),('impact',b[10],0.6),
-     ('switch',b[17],0.8),('switch',b[18],0.8),('switch',b[19],0.9),('powerup',b[20],0.5),('switch',b[21]+0.05,0.55),
-     ('whoosh',b[26]-0.5,0.25),('down',b[26],0.4)]
+     ('switch',b[17],0.8),('switch',b[18],0.8),('switch',b[19],0.9),('powerup',b[20],0.5),('switch',b[21],0.7),('thump',b[24],0.5),('thump',b[25],0.45)]
 fx=[add(f'{s}.wav',0,4,T0,f'volume={g}','f') for s,T0,g in SFX]
 L=lambda xs: ''.join(xs)
 fc.append(f'{L(sp)}amix=inputs={len(sp)}:normalize=0,asplit[sp][key]')
