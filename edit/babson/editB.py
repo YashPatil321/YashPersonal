@@ -36,14 +36,14 @@ for i,(src,sin,ts,te) in enumerate(V):
     elif src=='DESK':
         # drawing -> coding -> code close-up -> CNC gantry moving -> whiteboard, soft dissolves on the beats
         X=0.4; cuts=[b[29],b[33],b[35],b[39]]
-        clips=[('4691',3.0),('4679',1.0),('4684',0.0),('4803',0.2),('4708',None)]
+        clips=[('4691',3.0),('4679',1.0),('4684',0.0),('4803',0.2),('MK',0.0)]
         n=len(clips); bounds=[ts]+cuts+[te]; lens=[]
         for j in range(n):
             lens.append(bounds[j+1]-bounds[j]+(X/2 if j>0 else 0)+(X/2 if j<n-1 else 0))
         inp=[]
         for (c,s0),L in zip(clips,lens):
             if s0 is None: s0=5.76-L
-            inp+=['-ss',f'{s0:.3f}','-t',f'{L+0.1:.3f}','-i',C+f'IMG_{c}.MOV']
+            inp+=['-ss',f'{s0:.3f}','-t',f'{L+0.1:.3f}','-i',('/home/user/clips/mk/mk_card_1080.mp4' if c=='MK' else C+f'IMG_{c}.MOV')]
         pre=f'{SC},fps={FPS},settb=AVTB,setsar=1,format=yuv420p'
         fc=''.join(f'[{j}:v]{pre},trim=duration={lens[j]:.3f}[v{j}];' for j in range(n))
         off=0; prev='v0'
