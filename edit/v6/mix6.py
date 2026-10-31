@@ -34,9 +34,9 @@ L=lambda xs: ''.join(xs)
 fc.append(f'{L(sp)}amix=inputs={len(sp)}:normalize=0,asplit[sp][key]')
 # chill desk: ease the music down a little, then duck hard under the voice
 d0,d1=b[26],b[44]
-fc.append(f"{mus}volume='1-0.3*clip((t-{d0})/0.8,0,1)*(1-clip((t-{d1})/0.8,0,1))':eval=frame[mv]")
+fc.append(f"{mus}volume='1-0.3*clip((t-{d0})/0.8,0,1)*(1-clip((t-{d1})/0.8,0,1))':eval=frame,afade=t=out:st={END-1.8:.3f}:d=1.6[mv]")
 fc.append('[mv][key]sidechaincompress=threshold=0.008:ratio=16:attack=15:release=650:knee=5[duck]')
-fc.append(f'[duck][sp]{L(nat)}{L(fx)}amix=inputs={2+len(nat)+len(fx)}:normalize=0,alimiter=limit=0.93:level=false,afade=t=out:st={END-1.2:.3f}:d=1.2[out]')
+fc.append(f'[duck][sp]{L(nat)}{L(fx)}amix=inputs={2+len(nat)+len(fx)}:normalize=0,alimiter=limit=0.93:level=false,afade=t=out:st={END-0.18:.3f}:d=0.18[out]')
 subprocess.run(['ffmpeg','-v','error','-y',*inputs,'-filter_complex',';'.join(fc),'-map','[out]','-t',f'{END:.3f}','-c:a','pcm_s16le','mix.wav'],check=True)
 for a,c in ((0,10.4),(10.45,16.1),(16.2,25.4),(25.5,35.8),(35.9,END)):
     r=subprocess.run(['ffmpeg','-hide_banner','-ss',str(a),'-to',str(c),'-i','mix.wav','-af','ebur128','-f','null','-'],capture_output=True,text=True).stderr
