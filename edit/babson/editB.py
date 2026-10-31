@@ -3,7 +3,7 @@ os.chdir('/home/user/clips/buildB'); C='/home/user/clips/'
 FPS=60; b=json.load(open(C+'beats.json'))
 def fr(t): return round(t*FPS)
 TALK=b[44]; T1=TALK+7.65; T2=T1+4.62; T3=T2+5.05; END=T3+4.50
-V=[('TITLE',0,0,2.74),('4732',0.48,2.74,b[0]),
+V=[('TITLE',0,0,2.74),('4732',0.48,2.74,5.34),('CARD',0,5.34,6.36),('4732',4.100,6.36,b[0]),
    ('4764',0.00,b[0],b[2]),('4738',0.55,b[2],b[4]),('4753',5.30,b[4],b[7]),('4765',20.20,b[7],b[10]),
    ('4778',0.20,b[10],b[13]),('4786',1.40,b[13],b[16]),
    ('SWITCH',0,b[16],b[20]),('4788',9.20,b[20],b[21]-0.15),('4795',1.27,b[21]-0.15,b[22]),
@@ -20,7 +20,9 @@ segs=[]
 for i,(src,sin,ts,te) in enumerate(V):
     N=fr(te)-fr(ts); out=f'seg{i:02d}.mp4'; segs.append(out)
     if os.path.exists(out) and not os.environ.get('FORCE'): continue
-    if src=='TITLE':
+    if src=='CARD':
+        run(['ffmpeg','-v','error','-y','-i','/home/user/clips/card/card_1080.mp4','-frames:v',str(N),*ENC,out])
+    elif src=='TITLE':
         run(['ffmpeg','-v','error','-y','-i','title.mp4','-frames:v',str(N),*ENC,out])
     elif src=='SWITCH':
         # each of the three presses lands on a beat (b17, b18, b19)
