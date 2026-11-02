@@ -2,6 +2,8 @@
 
 A website that turns your **Google Form sign-ups** into a complete pickleball tournament: teams, pools, brackets, a court schedule, live scoring, standings and final results.
 
+**Live site:** https://pickleball-tournament-jet.vercel.app (try “Try the demo”)
+
 - **Competitors** open one link (or scan a QR code) to see live scores, find their team, check when they play next, and follow standings and brackets. No login needed, and nothing they can change.
 - **You (the organizer)** sign in with an admin passcode to build the draw, run the courts and enter or fix scores.
 - **Court volunteers** (optional) get a separate *scorer* passcode. They can keep score and call matches, nothing else.
@@ -40,9 +42,11 @@ Then in the form go to **Responses → Link to Sheets** to create the response s
 
 ## 2. Put the website online
 
-The site is a static app (Vite + React + TypeScript). Pick any host:
+The site is a static app (Vite + React + TypeScript). It's already deployed to the Vercel project **`pickleball-tournament`**, which is connected to this GitHub repo: merging into `main` redeploys the live site automatically, and every other branch gets its own preview link. To redeploy by hand: `npx vercel deploy --prod`.
 
-- **Vercel** (easiest): import this GitHub repo at vercel.com → *Add New Project*. It detects Vite on its own: build `npm run build`, output `dist`.
+Other hosts work too:
+
+- **Vercel** (fresh setup): import this GitHub repo at vercel.com → *Add New Project*. It detects Vite on its own: build `npm run build`, output `dist`.
 - **Netlify / Cloudflare Pages**: build command `npm run build`, publish directory `dist`.
 - **Run it locally**: `npm install` then `npm run dev`.
 
