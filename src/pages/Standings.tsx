@@ -7,6 +7,21 @@ import { FORMAT_LABELS } from '../lib/tournament';
 import { useRoute } from '../state/router';
 import { useTournament } from '../state/store';
 
+function DrawTabs({ current }: { current: 'standings' | 'brackets' }) {
+  const { t } = useTournament();
+  if (!t.divisions.some((d) => d.settings.format !== 'round_robin')) return null;
+  return (
+    <div className="segmented">
+      <a href="#/standings" className={current === 'standings' ? 'on' : ''}>
+        Standings
+      </a>
+      <a href="#/brackets" className={current === 'brackets' ? 'on' : ''}>
+        Brackets
+      </a>
+    </div>
+  );
+}
+
 function DivisionPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const { t } = useTournament();
   if (t.divisions.length < 2) return null;
@@ -39,8 +54,11 @@ export function Standings() {
   return (
     <>
       <div className="page-head">
-        <h1>Standings</h1>
-        <span className="badge">{FORMAT_LABELS[division.settings.format]}</span>
+        <div>
+          <div className="eyebrow">{FORMAT_LABELS[division.settings.format]}</div>
+          <h1>Standings</h1>
+        </div>
+        <DrawTabs current="standings" />
       </div>
       <DivisionPicker value={divisionId} onChange={setDivisionId} />
 
@@ -108,7 +126,11 @@ export function Brackets() {
   return (
     <>
       <div className="page-head">
-        <h1>Brackets</h1>
+        <div>
+          <div className="eyebrow">Playoffs</div>
+          <h1>Brackets</h1>
+        </div>
+        <DrawTabs current="brackets" />
       </div>
       {withBrackets.length > 1 && (
         <div style={{ marginBottom: 14, overflowX: 'auto' }}>

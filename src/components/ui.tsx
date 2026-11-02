@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { X } from 'lucide-react';
+import type { Tournament } from '../lib/types';
 
 export function Modal({
   title,
@@ -33,7 +35,7 @@ export function Modal({
             {subtitle && <div className="muted small">{subtitle}</div>}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close">
-            ✕
+            <X size={18} />
           </button>
         </div>
         {children}
@@ -47,6 +49,34 @@ export function Progress({ value, total }: { value: number; total: number }) {
   return (
     <div className="progress" title={`${value} of ${total}`}>
       <div style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+export function ProgressRing({ value, total, label }: { value: number; total: number; label: string }) {
+  const pct = total ? value / total : 0;
+  const r = 64;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="ring">
+      <svg width="148" height="148" viewBox="0 0 148 148" aria-hidden="true">
+        <circle cx="74" cy="74" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10" />
+        <circle
+          cx="74"
+          cy="74"
+          r={r}
+          fill="none"
+          stroke="var(--ball)"
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={`${c * pct} ${c}`}
+          style={{ filter: 'drop-shadow(0 0 6px rgba(212,255,58,0.6))', transition: 'stroke-dasharray .6s' }}
+        />
+      </svg>
+      <div className="ring-label">
+        <b>{Math.round(pct * 100)}%</b>
+        <span>{label}</span>
+      </div>
     </div>
   );
 }
@@ -81,29 +111,95 @@ export function Segmented<T extends string | number>({
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="card empty">
-      <h3 style={{ color: 'var(--ink)' }}>{title}</h3>
+      <h2 style={{ color: 'var(--ink)' }}>{title}</h2>
       {children}
     </div>
   );
 }
 
-export function BallIcon({ size = 30 }: { size?: number }) {
+/** A pickleball (lime with holes). */
+export function BallIcon({ size = 30, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="15" fill="#d4f04c" stroke="#1f2a04" strokeWidth="1.5" />
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className={className}>
+      <defs>
+        <radialGradient id="ballShade" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#f2ff9a" />
+          <stop offset="55%" stopColor="#d4ff3a" />
+          <stop offset="100%" stopColor="#a6cf12" />
+        </radialGradient>
+      </defs>
+      <circle cx="16" cy="16" r="15" fill="url(#ballShade)" />
       {[
-        [10, 9],
-        [18, 7],
-        [23, 13],
-        [8, 17],
-        [15, 15],
-        [22, 21],
-        [12, 24],
-        [18, 25],
+        [10, 8.5],
+        [18, 6.5],
+        [24, 12],
+        [7.5, 16],
+        [15, 14.5],
+        [22.5, 20],
+        [11.5, 23.5],
+        [18.5, 25],
       ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="1.9" fill="#1f2a04" opacity="0.8" />
+        <circle key={i} cx={x} cy={y} r="1.9" fill="#5f7a00" opacity="0.55" />
       ))}
     </svg>
+  );
+}
+
+/** Top-down court line art used as a background texture. */
+export function CourtLines({ className = 'court-lines' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 880 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="none" stroke="#fff" strokeWidth="3">
+        <rect x="40" y="40" width="800" height="320" />
+        <line x1="440" y1="24" x2="440" y2="376" strokeWidth="5" strokeDasharray="2 6" />
+        <line x1="313" y1="40" x2="313" y2="360" />
+        <line x1="567" y1="40" x2="567" y2="360" />
+        <line x1="40" y1="200" x2="313" y2="200" />
+        <line x1="567" y1="200" x2="840" y2="200" />
+      </g>
+    </svg>
+  );
+}
+
+const AVATAR_COLORS = ['#2b5fd9', '#ff5a36', '#0f9f58', '#8b5cf6', '#e11d74', '#0e9fb5', '#d97706', '#4f46e5', '#0d9488', '#db2777'];
+
+function hash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export function Avatar({ name, size = 28 }: { name: string; size?: number }) {
+  return (
+    <span
+      className="avatar"
+      style={{ ['--size' as string]: `${size}px`, background: AVATAR_COLORS[hash(name) % AVATAR_COLORS.length] }}
+      title={name}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+/** Overlapping player avatars for a team (or a dashed placeholder when unknown). */
+export function TeamAvatars({ t, teamId, size = 28 }: { t: Tournament; teamId: string | null | undefined; size?: number }) {
+  const team = teamId && teamId !== 'BYE' ? t.teams[teamId] : undefined;
+  if (!team) return <span className="tbd-dot" style={{ width: size, height: size }} />;
+  const names = team.playerIds.map((id) => t.players[id]?.name).filter((n): n is string => !!n);
+  if (!names.length) names.push(team.name);
+  return (
+    <span className="avatars">
+      {names.slice(0, 2).map((n) => (
+        <Avatar key={n} name={n} size={size} />
+      ))}
+    </span>
   );
 }
 

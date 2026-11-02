@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Trophy } from 'lucide-react';
 import { courtStatus, matchQueue } from '../lib/actions';
 import { teamName } from '../lib/tournament';
-import { stageLabel } from '../components/match';
+import { divisionName, stageLabel } from '../components/match';
+import { MiniCourt } from '../components/MiniCourt';
 import { BallIcon } from '../components/ui';
 import { useTournament } from '../state/store';
 
@@ -27,92 +29,98 @@ export function TV() {
   return (
     <div className="tv">
       <div className="tv-head">
-        <div className="row" style={{ gap: 14 }}>
-          <BallIcon size={44} />
-          <div className="tv-title">{t.name}</div>
+        <div className="row" style={{ gap: 16, flexWrap: 'nowrap', minWidth: 0 }}>
+          <BallIcon size={56} className="ball-spin" />
+          <div style={{ minWidth: 0 }}>
+            <div className="eyebrow" style={{ color: 'var(--ball)' }}>
+              Live courts
+            </div>
+            <div className="tv-title truncate">{t.name}</div>
+          </div>
         </div>
-        <div className="row" style={{ gap: 16 }}>
-          <span style={{ fontSize: '1.4rem', fontWeight: 700 }} className="num">
-            {new Date(now).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-          </span>
-          <a href="#/" className="small" style={{ color: '#8fa398' }}>
+        <div className="row" style={{ gap: 18 }}>
+          <span className="tv-clock">{new Date(now).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+          <a href="#/" className="btn btn-glass btn-sm">
             Exit
           </a>
         </div>
       </div>
 
       {champions.length > 0 && (
-        <div className="tv-court" style={{ marginBottom: 20, borderColor: 'var(--accent)' }}>
-          <div className="label">Champions</div>
+        <div className="champion-card" style={{ marginBottom: 22, textAlign: 'left', display: 'grid', gap: 6 }}>
+          <div className="row" style={{ gap: 10 }}>
+            <Trophy size={22} color="var(--ball)" />
+            <span className="eyebrow">Champions</span>
+          </div>
           {champions.map(({ d, rd }) => (
-            <div key={d.id} className="team">
-              <span>{d.name}</span>
-              <span>🏆 {teamName(t, rd.placements[0].teamIds[0])}</span>
+            <div key={d.id} className="row-between" style={{ fontSize: '1.3rem' }}>
+              <span style={{ color: 'var(--on-night-muted)', fontWeight: 700 }}>{d.name}</span>
+              <span className="who" style={{ margin: 0 }}>
+                {teamName(t, rd.placements[0].teamIds[0])}
+              </span>
             </div>
           ))}
         </div>
       )}
 
       <div className="tv-grid">
-        <div>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
-            {courts.map(({ court, match }) => {
-              const g = match?.m.games[match.m.games.length - 1];
-              return (
-                <div className="tv-court" key={court}>
-                  <div className="label">
-                    {court}
-                    {match && (
-                      <span style={{ color: '#8fa398', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>
-                        {' '}
-                        · M{match.m.number} · {stageLabel(t, match.m)}
-                        {match.m.games.length > 1 ? ` · G${match.m.games.length}` : ''}
-                      </span>
-                    )}
-                  </div>
-                  {match ? (
-                    (['a', 'b'] as const).map((side) => (
-                      <div className="team" key={side}>
-                        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {match.m.serve?.side === side && <span className="serving-dot" />}
-                          {teamName(t, side === 'a' ? (match.a as string) : (match.b as string))}
-                        </span>
-                        <span className="pts">{g ? (side === 'a' ? g.a : g.b) : 0}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ color: '#8fa398', fontSize: '1.2rem' }}>Open</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', alignContent: 'start' }}>
+          {courts.map(({ court, match }) => (
+            <MiniCourt
+              key={court}
+              t={t}
+              court={court}
+              match={match}
+              meta={
+                match ? (
+                  <>
+                    <span className="match-no">M{match.m.number}</span>
+                    <span className="truncate">
+                      {t.divisions.length > 1 ? `${divisionName(t, match.m.divisionId)} · ` : ''}
+                      {stageLabel(t, match.m)}
+                      {match.m.games.length > 1 ? ` · Game ${match.m.games.length}` : ''}
+                    </span>
+                  </>
+                ) : (
+                  <span>Waiting for the next match</span>
+                )
+              }
+            />
+          ))}
         </div>
-        <div className="stack" style={{ gap: 20 }}>
+        <div className="stack" style={{ gap: 22 }}>
           <div>
-            <h2 style={{ color: 'var(--accent)' }}>Up next</h2>
+            <h2>Up next</h2>
             <div className="tv-list">
-              {queue.length === 0 && <div className="item" style={{ color: '#8fa398' }}>No matches waiting</div>}
+              {queue.length === 0 && (
+                <div className="item" style={{ color: 'var(--muted)' }}>
+                  No matches waiting
+                </div>
+              )}
               {queue.map((q, i) => (
                 <div className="item" key={q.r.m.id}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 800 }}>{i + 1}.</span> {teamName(t, q.r.a as string)}{' '}
-                  <span style={{ color: '#8fa398' }}>vs</span> {teamName(t, q.r.b as string)}
+                  <span className="n">{i + 1}</span>
+                  <span>
+                    {teamName(t, q.r.a as string)} <span style={{ color: 'var(--muted)' }}>vs</span> {teamName(t, q.r.b as string)}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
           {recent.length > 0 && (
             <div>
-              <h2 style={{ color: 'var(--accent)' }}>Results</h2>
+              <h2>Results</h2>
               <div className="tv-list">
                 {recent.map((r) => (
                   <div className="item" key={r.m.id}>
-                    <b>{teamName(t, r.winner as string)}</b> <span style={{ color: '#8fa398' }}>def.</span>{' '}
-                    {teamName(t, r.loser as string)}{' '}
-                    <span style={{ color: '#8fa398' }} className="num">
-                      {r.m.forfeit
-                        ? 'W/O'
-                        : r.m.games.map((g) => (r.winnerSide === 'a' ? `${g.a}-${g.b}` : `${g.b}-${g.a}`)).join(', ')}
+                    <span>
+                      <b>{teamName(t, r.winner as string)}</b> <span style={{ color: 'var(--muted)' }}>def.</span>{' '}
+                      {teamName(t, r.loser as string)}{' '}
+                      <span style={{ color: 'var(--ball)', fontWeight: 800 }} className="num nowrap">
+                        {r.m.forfeit
+                          ? 'W/O'
+                          : r.m.games.map((g) => (r.winnerSide === 'a' ? `${g.a}-${g.b}` : `${g.b}-${g.a}`)).join(', ')}
+                      </span>
                     </span>
                   </div>
                 ))}

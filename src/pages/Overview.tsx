@@ -1,13 +1,15 @@
+import { CalendarDays, ChevronRight, MapPin, Search, Trophy, Zap } from 'lucide-react';
 import { courtStatus, fillCourts, matchQueue, waitEstimates } from '../lib/actions';
 import { FORMAT_LABELS, teamName } from '../lib/tournament';
-import { MatchCard } from '../components/match';
+import { divisionName, MatchCard, stageLabel } from '../components/match';
+import { MiniCourt } from '../components/MiniCourt';
 import { Podium } from '../components/Standings';
-import { Progress, minutesLabel, timeAgo } from '../components/ui';
+import { CourtLines, Progress, ProgressRing, TeamAvatars, minutesLabel, timeAgo } from '../components/ui';
 import { useMatchDialog } from '../components/useMatchDialog';
 import { useTournament } from '../state/store';
 
 export function Overview() {
-  const { t, resolved, canScore, update } = useTournament();
+  const { t, resolved, canScore, update, sync } = useTournament();
   const { open, dialog } = useMatchDialog();
 
   const total = resolved.ordered.filter((r) => !r.notNeeded).length;
@@ -22,89 +24,115 @@ export function Overview() {
     .slice(0, 6);
   const started = resolved.ordered.some((r) => r.m.status !== 'pending');
   const finished = total > 0 && done === total;
+  const dateText = t.date
+    ? new Date(t.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    : null;
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{t.name}</h1>
-          <div className="muted">
-            {[t.date && new Date(t.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }), t.location]
-              .filter(Boolean)
-              .join(' · ')}
+      <section className="hero-banner">
+        <CourtLines />
+        <div className="hero-grid">
+          <div style={{ minWidth: 0 }}>
+            <div className="eyebrow">{finished ? 'Final results are in' : started ? 'Live now' : 'Draw is set'}</div>
+            <h1>{t.name}</h1>
+            <div className="row">
+              {dateText && (
+                <span className="chip">
+                  <CalendarDays size={14} /> {dateText}
+                </span>
+              )}
+              {t.location && (
+                <span className="chip">
+                  <MapPin size={14} /> {t.location}
+                </span>
+              )}
+              {sync && (
+                <span className="chip">
+                  <span className="serve-ball" style={{ margin: 0, width: 8, height: 8 }} /> Live scores
+                </span>
+              )}
+            </div>
           </div>
+          <ProgressRing value={done} total={total} label="played" />
         </div>
-        <a className="btn" href="#/teams">
-          Find my matches
-        </a>
-      </div>
-
-      <div className="grid grid-3">
-        <div className="card">
-          <div className="muted small bold">Matches complete</div>
-          <div className="row-between" style={{ margin: '4px 0 8px' }}>
-            <span style={{ fontSize: '1.7rem', fontWeight: 800 }} className="num">
+        <div className="stat-strip">
+          <div className="stat">
+            <div className="value">
               {done}
-              <span className="muted" style={{ fontSize: '1rem' }}>
-                {' '}
-                / {total}
-              </span>
-            </span>
-            {finished && <span className="badge badge-accent">Tournament complete</span>}
+              <small>/{total}</small>
+            </div>
+            <div className="label">Matches done</div>
           </div>
-          <Progress value={done} total={total} />
-        </div>
-        <div className="card">
-          <div className="muted small bold">On court now</div>
-          <div style={{ fontSize: '1.7rem', fontWeight: 800 }} className="num">
-            {live.length}
-            <span className="muted" style={{ fontSize: '1rem' }}>
-              {' '}
-              / {t.courts.length} courts
-            </span>
+          <div className="stat">
+            <div className="value">
+              {live.length}
+              <small>/{t.courts.length}</small>
+            </div>
+            <div className="label">Courts live</div>
           </div>
-          <div className="muted small">{queue.length} match{queue.length === 1 ? '' : 'es'} ready to play</div>
-        </div>
-        <div className="card">
-          <div className="muted small bold">Field</div>
-          <div style={{ fontSize: '1.7rem', fontWeight: 800 }} className="num">
-            {Object.keys(t.teams).length}
-            <span className="muted" style={{ fontSize: '1rem' }}>
-              {' '}
-              {t.settings.doubles ? 'teams' : 'players'}
-            </span>
-          </div>
-          <div className="muted small">
-            {t.divisions.length} division{t.divisions.length === 1 ? '' : 's'}
+          <div className="stat">
+            <div className="value">{Object.keys(t.teams).length}</div>
+            <div className="label">
+              {t.settings.doubles ? 'Teams' : 'Players'} · {t.divisions.length} div
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {canScore && !started && (
-        <div className="card section" style={{ background: 'var(--brand-soft)', borderColor: 'transparent' }}>
-          <div className="row-between" style={{ flexWrap: 'wrap' }}>
-            <div>
-              <h3 style={{ marginBottom: 2 }}>Ready to play?</h3>
-              <div className="muted small">Send the first {Math.min(t.courts.length, queue.length)} matches to the courts.</div>
-            </div>
-            <button className="btn btn-primary" onClick={() => update(fillCourts)}>
-              Start tournament
-            </button>
+        <div className="cta-strip">
+          <div>
+            <h3>Ready to play?</h3>
+            <div className="small">Send the first {Math.min(t.courts.length, queue.length)} matches to the courts.</div>
           </div>
+          <button className="btn btn-dark btn-lg" onClick={() => update(fillCourts)}>
+            <Zap size={18} /> Start tournament
+          </button>
         </div>
       )}
+
+      <a className="card row-between" href="#/teams" style={{ marginTop: 16, color: 'inherit', textDecoration: 'none' }}>
+        <span className="row" style={{ gap: 12, flexWrap: 'nowrap', minWidth: 0 }}>
+          <span className="feature-icon" style={{ width: 38, height: 38, flexShrink: 0 }}>
+            <Search size={18} />
+          </span>
+          <span>
+            <span className="bold">Find your {t.settings.doubles ? 'team' : 'name'}</span>
+            <span className="muted small" style={{ display: 'block' }}>
+              See when you play next, your court and your results
+            </span>
+          </span>
+        </span>
+        <ChevronRight size={20} className="muted" />
+      </a>
 
       {live.length > 0 && (
         <>
           <div className="section-title">
             <h2>On court now</h2>
-            <a className="small" href="#/courts">
+            <a className="small bold" href="#/courts">
               All courts →
             </a>
           </div>
           <div className="grid grid-courts">
             {live.map(({ court, match }) => (
-              <MatchCard key={court} t={t} r={match!} onOpen={open} />
+              <div key={court} onClick={() => open(match!)} style={{ cursor: 'pointer' }}>
+                <MiniCourt
+                  t={t}
+                  court={court}
+                  match={match}
+                  meta={
+                    <>
+                      <span className="match-no">M{match!.m.number}</span>
+                      <span className="truncate">
+                        {t.divisions.length > 1 ? `${divisionName(t, match!.m.divisionId)} · ` : ''}
+                        {stageLabel(t, match!.m)}
+                      </span>
+                    </>
+                  }
+                />
+              </div>
             ))}
           </div>
         </>
@@ -125,7 +153,7 @@ export function Overview() {
                 extra={
                   <div className="match-meta">
                     <span className="badge badge-accent">#{i + 1} in line</span>
-                    <span>{minutesLabel(waits.get(q.r.m.id))}</span>
+                    <span className="bold">{minutesLabel(waits.get(q.r.m.id))}</span>
                   </div>
                 }
               />
@@ -143,24 +171,33 @@ export function Overview() {
           return (
             <div className="card" key={d.id}>
               <div className="card-head">
-                <h3>{d.name}</h3>
-                <span className="badge">{FORMAT_LABELS[d.settings.format]}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="eyebrow">{FORMAT_LABELS[d.settings.format]}</div>
+                  <h2 style={{ margin: '2px 0 0' }} className="truncate">
+                    {d.name}
+                  </h2>
+                </div>
+                {rd.complete && (
+                  <span className="badge badge-accent">
+                    <Trophy size={12} /> Done
+                  </span>
+                )}
               </div>
-              <div className="row-between small muted" style={{ marginBottom: 6 }}>
+              <div className="row-between small muted" style={{ marginBottom: 8 }}>
                 <span>
                   {d.teamIds.length} {t.settings.doubles ? 'teams' : 'players'}
                 </span>
-                <span className="num">
+                <span className="num bold">
                   {rd.progress.done}/{rd.progress.total} matches
                 </span>
               </div>
               <Progress value={rd.progress.done} total={rd.progress.total} />
               {rd.placements.length > 0 && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 14 }}>
                   <Podium t={t} placements={rd.placements} />
                 </div>
               )}
-              <div className="row" style={{ marginTop: 12 }}>
+              <div className="row" style={{ marginTop: 14 }}>
                 <a className="btn btn-sm" href={`#/standings?d=${d.id}`}>
                   Standings
                 </a>
@@ -169,7 +206,7 @@ export function Overview() {
                     Bracket
                   </a>
                 )}
-                <a className="btn btn-sm" href={`#/matches?d=${d.id}`}>
+                <a className="btn btn-sm btn-ghost" href={`#/matches?d=${d.id}`}>
                   Matches
                 </a>
               </div>
@@ -183,16 +220,23 @@ export function Overview() {
           <div className="section-title">
             <h2>Latest results</h2>
           </div>
-          <div className="card" style={{ padding: 0 }}>
+          <div className="card list-card">
             {recent.map((r) => (
               <div key={r.m.id} className="list-row" onClick={() => open(r)} role="button" tabIndex={0}>
-                <span className="bold">M{r.m.number}</span>
-                <span className="truncate">
-                  <b>{teamName(t, r.winner as string)}</b> <span className="muted">def.</span> {teamName(t, r.loser as string)}
+                <span className="match-no">M{r.m.number}</span>
+                <span className="row" style={{ gap: 10, flexWrap: 'nowrap', minWidth: 0 }}>
+                  <TeamAvatars t={t} teamId={r.winner as string} size={26} />
+                  <span className="truncate">
+                    <b>{teamName(t, r.winner as string)}</b> <span className="muted">def.</span> {teamName(t, r.loser as string)}
+                  </span>
                 </span>
-                <span className="num small muted nowrap">
-                  {r.m.forfeit ? 'W/O' : r.m.games.map((g) => (r.winnerSide === 'a' ? `${g.a}-${g.b}` : `${g.b}-${g.a}`)).join(', ')}
-                  <span className="tiny" style={{ display: 'block', textAlign: 'right' }}>
+                <span className="right">
+                  <span className="display" style={{ fontSize: '1.15rem', fontWeight: 800 }}>
+                    {r.m.forfeit
+                      ? 'W/O'
+                      : r.m.games.map((g) => (r.winnerSide === 'a' ? `${g.a}-${g.b}` : `${g.b}-${g.a}`)).join(', ')}
+                  </span>
+                  <span className="tiny muted" style={{ display: 'block' }}>
                     {timeAgo(r.m.finishedAt)}
                   </span>
                 </span>

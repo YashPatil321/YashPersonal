@@ -148,65 +148,71 @@ export function Scorekeeper({ matchId }: { matchId: string }) {
         </span>
       </div>
 
-      <div className="row-between" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-        <Segmented<Mode>
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: 'sideout', label: 'Side-out' },
-            { value: 'rally', label: 'Rally' },
-            { value: 'simple', label: '+/−' },
-          ]}
-        />
-        <span className="tiny muted">{describeRules(rules)}</span>
-      </div>
-
-      {showServe && (
-        <div className="card card-tight" style={{ marginBottom: 12 }}>
-          <div className="tiny muted center">{mode === 'sideout' ? 'Score call' : 'Score'}</div>
-          <div className="call">{call}</div>
-          <div className="tiny muted center">
-            Serving: <b>{serve.side === 'a' ? nameA : nameB}</b>
-            {mode === 'sideout' && doubles ? ` · server ${serve.server}` : ''}
-          </div>
+      <div className="scoreboard">
+        <div className="row-between" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <Segmented<Mode>
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'sideout', label: 'Side-out' },
+              { value: 'rally', label: 'Rally' },
+              { value: 'simple', label: '+/−' },
+            ]}
+          />
+          <span className="tiny" style={{ color: 'var(--on-night-muted)' }}>
+            Game {games.length} · {describeRules(rules)}
+          </span>
         </div>
-      )}
 
-      <div className="scorer-teams">
-        {(['a', 'b'] as const).map((side) => (
-          <div key={side} className={`scorer-side ${showServe && serve.side === side ? 'serving' : ''}`}>
-            <div className="team">{side === 'a' ? nameA : nameB}</div>
-            <div className="points">{game[side]}</div>
-            {mode === 'simple' ? (
-              <>
-                <button className="tap" onClick={() => addPoint(side, 1)} disabled={gameOver}>
-                  +1
-                </button>
-                <button className="tap secondary" onClick={() => addPoint(side, -1)}>
-                  −1
-                </button>
-              </>
-            ) : (
-              <button className="tap" onClick={() => rallyWon(side)} disabled={gameOver}>
-                Won rally
-              </button>
-            )}
+        {showServe && (
+          <div style={{ marginTop: 16 }}>
+            <div className="eyebrow center" style={{ color: 'var(--on-night-muted)' }}>
+              {mode === 'sideout' ? 'Score call' : 'Score'}
+            </div>
+            <div className="call">{call}</div>
+            <div className="tiny center" style={{ color: 'var(--on-night-muted)', marginTop: 4 }}>
+              Serving: <b style={{ color: 'var(--on-night)' }}>{serve.side === 'a' ? nameA : nameB}</b>
+              {mode === 'sideout' && doubles ? ` · server ${serve.server}` : ''}
+            </div>
           </div>
-        ))}
+        )}
+
+        <div className="scorer-teams">
+          {(['a', 'b'] as const).map((side) => (
+            <div key={side} className={`scorer-side ${showServe && serve.side === side ? 'serving' : ''}`}>
+              <div className="team">{side === 'a' ? nameA : nameB}</div>
+              <div className="points">{game[side]}</div>
+              {mode === 'simple' ? (
+                <>
+                  <button className="tap" onClick={() => addPoint(side, 1)} disabled={gameOver}>
+                    +1
+                  </button>
+                  <button className="tap secondary" onClick={() => addPoint(side, -1)}>
+                    −1
+                  </button>
+                </>
+              ) : (
+                <button className="tap" onClick={() => rallyWon(side)} disabled={gameOver}>
+                  Won rally
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {gameOver && (
-        <div className="alert alert-ok" style={{ marginTop: 12 }}>
+        <div className="cta-strip">
           <div className="bold">
             Game {games.length} to {game.a > game.b ? nameA : nameB} ({Math.max(game.a, game.b)}-{Math.min(game.a, game.b)})
           </div>
           <div className="row" style={{ marginTop: 8 }}>
             {decided ? (
-              <button className="btn btn-primary btn-lg" onClick={finish}>
-                Finish match — {decided === 'a' ? nameA : nameB} wins
+              <button className="btn btn-dark btn-lg" onClick={finish}>
+                Finish match: {decided === 'a' ? nameA : nameB} wins
               </button>
             ) : (
-              <button className="btn btn-primary btn-lg" onClick={nextGame}>
+              <button className="btn btn-dark btn-lg" onClick={nextGame}>
                 Start game {games.length + 1}
               </button>
             )}
@@ -249,8 +255,8 @@ export function Scorekeeper({ matchId }: { matchId: string }) {
       )}
       {mode === 'sideout' && (
         <p className="tiny muted center" style={{ marginTop: 16 }}>
-          Traditional scoring: only the serving team scores. Tap the team that won each rally — server rotation and side-outs
-          are handled for you. Games start at {doubles ? '0-0-2' : '0-0'}.
+          Traditional scoring: only the serving team scores. Tap the team that won each rally and the server rotation and
+          side-outs are handled for you. Games start at {doubles ? '0-0-2' : '0-0'}.
         </p>
       )}
     </div>

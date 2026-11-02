@@ -1,8 +1,27 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
+import {
+  Activity,
+  Ellipsis,
+  FileSpreadsheet,
+  House,
+  LayoutGrid,
+  ListOrdered,
+  LogIn,
+  LogOut,
+  Network,
+  Plus,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  Smartphone,
+  Trophy,
+  Tv,
+  UserRound,
+} from 'lucide-react';
 import { detectColumns, DEFAULT_IMPORT_OPTIONS, importRegistrations, seedTeams } from './lib/registrations';
 import { sampleRegistrations } from './lib/sample';
 import { buildTournament, courtNames, defaultDivisionSettings } from './lib/tournament';
-import { BallIcon, Modal } from './components/ui';
+import { BallIcon, CourtLines, Modal } from './components/ui';
 import { Courts } from './pages/Courts';
 import { Matches } from './pages/Matches';
 import { Overview } from './pages/Overview';
@@ -19,15 +38,28 @@ export function App() {
   const route = useRoute();
   const { t } = useStore();
   const [page] = route.parts;
+  const [login, setLogin] = useState(false);
+  const [more, setMore] = useState(false);
 
   if (page === 'tv' && t) return <TV />;
 
   return (
     <>
-      <Header />
-      <main>
+      <Header onLogin={() => setLogin(true)} />
+      <main key={route.path}>
         <Page />
       </main>
+      <BottomNav onMore={() => setMore(true)} />
+      {login && <LoginModal onClose={() => setLogin(false)} />}
+      {more && (
+        <MoreSheet
+          onClose={() => setMore(false)}
+          onLogin={() => {
+            setMore(false);
+            setLogin(true);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -61,63 +93,147 @@ function Page() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Navigation                                                         */
+/* ------------------------------------------------------------------ */
 
-function Header() {
-  const route = useRoute();
-  const { t, sync, syncState, isAdmin } = useStore();
-  const [login, setLogin] = useState(false);
-  const current = route.parts[0] ?? '';
+interface NavItem {
+  path: string;
+  label: string;
+  icon: ReactNode;
+  match?: string[];
+}
+
+function useNavItems() {
+  const { t, isAdmin } = useStore();
   const hasBrackets = !!t?.divisions.some((d) => d.settings.format !== 'round_robin');
+  const all: NavItem[] = [];
+  all.push({ path: '', label: 'Home', icon: <House size={18} /> });
+  if (t) {
+    all.push({ path: 'teams', label: t.settings.doubles ? 'My team' : 'Me', icon: <UserRound size={18} /> });
+    all.push({ path: 'courts', label: 'Courts', icon: <LayoutGrid size={18} />, match: ['courts', 'score'] });
+    all.push({ path: 'matches', label: 'Matches', icon: <ListOrdered size={18} /> });
+    all.push({ path: 'standings', label: 'Standings', icon: <Trophy size={18} />, match: hasBrackets ? ['standings'] : ['standings', 'brackets'] });
+    if (hasBrackets) all.push({ path: 'brackets', label: 'Brackets', icon: <Network size={18} /> });
+    all.push({ path: 'tv', label: 'TV', icon: <Tv size={18} /> });
+  }
+  if (isAdmin && !t) all.push({ path: 'setup', label: 'Create', icon: <Plus size={18} /> });
+  if (isAdmin) all.push({ path: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> });
+  return all;
+}
 
-  const links: Array<[string, string]> = t
-    ? [
-        ['', 'Home'],
-        ['teams', t.settings.doubles ? 'Find my team' : 'Find me'],
-        ['courts', 'Courts'],
-        ['matches', 'Matches'],
-        ['standings', 'Standings'],
-        ...(hasBrackets ? ([['brackets', 'Brackets']] as Array<[string, string]>) : []),
-        ['tv', 'TV'],
-      ]
-    : [['', 'Home']];
-  if (isAdmin) links.push(['settings', 'Settings']);
-  if (isAdmin && !t) links.push(['setup', 'Create']);
+function isActive(item: NavItem, current: string) {
+  return item.match ? item.match.includes(current) : item.path === current;
+}
+
+function Header({ onLogin }: { onLogin: () => void }) {
+  const route = useRoute();
+  const { t, sync, syncState } = useStore();
+  const current = route.parts[0] ?? '';
+  const items = useNavItems();
+  const sub = t
+    ? [t.date && new Date(t.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), t.location]
+        .filter(Boolean)
+        .join(' · ') || 'Live results'
+    : 'Brackets · scores · standings';
 
   return (
     <header className="app-header">
       <div className="header-inner">
-        <div className="header-top">
-          <a className="brand" href="#/">
-            <BallIcon />
-            <div style={{ minWidth: 0 }}>
-              <div className="brand-title truncate">{t?.name ?? 'Pickleball Tournament'}</div>
-              <div className="brand-sub truncate">
-                {t
-                  ? [t.date && new Date(t.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), t.location]
-                      .filter(Boolean)
-                      .join(' · ') || 'Live results'
-                  : 'Brackets · scores · standings'}
-              </div>
-            </div>
-          </a>
-          {sync && (
-            <span className={`sync-pill ${syncState.status}`} title={syncState.message ?? 'Live sync'}>
-              <span className="dot" />
-              {syncState.status === 'synced' ? 'Live' : syncState.status === 'saving' ? 'Saving' : syncState.status === 'connecting' ? 'Connecting' : 'Offline'}
-            </span>
-          )}
-          <AccountButton onLogin={() => setLogin(true)} />
-        </div>
+        <a className="brand" href="#/">
+          <BallIcon size={34} className="ball-spin" />
+          <div style={{ minWidth: 0 }}>
+            <div className="brand-title truncate">{t?.name ?? 'Pickleball Tournament'}</div>
+            <div className="brand-sub truncate">{sub}</div>
+          </div>
+        </a>
         <nav className="nav">
-          {links.map(([path, label]) => (
-            <a key={path} href={`#/${path}`} className={current === path ? 'active' : ''}>
-              {label}
+          {items.map((item) => (
+            <a key={item.path} href={`#/${item.path}`} className={isActive(item, current) ? 'active' : ''}>
+              {item.label}
             </a>
           ))}
         </nav>
+        <div className="header-actions">
+          {sync && (
+            <span className={`sync-pill ${syncState.status}`} title={syncState.message ?? 'Live sync'}>
+              <span className="dot" />
+              {syncState.status === 'synced'
+                ? 'Live'
+                : syncState.status === 'saving'
+                  ? 'Saving'
+                  : syncState.status === 'connecting'
+                    ? 'Connecting'
+                    : 'Offline'}
+            </span>
+          )}
+          <AccountButton onLogin={onLogin} />
+        </div>
       </div>
-      {login && <LoginModal onClose={() => setLogin(false)} />}
     </header>
+  );
+}
+
+function BottomNav({ onMore }: { onMore: () => void }) {
+  const route = useRoute();
+  const { t } = useStore();
+  const current = route.parts[0] ?? '';
+  const items = useNavItems();
+  const primaryPaths = t ? ['', 'teams', 'courts', 'standings'] : items.map((i) => i.path).slice(0, 4);
+  const primary = items.filter((i) => primaryPaths.includes(i.path));
+  const overflow = items.filter((i) => !primaryPaths.includes(i.path));
+  const moreActive = overflow.some((i) => isActive(i, current)) && !(t && current === 'brackets');
+  const cols = primary.length + (overflow.length || t ? 1 : 0);
+  return (
+    <nav className="bottom-nav" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      {primary.map((item) => (
+        <a
+          key={item.path}
+          href={`#/${item.path}`}
+          className={isActive(item, current) || (item.path === 'standings' && current === 'brackets') ? 'active' : ''}
+        >
+          {item.icon}
+          {item.label}
+        </a>
+      ))}
+      {(overflow.length > 0 || t) && (
+        <button className={moreActive ? 'active' : ''} onClick={onMore}>
+          <Ellipsis size={18} />
+          More
+        </button>
+      )}
+    </nav>
+  );
+}
+
+function MoreSheet({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }) {
+  const { t, sync, connect } = useStore();
+  const items = useNavItems().filter((i) => !(t ? ['', 'teams', 'courts', 'standings'] : []).includes(i.path));
+  return (
+    <Modal title="More" onClose={onClose}>
+      <div className="more-sheet">
+        {items.map((item) => (
+          <a key={item.path} href={`#/${item.path}`} onClick={onClose}>
+            {item.icon}
+            {item.label}
+          </a>
+        ))}
+        {sync?.role === 'viewer' && (
+          <button onClick={onLogin}>
+            <LogIn size={18} /> Organizer login
+          </button>
+        )}
+        {sync && sync.role !== 'viewer' && (
+          <button
+            onClick={() => {
+              void connect({ url: sync.url, role: 'viewer' });
+              onClose();
+            }}
+          >
+            <LogOut size={18} /> Sign out ({sync.role})
+          </button>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -126,23 +242,22 @@ function AccountButton({ onLogin }: { onLogin: () => void }) {
   if (!sync) return null;
   if (sync.role === 'viewer') {
     return (
-      <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.14)', color: 'inherit', borderColor: 'transparent' }} onClick={onLogin}>
-        Organizer login
+      <button className="btn btn-sm btn-glass" onClick={onLogin}>
+        <LogIn size={15} /> Login
       </button>
     );
   }
   return (
     <button
-      className="btn btn-sm"
-      style={{ background: 'var(--accent)', color: 'var(--accent-ink)', borderColor: 'transparent' }}
-      title="Signed in — click to sign out"
+      className="btn btn-sm btn-primary"
+      title="Signed in. Click to sign out."
       onClick={() => {
         if (window.confirm(`You're signed in as ${sync.role}. Sign out on this device?`)) {
           void connect({ url: sync.url, role: 'viewer' });
         }
       }}
     >
-      {sync.role === 'admin' ? 'Admin' : 'Scorer'} ✓
+      <ShieldCheck size={15} /> {sync.role === 'admin' ? 'Admin' : 'Scorer'}
     </button>
   );
 }
@@ -169,7 +284,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal title="Organizer login" subtitle="Admins run the tournament; scorers can enter scores." onClose={onClose}>
+    <Modal title="Organizer login" subtitle="Admins run the tournament. Scorers can enter scores." onClose={onClose}>
       <form
         className="stack"
         onSubmit={(e) => {
@@ -186,7 +301,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
           <button className="btn btn-primary" disabled={!passcode.trim() || busy} type="submit">
             {busy ? 'Checking…' : 'Sign in'}
           </button>
-          <span className="muted tiny">Players don’t need to sign in — the live results are public.</span>
+          <span className="muted tiny">Players don’t need to sign in. Live results are public.</span>
         </div>
       </form>
     </Modal>
@@ -194,12 +309,14 @@ function LoginModal({ onClose }: { onClose: () => void }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Landing                                                            */
+/* ------------------------------------------------------------------ */
 
 function AdminOnly() {
   return (
     <div className="card empty">
-      <h3 style={{ color: 'var(--ink)' }}>Organizers only</h3>
-      <p>Use “Organizer login” at the top with the admin passcode.</p>
+      <h2 style={{ color: 'var(--ink)' }}>Organizers only</h2>
+      <p>Tap “Login” at the top and enter the admin passcode.</p>
     </div>
   );
 }
@@ -208,7 +325,14 @@ function createDemo() {
   const rows = sampleRegistrations();
   const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
   return buildTournament(
-    { name: 'Demo Pickleball Classic', date: new Date().toISOString().slice(0, 10), location: 'Riverside Park', courts: courtNames(4), minutesPerMatch: 20, doubles: true },
+    {
+      name: 'Demo Pickleball Classic',
+      date: new Date().toISOString().slice(0, 10),
+      location: 'Riverside Park',
+      courts: courtNames(4),
+      minutesPerMatch: 20,
+      doubles: true,
+    },
     res.players,
     res.teams,
     res.divisions.map((d) => ({
@@ -219,6 +343,15 @@ function createDemo() {
   );
 }
 
+const FEATURES: Array<[ReactNode, string, string]> = [
+  [<FileSpreadsheet size={20} />, 'Google Form → teams', 'Reads your sign-up sheet, matches partners who registered separately and pairs players who need one.'],
+  [<Network size={20} />, 'Any format', 'Round robin, pools into playoffs, single or double elimination, all with byes and seeding handled.'],
+  [<LayoutGrid size={20} />, 'Court desk', 'Sends the next match to each open court automatically and never double-books a team.'],
+  [<Activity size={20} />, 'Live scoring', 'Tap-to-score that calls the score for you (“4-2-1”), rally scoring, or type in the final.'],
+  [<Smartphone size={20} />, 'Players see everything', 'Live courts, “find my team” with wait times, standings, brackets and TV mode. No logins.'],
+  [<ShieldCheck size={20} />, 'You stay in control', 'Admin and scorer passcodes. Competitors can look but not touch, and contact details stay private.'],
+];
+
 function Welcome() {
   const { sync, isAdmin, replace, connect } = useStore();
   const [joinUrl, setJoinUrl] = useState('');
@@ -226,11 +359,17 @@ function Welcome() {
 
   if (sync && !isAdmin) {
     return (
-      <div className="hero">
-        <BallIcon size={64} />
-        <h1>Draw coming soon</h1>
-        <p>The organizer hasn’t published the brackets yet. This page updates by itself — keep it open or check back shortly.</p>
-      </div>
+      <section className="hero" style={{ textAlign: 'center' }}>
+        <CourtLines />
+        <BallIcon size={88} />
+        <div className="eyebrow" style={{ marginTop: 18 }}>
+          Stay tuned
+        </div>
+        <h1 style={{ margin: '10px auto 14px' }}>Draw coming soon</h1>
+        <p style={{ margin: '0 auto' }}>
+          The organizer hasn’t published the brackets yet. This page updates by itself, so keep it open or check back shortly.
+        </p>
+      </section>
     );
   }
 
@@ -239,8 +378,7 @@ function Welcome() {
     const raw = joinUrl.trim();
     let url = raw;
     try {
-      const u = new URL(raw);
-      url = u.searchParams.get('live') ?? raw;
+      url = new URL(raw).searchParams.get('live') ?? raw;
     } catch {
       /* not a URL with params */
     }
@@ -253,43 +391,51 @@ function Welcome() {
 
   return (
     <>
-      <div className="hero">
-        <BallIcon size={64} />
-        <h1>Run your pickleball tournament from a Google Form</h1>
+      <section className="hero">
+        <CourtLines />
+        <BallIcon size={220} className="hero-ball" />
+        <div className="eyebrow">Pickleball tournament manager</div>
+        <h1>
+          From Google Form <span className="hl">to final point.</span>
+        </h1>
         <p>
-          Import sign-ups from Google Sheets and get teams, pools, brackets, court assignments, live scoring and standings.
-          Players follow along on their phones; only you can change anything.
+          Turn sign-ups into teams, pools, brackets, court assignments, live scores and standings. Players follow along on
+          their phones, and only you can change anything.
         </p>
-        <div className="row" style={{ justifyContent: 'center' }}>
+        <div className="row">
           <a className="btn btn-primary btn-lg" href="#/setup">
-            Create a tournament
+            <Plus size={18} /> Create a tournament
           </a>
           <button
-            className="btn btn-lg"
+            className="btn btn-glass btn-lg"
             onClick={() => {
               replace(createDemo());
               navigate('/');
             }}
           >
-            Try a demo
+            Try the demo
           </button>
         </div>
-      </div>
+      </section>
 
-      <div className="card" style={{ maxWidth: 640, margin: '0 auto' }}>
-        <h3>Player? Open the live tournament</h3>
-        <div className="row">
-          <input
-            className="input"
-            style={{ flex: '1 1 260px' }}
-            placeholder="Paste the link the organizer shared"
-            value={joinUrl}
-            onChange={(e) => setJoinUrl(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && joinUrl && join()}
-          />
-          <button className="btn" disabled={!joinUrl.trim()} onClick={join}>
-            Open
-          </button>
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="row-between" style={{ flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h3 style={{ margin: 0 }}>Playing in a tournament?</h3>
+            <div className="muted small">Paste the link your organizer shared to follow it live.</div>
+          </div>
+          <div className="row" style={{ flex: '1 1 320px', flexWrap: 'nowrap' }}>
+            <input
+              className="input"
+              placeholder="Tournament link"
+              value={joinUrl}
+              onChange={(e) => setJoinUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && joinUrl && join()}
+            />
+            <button className="btn btn-dark" disabled={!joinUrl.trim()} onClick={join}>
+              Open
+            </button>
+          </div>
         </div>
         {error && (
           <div className="alert alert-error small" style={{ marginTop: 10 }}>
@@ -298,16 +444,10 @@ function Welcome() {
         )}
       </div>
 
-      <div className="feature-list" style={{ maxWidth: 1000, margin: '28px auto 0' }}>
-        {[
-          ['Google Form → teams', 'Auto-detects your form questions, matches partners who signed up separately and pairs players who need a partner.'],
-          ['Any format', 'Round robin, pool play into playoffs, single or double elimination — per division, with byes and seeding handled.'],
-          ['Court desk', 'Calls the next match to each open court automatically and never double-books a team.'],
-          ['Live scoring', 'Tap-to-score with side-out server calls (“4-2-1”), rally scoring, or just type the final score.'],
-          ['Players see everything', 'Public live page, “find my team” with wait times, standings, brackets and a TV mode — no logins.'],
-          ['You stay in control', 'Admin and scorer passcodes; competitors can look but not touch. Contact details stay private.'],
-        ].map(([title, text]) => (
+      <div className="feature-list">
+        {FEATURES.map(([icon, title, text]) => (
           <div className="card" key={title}>
+            <span className="feature-icon">{icon}</span>
             <h3>{title}</h3>
             <div className="muted small">{text}</div>
           </div>

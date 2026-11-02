@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { matchQueue, waitEstimates } from '../lib/actions';
 import { teamMatches, teamRecord } from '../lib/resolve';
 import { MatchCard } from '../components/match';
-import { Empty, minutesLabel } from '../components/ui';
+import { Search } from 'lucide-react';
+import { Empty, TeamAvatars, minutesLabel } from '../components/ui';
 import { useMatchDialog } from '../components/useMatchDialog';
 import { navigate } from '../state/router';
 import { useTournament } from '../state/store';
@@ -23,44 +24,49 @@ export function Teams() {
   return (
     <>
       <div className="page-head">
-        <h1>{t.settings.doubles ? 'Teams' : 'Players'}</h1>
+        <div>
+          <div className="eyebrow">{Object.keys(t.teams).length} {t.settings.doubles ? 'teams' : 'players'}</div>
+          <h1>Find your {t.settings.doubles ? 'team' : 'name'}</h1>
+        </div>
       </div>
-      <div className="card" style={{ marginBottom: 14 }}>
-        <label className="field">
-          Find your {t.settings.doubles ? 'team' : 'name'}
-          <input
-            className="input"
-            autoFocus
-            placeholder="Type your name…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && matches.length === 1) navigate(`/teams/${matches[0].id}`);
-            }}
-          />
-        </label>
+      <div className="search-box" style={{ marginBottom: 18 }}>
+        <Search size={20} />
+        <input
+          className="input"
+          autoFocus
+          placeholder="Type your name…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && matches.length === 1) navigate(`/teams/${matches[0].id}`);
+          }}
+          aria-label={`Find your ${t.settings.doubles ? 'team' : 'name'}`}
+        />
       </div>
       {t.divisions.map((d) => {
         const list = d.teamIds.filter((id) => matches.some((m) => m.id === id));
         if (!list.length) return null;
         return (
           <div key={d.id} style={{ marginBottom: 18 }}>
-            {t.divisions.length > 1 && <h3>{d.name}</h3>}
-            <div className="card" style={{ padding: 0 }}>
+            {t.divisions.length > 1 && <div className="eyebrow" style={{ margin: '0 0 8px 4px' }}>{d.name}</div>}
+            <div className="card list-card">
               {list.map((id) => {
                 const team = t.teams[id];
                 const rec = teamRecord(resolved, id);
                 const live = teamMatches(resolved, id).find((r) => r.m.status === 'live' && !r.done);
                 return (
-                  <a key={id} className="list-row" href={`#/teams/${id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
-                    <span className="seed-pill">{d.teamIds.indexOf(id) + 1}</span>
+                  <a key={id} className="list-row auto-first" href={`#/teams/${id}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                    <TeamAvatars t={t} teamId={id} size={30} />
                     <span className="truncate">
                       <span className="bold">{team.name}</span>
-                      {team.rating !== undefined && <span className="muted small"> · {team.rating.toFixed(2)}</span>}
+                      <span className="muted small" style={{ display: 'block' }}>
+                        Seed {d.teamIds.indexOf(id) + 1}
+                        {team.rating !== undefined ? ` · ${team.rating.toFixed(2)}` : ''}
+                      </span>
                     </span>
                     <span className="row" style={{ gap: 6 }}>
                       {live && <span className="badge badge-live">{live.m.court ?? 'Live'}</span>}
-                      <span className="num bold">
+                      <span className="wl num">
                         {rec.wins}-{rec.losses}
                       </span>
                     </span>
@@ -100,10 +106,13 @@ export function TeamDetail({ teamId }: { teamId: string }) {
     <>
       <div className="page-head">
         <div style={{ minWidth: 0 }}>
-          <a className="small" href="#/teams">
+          <a className="small bold" href="#/teams">
             ← All {t.settings.doubles ? 'teams' : 'players'}
           </a>
-          <h1 style={{ marginTop: 4 }}>{team.name}</h1>
+          <div className="row" style={{ gap: 12, marginTop: 8, flexWrap: 'nowrap' }}>
+            <TeamAvatars t={t} teamId={teamId} size={44} />
+            <h1 style={{ margin: 0 }}>{team.name}</h1>
+          </div>
           <div className="muted">
             {division?.name} · Record <b className="num">{rec.wins}-{rec.losses}</b>
             {place && ` · Finished #${place}`}
