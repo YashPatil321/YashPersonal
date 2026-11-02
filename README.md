@@ -81,6 +81,22 @@ This is what lets competitors follow along on their own phones. It uses a free G
 
 Skip Apps Script. In the Create wizard, paste your spreadsheet link (Share → *Anyone with the link → Viewer*), upload a CSV, or paste rows. The tournament is saved in that browser. Open **TV mode** in a second window on a big screen and it updates as you enter scores. You can switch to Option A at any time with **Settings → Live sync → Connect & publish this device's tournament**.
 
+## Planning for your time
+
+In the Create wizard, enter your courts and how many hours you have. The **Format** step simulates the whole day: courts, match length, who can play when, and bracket rounds that have to wait. It then tells you whether the draw fits, with ideas if it doesn't. On the day, the home page shows a projected finish time and warns the organizer if things are running long.
+
+What fits on **10 courts** with the default format (pools of about 5, top 2 into a single-elimination bracket, one game to 11):
+
+| Teams | Matches | ~20 min per game | ~15 min per game |
+|---|---:|---:|---:|
+| 24 (1 division) | 55 | 3h 00m | 2h 15m |
+| 32 (2 × 16) | 80 | 3h 20m | 2h 30m |
+| 40 (2 × 20) | 94 | 3h 40m | 2h 45m |
+| 48 (2 × 24) | 110 | 4h 40m | 3h 30m |
+| 60 (3 × 20) | 141 | 5h 20m | 4h 00m |
+
+So in about 4 hours, plan for up to roughly 40 teams. Go bigger only with shorter games: to 9, or with a point cap.
+
 ## 4. Tournament day
 
 1. **Home → Start tournament** sends the first matches to every court.

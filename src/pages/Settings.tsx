@@ -209,13 +209,27 @@ function EventCard() {
           <input className="input" defaultValue={t.location} onBlur={(e) => set({ location: e.target.value.trim() || undefined })} />
         </label>
         <label className="field">
-          Minutes per match (for wait estimates)
+          Minutes for one game to 11
           <input
             className="input"
             type="number"
             min={5}
             defaultValue={t.settings.minutesPerMatch}
             onBlur={(e) => set({ settings: { ...t.settings, minutesPerMatch: Math.max(5, Number(e.target.value) || 20) } })}
+          />
+        </label>
+        <label className="field">
+          Hours you have the courts
+          <input
+            className="input"
+            type="number"
+            min={0.5}
+            step={0.5}
+            defaultValue={t.settings.hoursAvailable ?? ''}
+            placeholder="e.g. 4"
+            onBlur={(e) =>
+              set({ settings: { ...t.settings, hoursAvailable: Number(e.target.value) > 0 ? Number(e.target.value) : undefined } })
+            }
           />
         </label>
       </div>

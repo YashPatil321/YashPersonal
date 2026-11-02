@@ -1181,11 +1181,19 @@ textarea.input {
   padding: 4px 8px;
   border-radius: 8px;
   max-width: 100%;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.court-side.right .team {
+  align-items: flex-end;
+}
+.court-side .team span {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
 .court-side .pts {
   font-family: var(--display);
@@ -2134,5 +2142,100 @@ tr.advancing .rank {
   }
   .court-side .pts {
     font-size: 2.6rem;
+  }
+}
+
+/* =====================================================================
+   Time budget
+   ===================================================================== */
+.time-budget {
+  border-radius: 20px;
+  padding: 18px;
+  margin-bottom: 16px;
+  color: var(--on-night);
+  background: radial-gradient(500px 200px at 100% 0%, rgba(212, 255, 58, 0.14), transparent 70%), var(--night);
+  box-shadow: var(--shadow);
+}
+.time-budget.over {
+  background: radial-gradient(500px 200px at 100% 0%, rgba(255, 90, 54, 0.28), transparent 70%), var(--night);
+}
+.time-budget .eyebrow {
+  color: var(--ball);
+}
+.time-budget.over .eyebrow {
+  color: var(--coral);
+}
+.tb-big {
+  font-family: var(--display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 2.4rem;
+  line-height: 1;
+  margin: 4px 0 6px;
+  text-transform: uppercase;
+}
+.tb-big span {
+  font-size: 1.1rem;
+  color: var(--on-night-muted);
+}
+.time-budget .small {
+  color: var(--on-night-muted);
+}
+.tb-bar {
+  height: 10px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  margin-top: 12px;
+}
+.tb-bar > div {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--ball);
+  box-shadow: 0 0 12px rgba(212, 255, 58, 0.6);
+}
+.time-budget.over .tb-bar > div {
+  background: var(--coral);
+  box-shadow: 0 0 12px rgba(255, 90, 54, 0.6);
+}
+.tb-tips {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+
+/* TV with many courts: smaller court cards so 10+ fit on one screen */
+.tv-courts {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+}
+.tv-courts.compact {
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.tv .tv-courts.compact .court-surface {
+  min-height: 108px;
+}
+.tv .tv-courts.compact .court-side .pts {
+  font-size: 2.6rem;
+}
+.tv .tv-courts.compact .court-side .team {
+  font-size: 0.78rem;
+}
+.tv .tv-courts.compact .court-card-head {
+  padding: 8px 12px 6px;
+}
+.tv .tv-courts.compact .court-name {
+  font-size: 1.15rem;
+}
+.tv .tv-courts.compact .court-card-foot {
+  padding: 8px 12px 10px;
+}
+@media (min-width: 1500px) {
+  .tv-courts.compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

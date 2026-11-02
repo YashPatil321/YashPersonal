@@ -131,6 +131,8 @@ export interface TournamentSettings {
   /** Average minutes per match, used for wait estimates. */
   minutesPerMatch: number;
   doubles: boolean;
+  /** How long the venue is booked, for time-budget warnings. */
+  hoursAvailable?: number;
 }
 
 export interface Tournament {

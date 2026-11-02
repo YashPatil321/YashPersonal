@@ -16,6 +16,7 @@ import {
 import type { ColumnMapping, FieldKey, ImportOptions, PairingStrategy, SeedingMethod } from '../lib/registrations';
 import { sampleRegistrations } from '../lib/sample';
 import { describeRules } from '../lib/scoring';
+import { formatDuration, projectSchedule } from '../lib/schedule';
 import { classifyGoogleUrl, fetchSheetRows } from '../lib/sheets';
 import {
   buildTournament,
@@ -47,6 +48,7 @@ interface Draft {
     location: string;
     courtCount: number;
     minutesPerMatch: number;
+    hours?: number;
     doubles: boolean;
   };
   sourceTab: 'sheet' | 'upload' | 'paste' | 'sample';
@@ -70,8 +72,9 @@ function emptyDraft(): Draft {
       name: '',
       date: new Date().toISOString().slice(0, 10),
       location: '',
-      courtCount: 4,
+      courtCount: 10,
       minutesPerMatch: 20,
+      hours: 4,
       doubles: true,
     },
     sourceTab: 'sheet',
@@ -152,6 +155,7 @@ export function Setup() {
         courts: courtNames(Math.max(1, info.courtCount)),
         minutesPerMatch: info.minutesPerMatch,
         doubles: info.doubles,
+        hoursAvailable: info.hours ?? 4,
       },
       draft.players,
       draft.teams,
@@ -280,7 +284,20 @@ function EventStep({ draft, patch, next }: { draft: Draft; patch: (p: Partial<Dr
             />
           </label>
           <label className="field">
-            Average minutes per match
+            Hours you have the courts
+            <input
+              className="input"
+              type="number"
+              min={0.5}
+              max={24}
+              step={0.5}
+              value={info.hours ?? 4}
+              onChange={(e) => set({ hours: Math.max(0.5, Number(e.target.value) || 4) })}
+            />
+            <span className="hint">We’ll check the draw fits in this time.</span>
+          </label>
+          <label className="field">
+            Minutes for one game to 11
             <input
               className="input"
               type="number"
@@ -289,7 +306,7 @@ function EventStep({ draft, patch, next }: { draft: Draft; patch: (p: Partial<Dr
               value={info.minutesPerMatch}
               onChange={(e) => set({ minutesPerMatch: Math.max(5, Number(e.target.value) || 20) })}
             />
-            <span className="hint">Used for wait-time estimates. ~15–20 for one game to 11.</span>
+            <span className="hint">Including changeover. Rec play is usually 15–20.</span>
           </label>
           <div className="field">
             Event type
@@ -1010,14 +1027,10 @@ function ScoringEditor({ value, onChange }: { value: ScoringRules; onChange: (v:
 function DivisionFormat({
   div,
   doubles,
-  courts,
-  minutes,
   onChange,
 }: {
   div: DraftDivision;
   doubles: boolean;
-  courts: number;
-  minutes: number;
   onChange: (fn: (d: DraftDivision) => DraftDivision) => void;
 }) {
   const s = div.settings;
@@ -1151,21 +1164,12 @@ function DivisionFormat({
 
       <div className="alert small" style={{ marginTop: 14 }}>
         <b className="num">{est.matches}</b> matches · {describeRules(s.scoring)}
-        {differentFinals && s.finalsScoring ? `; finals ${describeRules(s.finalsScoring).toLowerCase()}` : ''} · about{' '}
-        <b>{formatDuration((est.matches * minutes) / Math.max(1, courts))}</b> on {courts} court{courts === 1 ? '' : 's'} if
-        this division had them all to itself.
+        {differentFinals && s.finalsScoring ? `; finals ${describeRules(s.finalsScoring).toLowerCase()}` : ''}
       </div>
     </div>
   );
 }
 
-function formatDuration(min: number): string {
-  const m = Math.round(min / 5) * 5;
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  return `${h}h${r ? ` ${r}m` : ''}`;
-}
 
 function FormatStep({
   draft,
@@ -1179,22 +1183,61 @@ function FormatStep({
   next: () => void;
 }) {
   const divisions = draft.divisions.filter((d) => d.teamIds.length >= 2);
-  const total = divisions.reduce((sum, d) => sum + estimateDivision(d.teamIds, d.settings).matches, 0);
   const courts = Math.max(1, draft.info.courtCount);
+  const hours = draft.info.hours ?? 4;
+  const projection = useMemo(() => {
+    if (!divisions.length) return null;
+    const preview = buildTournament(
+      {
+        name: 'preview',
+        courts: courtNames(courts),
+        minutesPerMatch: draft.info.minutesPerMatch,
+        doubles: draft.info.doubles,
+      },
+      draft.players,
+      draft.teams,
+      divisions.map((d) => ({ name: d.name, teamIds: d.teamIds, settings: d.settings })),
+    );
+    return projectSchedule(preview);
+  }, [divisions, courts, draft.info.minutesPerMatch, draft.info.doubles, draft.players, draft.teams]);
+  const budget = hours * 60;
+  const over = projection ? projection.minutes - budget : 0;
   return (
     <>
-      <div className="alert" style={{ marginBottom: 14 }}>
-        <b>{total} matches</b> in total · roughly <b>{formatDuration((total * draft.info.minutesPerMatch) / courts)}</b> of play on{' '}
-        {courts} court{courts === 1 ? '' : 's'} at ~{draft.info.minutesPerMatch} min per match.
-      </div>
+      {projection && (
+        <div className={`time-budget ${over > 0 ? 'over' : 'fits'}`}>
+          <div className="tb-main">
+            <div className="eyebrow">{over > 0 ? 'Over your time' : 'Fits your time'}</div>
+            <div className="tb-big">
+              {formatDuration(projection.minutes)} <span>of {formatDuration(budget)}</span>
+            </div>
+            <div className="small">
+              {projection.matches} matches on {courts} court{courts === 1 ? '' : 's'} at ~{draft.info.minutesPerMatch} min per
+              game to 11.{' '}
+              {over > 0
+                ? `About ${formatDuration(over)} too long.`
+                : `About ${formatDuration(-over)} to spare for warm-ups, delays and awards.`}
+            </div>
+          </div>
+          <div className="tb-bar" aria-hidden="true">
+            <div style={{ width: `${Math.min(100, (projection.minutes / Math.max(1, budget)) * 100)}%` }} />
+          </div>
+          {over > 0 && (
+            <ul className="small tb-tips">
+              <li>Play pool games to 9 (or add a cap) instead of 11.</li>
+              <li>Use one game instead of best of 3, at least until the semifinals.</li>
+              <li>Send fewer teams from each pool to the playoffs, or use single instead of double elimination.</li>
+              <li>Use bigger pools, or a single round robin for small divisions.</li>
+            </ul>
+          )}
+        </div>
+      )}
       <div className="stack" style={{ gap: 14 }}>
         {divisions.map((div) => (
           <DivisionFormat
             key={div.id}
             div={div}
             doubles={draft.info.doubles}
-            courts={courts}
-            minutes={draft.info.minutesPerMatch}
             onChange={(fn) => setDraft((d) => ({ ...d, divisions: d.divisions.map((x) => (x.id === div.id ? fn(x) : x)) }))}
           />
         ))}
@@ -1224,7 +1267,9 @@ function ReviewStep({
       <div className="card">
         <h2>{draft.info.name || 'Pickleball Tournament'}</h2>
         <div className="muted" style={{ marginBottom: 12 }}>
-          {[draft.info.date, draft.info.location, `${draft.info.courtCount} courts`].filter(Boolean).join(' · ')}
+          {[draft.info.date, draft.info.location, `${draft.info.courtCount} courts`, `${draft.info.hours ?? 4} hours`]
+            .filter(Boolean)
+            .join(' · ')}
         </div>
         <div className="table-wrap">
           <table className="table">

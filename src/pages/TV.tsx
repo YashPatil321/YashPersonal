@@ -64,7 +64,7 @@ export function TV() {
       )}
 
       <div className="tv-grid">
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', alignContent: 'start' }}>
+        <div className={`tv-courts ${courts.length > 6 ? 'compact' : ''}`}>
           {courts.map(({ court, match }) => (
             <MiniCourt
               key={court}

@@ -1,5 +1,6 @@
-import { CalendarDays, ChevronRight, MapPin, Search, Trophy, Zap } from 'lucide-react';
+import { CalendarDays, ChevronRight, Clock, MapPin, Search, Trophy, Zap } from 'lucide-react';
 import { courtStatus, fillCourts, matchQueue, waitEstimates } from '../lib/actions';
+import { clockAfter, formatDuration, projectSchedule } from '../lib/schedule';
 import { FORMAT_LABELS, teamName } from '../lib/tournament';
 import { divisionName, MatchCard, stageLabel } from '../components/match';
 import { MiniCourt } from '../components/MiniCourt';
@@ -24,6 +25,14 @@ export function Overview() {
     .slice(0, 6);
   const started = resolved.ordered.some((r) => r.m.status !== 'pending');
   const finished = total > 0 && done === total;
+  const projection = projectSchedule(t, { fromNow: started });
+  const calledTimes = Object.values(t.matches)
+    .map((m) => m.calledAt)
+    .filter((x): x is number => typeof x === 'number');
+  const firstCall = calledTimes.length ? Math.min(...calledTimes) : undefined;
+  const budget = t.settings.hoursAvailable ? t.settings.hoursAvailable * 60 : undefined;
+  const elapsed = firstCall ? (Date.now() - firstCall) / 60000 : 0;
+  const overBy = budget && started && !finished ? elapsed + projection.minutes - budget : 0;
   const dateText = t.date
     ? new Date(t.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
     : null;
@@ -50,6 +59,14 @@ export function Overview() {
               {sync && (
                 <span className="chip">
                   <span className="serve-ball" style={{ margin: 0, width: 8, height: 8 }} /> Live scores
+                </span>
+              )}
+              {!finished && projection.matches > 0 && (
+                <span className="chip" title="Estimated from courts, match length and the bracket order">
+                  <Clock size={14} />
+                  {started
+                    ? `Wraps up ~${clockAfter(projection.minutes)}`
+                    : `~${formatDuration(projection.minutes)} of play${budget ? ` · ${formatDuration(budget)} booked` : ''}`}
                 </span>
               )}
             </div>
@@ -79,6 +96,13 @@ export function Overview() {
           </div>
         </div>
       </section>
+
+      {canScore && overBy > 5 && (
+        <div className="alert alert-warn" style={{ marginTop: 16 }}>
+          <b>Running long:</b> on pace to finish about {formatDuration(overBy)} after your {t.settings.hoursAvailable} hours. Keep
+          every court busy (turn on Auto-call on the Courts page) and consider shorter games for the remaining rounds.
+        </div>
+      )}
 
       {canScore && !started && (
         <div className="cta-strip">

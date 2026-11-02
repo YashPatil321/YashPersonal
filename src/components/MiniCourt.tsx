@@ -31,7 +31,12 @@ export function MiniCourt({
             (['a', 'b'] as const).map((side) => (
               <div key={side} className={`court-side ${side === 'b' ? 'right' : ''} ${serving === side ? 'serving' : ''}`}>
                 <div className="team" title={teamName(t, side === 'a' ? (match.a as string) : (match.b as string))}>
-                  {teamName(t, side === 'a' ? (match.a as string) : (match.b as string))}
+                  {teamName(t, side === 'a' ? (match.a as string) : (match.b as string))
+                    .split(' / ')
+                    .slice(0, 2)
+                    .map((line, i) => (
+                      <span key={i}>{line}</span>
+                    ))}
                 </div>
                 <div className="pts">
                   {side === 'b' && serving === 'b' && <span className="serve-ball" title="Serving" />}

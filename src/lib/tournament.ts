@@ -27,6 +27,7 @@ export interface TournamentInfo {
   courts: string[];
   minutesPerMatch: number;
   doubles: boolean;
+  hoursAvailable?: number;
 }
 
 export function courtNames(count: number): string[] {
@@ -68,7 +69,12 @@ export function buildTournament(
     teams: teamCopy,
     divisions: divs,
     matches: {},
-    settings: { autoCall: true, minutesPerMatch: info.minutesPerMatch || 20, doubles: info.doubles },
+    settings: {
+      autoCall: true,
+      minutesPerMatch: info.minutesPerMatch || 20,
+      doubles: info.doubles,
+      hoursAvailable: info.hoursAvailable,
+    },
     createdAt: now,
     updatedAt: now,
   };
