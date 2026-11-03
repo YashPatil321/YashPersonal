@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error — plain JS test harness
 import { createAppsScript } from '../../../apps-script/harness.mjs';
 import { finishMatch } from '../actions';
+import { detectColumns, DEFAULT_IMPORT_OPTIONS, importRegistrations } from '../registrations';
 import { buildTournament, courtNames, defaultDivisionSettings } from '../tournament';
 import type { Tournament } from '../types';
 
@@ -88,5 +89,69 @@ describe('Apps Script backend (Code.gs)', () => {
     // Scorers can't save the whole tournament or clear it.
     expect(api.post({ action: 'saveState', passcode: 'courts', state: t }).ok).toBe(false);
     expect(api.post({ action: 'clearState', passcode: 'courts' }).ok).toBe(false);
+  });
+
+  it('setup() builds the SACS sign-up form, response sheet and passcodes in a fresh script project', () => {
+    const api = createAppsScript({ standalone: true });
+    expect(api.post({ action: 'verify', passcode: 'change-me' })).toMatchObject({ ok: false, auth: false });
+    expect(api.get({ action: 'ping' }).ok).toBe(false);
+
+    const log = api.setup();
+    expect(log).toContain('SACS Pickleball Tournament is set up');
+    const admin = api.props.get('ADMIN_PASSCODE');
+    const scorer = api.props.get('SCORER_PASSCODE');
+    expect(admin).toMatch(/^sacs-[0-9a-f]{6}$/);
+    expect(scorer).toMatch(/^court-[0-9a-f]{4}$/);
+    expect(log).toContain(admin);
+
+    // One form, linked to one new spreadsheet whose only tab is the responses tab
+    expect(api.forms.size).toBe(1);
+    const form = [...api.forms.values()][0];
+    expect(form.title).toBe('SACS Pickleball Tournament Registration');
+    expect(form.description).toContain('Akshaya Patra Foundation');
+    expect(form.confirmation).toContain('pickleball-tournament-jet.vercel.app');
+    const book = api.books.get(api.props.get('SHEET_ID'));
+    expect(book.getSheets().map((s: { name: string }) => s.name)).toEqual(['Form Responses 1']);
+
+    // Running setup again reuses everything
+    api.setup();
+    expect(api.forms.size).toBe(1);
+    expect(api.props.get('ADMIN_PASSCODE')).toBe(admin);
+
+    // The site can reach it and reads the form link from ping
+    const ping = api.get({ action: 'ping' });
+    expect(ping).toMatchObject({ ok: true, formUrl: form.getPublishedUrl() });
+    expect(api.post({ action: 'verify', passcode: admin }).role).toBe('admin');
+    expect(api.post({ action: 'verify', passcode: scorer }).role).toBe('scorer');
+
+    // Responses come back with headers the importer understands
+    const rows = api.post({ action: 'registrations', passcode: admin }).rows as string[][];
+    expect(detectColumns(rows[0])).toMatchObject({
+      timestamp: 0,
+      name: 1,
+      email: 2,
+      phone: 3,
+      skill: 5,
+      division: 6,
+      partnerName: 7,
+      partnerEmail: 8,
+      partnerSkill: 9,
+      teamName: 10,
+    });
+    const sample = [
+      rows[0],
+      ['11/1/2026 9:00', 'Riya Shah', 'riya@example.com', '', 'Del Norte', 'Intermediate (2.5 - 3.5)', 'Competitive', 'Arjun Rao', '', 'Advanced (4.0+)', 'Dink Dynasty', ''],
+      ['11/1/2026 9:05', 'Maya Iyer', 'maya@example.com', '', 'Westview', 'Beginner (new to pickleball)', 'Just for fun', '', '', '', '', ''],
+      ['11/1/2026 9:07', 'Dev Patel', 'dev@example.com', '', 'Torrey Pines', 'Advanced (4.0+)', 'Just for fun', '', '', '', '', ''],
+    ];
+    const res = importRegistrations(sample, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
+    expect(res.divisions.map((d) => d.name)).toEqual(['Competitive', 'Just for fun']);
+    const team = Object.values(res.teams).find((t) => t.name === 'Dink Dynasty')!;
+    expect(team.rating).toBe(3.5); // (3.0 + 4.0) / 2
+    expect(res.divisions[1].teamIds.length).toBe(1); // the two free agents were paired
+
+    // State storage works in the created spreadsheet
+    expect(api.post({ action: 'saveState', passcode: admin, state: tournament() }).ok).toBe(true);
+    expect(api.get({ action: 'state' }).state.name).toBe('T');
   });
 });

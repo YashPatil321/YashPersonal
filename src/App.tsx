@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { BRAND } from './brand';
 import { BallIcon, BrandName, CauseCard, Mandala, Modal, Toran } from './components/ui';
+import { Admin } from './pages/Admin';
 import { Courts } from './pages/Courts';
 import { Matches } from './pages/Matches';
 import { Overview } from './pages/Overview';
@@ -30,6 +31,7 @@ import { TeamDetail, Teams } from './pages/Teams';
 import { TV } from './pages/TV';
 import { useRoute } from './state/router';
 import { useStore } from './state/store';
+import { useEventInfo } from './state/useEventInfo';
 
 export function App() {
   const route = useRoute();
@@ -46,7 +48,7 @@ export function App() {
       <main key={route.path}>
         <Page onLogin={() => setLogin(true)} />
       </main>
-      <Footer onLogin={() => setLogin(true)} />
+      <Footer />
       <BottomNav onMore={() => setMore(true)} />
       {login && <LoginModal onClose={() => setLogin(false)} />}
       {more && (
@@ -67,6 +69,7 @@ function Page({ onLogin }: { onLogin: () => void }) {
   const { t, isAdmin } = useStore();
   const [page, id] = route.parts;
 
+  if (page === 'admin') return <Admin />;
   if (page === 'setup') return isAdmin ? <Setup /> : <AdminOnly onLogin={onLogin} />;
   if (page === 'settings') return isAdmin ? <Settings /> : <AdminOnly onLogin={onLogin} />;
   if (!t) return <Landing />;
@@ -262,8 +265,7 @@ function RoleBadge() {
   );
 }
 
-function Footer({ onLogin }: { onLogin: () => void }) {
-  const { t, sync, isAdmin } = useStore();
+function Footer() {
   return (
     <footer className="site-footer">
       <div className="footer-inner">
@@ -279,15 +281,9 @@ function Footer({ onLogin }: { onLogin: () => void }) {
           <a className="small" href={BRAND.charity.url} target="_blank" rel="noreferrer">
             {BRAND.charity.name}
           </a>
-          {sync?.role === 'viewer' ? (
-            <button className="btn btn-ghost btn-sm" onClick={onLogin}>
-              Organizer login
-            </button>
-          ) : isAdmin ? (
-            <a className="btn btn-ghost btn-sm" href={t ? '#/settings' : '#/setup'}>
-              Organizer tools
-            </a>
-          ) : null}
+          <a className="btn btn-ghost btn-sm" href="#/admin">
+            Organizer
+          </a>
         </div>
       </div>
     </footer>
@@ -350,10 +346,14 @@ function AdminOnly({ onLogin }: { onLogin: () => void }) {
     <div className="card empty">
       <h2 style={{ color: 'var(--ink)' }}>Organizers only</h2>
       <p>This page is for the SACS team running the tournament.</p>
-      {sync?.role === 'viewer' && (
+      {sync?.role === 'viewer' ? (
         <button className="btn btn-primary" onClick={onLogin}>
           <LogIn size={16} /> Organizer login
         </button>
+      ) : (
+        <a className="btn btn-primary" href="#/admin">
+          Go to the organizer page
+        </a>
       )}
     </div>
   );
@@ -366,6 +366,8 @@ const DAY_OF: Array<[ReactNode, string, string]> = [
 ];
 
 function Landing() {
+  const info = useEventInfo();
+  const signupUrl = BRAND.signupUrl || info?.formUrl;
   return (
     <>
       <section className="hero">
@@ -390,16 +392,17 @@ function Landing() {
             <Activity size={14} /> Live scores on your phone
           </span>
         </div>
-        {BRAND.signupUrl ? (
-          <a className="btn btn-primary btn-lg" href={BRAND.signupUrl} target="_blank" rel="noreferrer">
-            <ClipboardList size={18} /> Register your team
-          </a>
-        ) : (
+        <div className="row" style={{ gap: 14, alignItems: 'center' }}>
+          {signupUrl && (
+            <a className="btn btn-primary btn-lg" href={signupUrl} target="_blank" rel="noreferrer">
+              <ClipboardList size={18} /> Register your team
+            </a>
+          )}
           <div className="draw-soon">
             <span className="dot" /> The draw is coming soon. Keep this page handy: it turns into the live scoreboard on
             tournament day.
           </div>
-        )}
+        </div>
       </section>
 
       <div style={{ marginTop: 16 }}>

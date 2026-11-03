@@ -1,20 +1,30 @@
-/** @OnlyCurrentDoc  (limits permissions to this one spreadsheet) */
-
 /**
- * Pickleball Tournament — Google Apps Script backend
- * ===================================================
- * Paste this into the Apps Script editor of the Google Sheet that collects your
- * Google Form responses (Extensions → Apps Script), set the passcodes below,
- * then Deploy → New deployment → Web app:
- *     Execute as: Me
- *     Who has access: Anyone
- * Copy the web app URL (ends in /exec) into the website's Settings → Live sync.
+ * SACS Pickleball Tournament: Google Apps Script backend + sign-up form builder
+ * ===========================================================================
+ *
+ * ONE-TIME SETUP (about 3 minutes, no coding)
+ *   1. Open https://script.new while signed in to the Google account that should
+ *      own the form (e.g. the SACS exec account).
+ *   2. Delete what's in the editor, paste this whole file, and click Save.
+ *   3. In the toolbar pick the function "setup" and click Run. Approve the
+ *      permissions (it creates one Google Form and one Google Sheet).
+ *      The Execution log prints the sign-up form link and your passcodes.
+ *   4. Deploy → New deployment → gear icon → Web app
+ *        Execute as:      Me
+ *        Who has access:  Anyone
+ *      Click Deploy and copy the Web app URL (ends in /exec).
+ *   5. Open the tournament site's Organizer page (…/#/admin), paste that URL and
+ *      the admin passcode, and click Connect.
+ *
+ * Re-run "setup" any time to print the links and passcodes again (it never
+ * creates a second form). To change a passcode: Project Settings → Script
+ * properties → ADMIN_PASSCODE / SCORER_PASSCODE.
  *
  * What it does
- *   - Serves your form responses to the website (no need to publish the sheet).
- *     Only someone with the ADMIN passcode can read them.
+ *   - Builds the SACS registration Google Form and collects responses in a Sheet.
+ *   - Serves those responses to the website. Only the ADMIN passcode can read them.
  *   - Stores the tournament (teams, schedule, scores) in a hidden tab so every
- *     phone/laptop sees the same live scores.
+ *     phone/laptop/TV sees the same live scores.
  *   - Competitors can READ the tournament (without emails/phone numbers).
  *     Only passcode holders can change anything:
  *       admin  – build the tournament, edit teams, enter scores
@@ -24,14 +34,20 @@
 
 // ---- Settings ---------------------------------------------------------------
 
-/** Full control: build the tournament, edit teams, enter scores. CHANGE THIS. */
+/** Leave as 'change-me': "setup" generates a random admin passcode for you. */
 var ADMIN_PASSCODE = 'change-me';
 
-/** Optional: court volunteers who can only enter scores / call matches. Leave '' to disable. */
+/** Leave '': "setup" generates a scorer passcode for court volunteers. */
 var SCORER_PASSCODE = '';
 
-/** Tab with the form responses. Leave '' to use the first tab. */
+/** Tab with the form responses. Leave '' to find it automatically. */
 var REGISTRATION_SHEET = '';
+
+/** Public tournament site, shown to people after they register. */
+var SITE_URL = 'https://pickleball-tournament-jet.vercel.app';
+
+var EVENT_NAME = 'SACS Pickleball Tournament';
+var CHARITY = 'Akshaya Patra Foundation';
 
 // -----------------------------------------------------------------------------
 
@@ -47,9 +63,10 @@ function doGet(e) {
     if (action === 'ping') {
       return json({
         ok: true,
-        spreadsheet: SpreadsheetApp.getActive().getName(),
+        spreadsheet: book().getName(),
         version: getVersion(),
         scorerEnabled: !!getScorerPasscode(),
+        formUrl: props().getProperty('FORM_URL') || '',
       });
     }
     if (action === 'version') return json({ ok: true, version: getVersion() });
@@ -73,8 +90,8 @@ function doPost(e) {
   } catch (err) {
     return json({ ok: false, error: 'Invalid JSON body' });
   }
-  if (getAdminPasscode() === 'change-me' && body.passcode === 'change-me') {
-    return json({ ok: false, error: 'Set ADMIN_PASSCODE at the top of Code.gs (it can\'t stay "change-me") and redeploy.', auth: false });
+  if (getAdminPasscode() === 'change-me') {
+    return json({ ok: false, error: 'No admin passcode yet: run "setup" in the Apps Script editor first.', auth: false });
   }
   var role = roleFor(body.passcode);
   if (!role) return json({ ok: false, error: 'Wrong passcode', auth: false });
@@ -174,20 +191,34 @@ function getVersion() {
   return Number(props().getProperty('STATE_VERSION') || 0);
 }
 
+/** The spreadsheet holding responses + tournament state (bound sheet or the one "setup" created). */
+function book() {
+  var id = props().getProperty('SHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  var active = SpreadsheetApp.getActive();
+  if (active) return active;
+  throw new Error('Run "setup" in the Apps Script editor first.');
+}
+
 function registrationRows(sheetName) {
-  var ss = SpreadsheetApp.getActive();
+  var ss = book();
   var sheet = sheetName ? ss.getSheetByName(sheetName) : REGISTRATION_SHEET ? ss.getSheetByName(REGISTRATION_SHEET) : null;
+  var candidates = ss.getSheets().filter(function (s) {
+    return s.getName() !== STATE_SHEET && s.getName().indexOf('TM ') !== 0;
+  });
   if (!sheet) {
-    sheet = ss.getSheets().filter(function (s) {
-      return s.getName() !== STATE_SHEET && s.getName().indexOf('TM ') !== 0;
+    // Prefer the tab linked to the Google Form
+    sheet = candidates.filter(function (s) {
+      return typeof s.getFormUrl === 'function' && s.getFormUrl();
     })[0];
   }
+  if (!sheet) sheet = candidates[0];
   if (!sheet) throw new Error('No registration sheet found');
   return sheet.getDataRange().getDisplayValues();
 }
 
 function stateSheet() {
-  var ss = SpreadsheetApp.getActive();
+  var ss = book();
   var sheet = ss.getSheetByName(STATE_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(STATE_SHEET);
@@ -255,7 +286,7 @@ function mergeState(current, incoming) {
 
 /** Write human-readable tables (sent by the website) to tabs prefixed "TM ". */
 function writeTables(tables) {
-  var ss = SpreadsheetApp.getActive();
+  var ss = book();
   Object.keys(tables).forEach(function (name) {
     var rows = tables[name];
     var tabName = 'TM ' + name;
@@ -274,4 +305,116 @@ function writeTables(tables) {
     sheet.getRange(1, 1, 1, width).setFontWeight('bold');
     sheet.setFrozenRows(1);
   });
+}
+
+// ---- One-time setup -----------------------------------------------------------
+
+/**
+ * Run this once from the editor. Creates the SACS sign-up form + response sheet
+ * (unless they already exist) and passcodes, then logs everything you need.
+ */
+function setup() {
+  var p = props();
+  if (!p.getProperty('ADMIN_PASSCODE') && ADMIN_PASSCODE === 'change-me') {
+    p.setProperty('ADMIN_PASSCODE', 'sacs-' + randomCode(6));
+  }
+  if (!p.getProperty('SCORER_PASSCODE') && !SCORER_PASSCODE) {
+    p.setProperty('SCORER_PASSCODE', 'court-' + randomCode(4));
+  }
+
+  // Spreadsheet: one "setup" made before, the sheet this script is attached to, or a new one.
+  var ss = null;
+  if (p.getProperty('SHEET_ID')) ss = SpreadsheetApp.openById(p.getProperty('SHEET_ID'));
+  if (!ss) ss = SpreadsheetApp.getActive();
+  var created = false;
+  if (!ss) {
+    ss = SpreadsheetApp.create(EVENT_NAME + ' (Sign-ups)');
+    created = true;
+  }
+  p.setProperty('SHEET_ID', ss.getId());
+
+  // Form: one "setup" made before, the form already feeding this sheet, or a new one.
+  var form = null;
+  if (p.getProperty('FORM_ID')) form = FormApp.openById(p.getProperty('FORM_ID'));
+  if (!form && ss.getFormUrl()) form = FormApp.openByUrl(ss.getFormUrl());
+  if (!form) {
+    form = buildSignupForm();
+    form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+    SpreadsheetApp.flush();
+    if (created) {
+      // Drop the empty default tab so the responses tab is the obvious one.
+      ss.getSheets().forEach(function (sh) {
+        if (ss.getSheets().length > 1 && sh.getLastRow() === 0 && !(sh.getFormUrl && sh.getFormUrl())) ss.deleteSheet(sh);
+      });
+    }
+  }
+  p.setProperty('FORM_ID', form.getId());
+  p.setProperty('FORM_URL', form.getPublishedUrl());
+
+  var lines = [
+    '',
+    '=== ' + EVENT_NAME + ' is set up ===',
+    'Share this sign-up form with players:  ' + form.getPublishedUrl(),
+    'Edit the form:                          ' + form.getEditUrl(),
+    'Responses spreadsheet:                  ' + ss.getUrl(),
+    '',
+    'ADMIN passcode (keep private):          ' + getAdminPasscode(),
+    'SCORER passcode (court volunteers):     ' + getScorerPasscode(),
+    '',
+    'Next: Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone).',
+    'Then open ' + SITE_URL + '/#/admin and paste the Web app URL + admin passcode.',
+  ];
+  Logger.log(lines.join('\n'));
+  return lines.join('\n');
+}
+
+/** The SACS registration form. Question titles match what the website auto-detects. */
+function buildSignupForm() {
+  var skill = ['Beginner (new to pickleball)', 'Intermediate (2.5 - 3.5)', 'Advanced (4.0+)'];
+  var form = FormApp.create(EVENT_NAME + ' Registration');
+  form.setDescription(
+    'Hosted by the South Asian Culture Show (SACS). A portion of every entry fee is donated to the ' +
+      CHARITY +
+      ', which serves free school lunches to children across India.\n\n' +
+      'This is a doubles tournament. Signing up as a pair? Only one of you needs to fill this out: add your partner below. ' +
+      "Need a partner? Leave the partner questions blank and we'll match you with someone."
+  );
+  form.setConfirmationMessage(
+    "You're in! Thanks for playing for the " + CHARITY + '. Follow the draw and live scores at ' + SITE_URL
+  );
+  form.setProgressBar(false);
+
+  form.addTextItem().setTitle('Full name').setRequired(true);
+  form
+    .addTextItem()
+    .setTitle('Email')
+    .setRequired(true)
+    .setValidation(FormApp.createTextValidation().requireTextIsEmail().build());
+  form.addTextItem().setTitle('Phone number').setHelpText('In case we need to reach you on tournament day.');
+  form.addTextItem().setTitle('School');
+  form.addMultipleChoiceItem().setTitle('Skill level').setChoiceValues(skill).setRequired(true);
+  form
+    .addMultipleChoiceItem()
+    .setTitle('Bracket')
+    .setHelpText("Pick the one that fits your team. We'll seed by skill within each bracket.")
+    .setChoiceValues(['Competitive', 'Just for fun'])
+    .setRequired(true);
+
+  form
+    .addSectionHeaderItem()
+    .setTitle('Your partner')
+    .setHelpText("Leave these blank if you need a partner and we'll pair you up.");
+  form.addTextItem().setTitle("Partner's full name");
+  form
+    .addTextItem()
+    .setTitle("Partner's email")
+    .setValidation(FormApp.createTextValidation().requireTextIsEmail().build());
+  form.addMultipleChoiceItem().setTitle("Partner's skill level").setChoiceValues(skill);
+  form.addTextItem().setTitle('Team name (optional)');
+  form.addParagraphTextItem().setTitle('Anything else we should know?');
+  return form;
+}
+
+function randomCode(length) {
+  return Utilities.getUuid().replace(/-/g, '').slice(0, length);
 }

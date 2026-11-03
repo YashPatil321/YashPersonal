@@ -2424,3 +2424,50 @@ h1 .wordmark,
     padding-bottom: calc(110px + env(safe-area-inset-bottom));
   }
 }
+
+/* Organizer page */
+.admin-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.admin-step h3 {
+  margin: 4px 0 6px;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 1.25rem;
+}
+.step-num {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--night);
+  color: var(--ball);
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.3rem;
+}
+.steps-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+}
+.steps-list b {
+  color: var(--ink);
+}
+.steps-list code {
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.link-row .input {
+  font-size: 0.82rem;
+  padding: 8px 10px;
+}
