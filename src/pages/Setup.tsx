@@ -27,6 +27,7 @@ import {
 } from '../lib/tournament';
 import type { DivisionSettings, FormatType, Player, ScoringRules, Team } from '../lib/types';
 import { Segmented } from '../components/ui';
+import { BRAND } from '../brand';
 import { navigate } from '../state/router';
 import { load, save, useStore } from '../state/store';
 
@@ -69,7 +70,7 @@ function emptyDraft(): Draft {
   return {
     step: 0,
     info: {
-      name: '',
+      name: BRAND.eventName,
       date: new Date().toISOString().slice(0, 10),
       location: '',
       courtCount: 10,
@@ -149,7 +150,7 @@ export function Setup() {
       }));
     const tournament = buildTournament(
       {
-        name: info.name.trim() || 'Pickleball Tournament',
+        name: info.name.trim() || BRAND.eventName,
         date: info.date || undefined,
         location: info.location.trim() || undefined,
         courts: courtNames(Math.max(1, info.courtCount)),
@@ -171,8 +172,9 @@ export function Setup() {
     <>
       <div className="page-head">
         <div>
-          <h1>New tournament</h1>
-          <div className="muted small">Build the whole event from your Google Form sign-ups.</div>
+          <div className="eyebrow">Organizer tools</div>
+          <h1>Build the draw</h1>
+          <div className="muted small">Build the {BRAND.short} draw from your sign-up form.</div>
         </div>
         <button
           className="btn btn-sm btn-ghost"
@@ -1265,7 +1267,7 @@ function ReviewStep({
   return (
     <>
       <div className="card">
-        <h2>{draft.info.name || 'Pickleball Tournament'}</h2>
+        <h2>{draft.info.name || BRAND.eventName}</h2>
         <div className="muted" style={{ marginBottom: 12 }}>
           {[draft.info.date, draft.info.location, `${draft.info.courtCount} courts`, `${draft.info.hours ?? 4} hours`]
             .filter(Boolean)

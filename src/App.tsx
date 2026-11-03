@@ -2,26 +2,23 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Activity,
+  CalendarClock,
+  ClipboardList,
   Ellipsis,
-  FileSpreadsheet,
   House,
   LayoutGrid,
   ListOrdered,
   LogIn,
   LogOut,
   Network,
-  Plus,
   Settings as SettingsIcon,
   ShieldCheck,
-  Smartphone,
   Trophy,
   Tv,
   UserRound,
 } from 'lucide-react';
-import { detectColumns, DEFAULT_IMPORT_OPTIONS, importRegistrations, seedTeams } from './lib/registrations';
-import { sampleRegistrations } from './lib/sample';
-import { buildTournament, courtNames, defaultDivisionSettings } from './lib/tournament';
-import { BallIcon, CourtLines, Modal } from './components/ui';
+import { BRAND } from './brand';
+import { BallIcon, BrandName, CauseCard, Mandala, Modal, Toran } from './components/ui';
 import { Courts } from './pages/Courts';
 import { Matches } from './pages/Matches';
 import { Overview } from './pages/Overview';
@@ -31,7 +28,7 @@ import { Setup } from './pages/Setup';
 import { Brackets, Standings } from './pages/Standings';
 import { TeamDetail, Teams } from './pages/Teams';
 import { TV } from './pages/TV';
-import { navigate, useRoute } from './state/router';
+import { useRoute } from './state/router';
 import { useStore } from './state/store';
 
 export function App() {
@@ -45,10 +42,11 @@ export function App() {
 
   return (
     <>
-      <Header onLogin={() => setLogin(true)} />
+      <Header />
       <main key={route.path}>
-        <Page />
+        <Page onLogin={() => setLogin(true)} />
       </main>
+      <Footer onLogin={() => setLogin(true)} />
       <BottomNav onMore={() => setMore(true)} />
       {login && <LoginModal onClose={() => setLogin(false)} />}
       {more && (
@@ -64,14 +62,14 @@ export function App() {
   );
 }
 
-function Page() {
+function Page({ onLogin }: { onLogin: () => void }) {
   const route = useRoute();
   const { t, isAdmin } = useStore();
   const [page, id] = route.parts;
 
-  if (page === 'setup') return isAdmin ? <Setup /> : <AdminOnly />;
-  if (page === 'settings') return <Settings />;
-  if (!t) return <Welcome />;
+  if (page === 'setup') return isAdmin ? <Setup /> : <AdminOnly onLogin={onLogin} />;
+  if (page === 'settings') return isAdmin ? <Settings /> : <AdminOnly onLogin={onLogin} />;
+  if (!t) return <Landing />;
   switch (page) {
     case undefined:
       return <Overview />;
@@ -103,20 +101,25 @@ interface NavItem {
   match?: string[];
 }
 
+/** Public navigation. Organizer pages only appear once the organizer has a draw on this device. */
 function useNavItems() {
   const { t, isAdmin } = useStore();
-  const hasBrackets = !!t?.divisions.some((d) => d.settings.format !== 'round_robin');
-  const all: NavItem[] = [];
-  all.push({ path: '', label: 'Home', icon: <House size={18} /> });
-  if (t) {
-    all.push({ path: 'teams', label: t.settings.doubles ? 'My team' : 'Me', icon: <UserRound size={18} /> });
-    all.push({ path: 'courts', label: 'Courts', icon: <LayoutGrid size={18} />, match: ['courts', 'score'] });
-    all.push({ path: 'matches', label: 'Matches', icon: <ListOrdered size={18} /> });
-    all.push({ path: 'standings', label: 'Standings', icon: <Trophy size={18} />, match: hasBrackets ? ['standings'] : ['standings', 'brackets'] });
-    if (hasBrackets) all.push({ path: 'brackets', label: 'Brackets', icon: <Network size={18} /> });
-    all.push({ path: 'tv', label: 'TV', icon: <Tv size={18} /> });
-  }
-  if (isAdmin && !t) all.push({ path: 'setup', label: 'Create', icon: <Plus size={18} /> });
+  if (!t) return [] as NavItem[];
+  const hasBrackets = t.divisions.some((d) => d.settings.format !== 'round_robin');
+  const all: NavItem[] = [
+    { path: '', label: 'Home', icon: <House size={18} /> },
+    { path: 'teams', label: t.settings.doubles ? 'My team' : 'Me', icon: <UserRound size={18} /> },
+    { path: 'courts', label: 'Courts', icon: <LayoutGrid size={18} />, match: ['courts', 'score'] },
+    { path: 'matches', label: 'Matches', icon: <ListOrdered size={18} /> },
+    {
+      path: 'standings',
+      label: 'Standings',
+      icon: <Trophy size={18} />,
+      match: hasBrackets ? ['standings'] : ['standings', 'brackets'],
+    },
+  ];
+  if (hasBrackets) all.push({ path: 'brackets', label: 'Brackets', icon: <Network size={18} /> });
+  all.push({ path: 'tv', label: 'TV', icon: <Tv size={18} /> });
   if (isAdmin) all.push({ path: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> });
   return all;
 }
@@ -125,7 +128,7 @@ function isActive(item: NavItem, current: string) {
   return item.match ? item.match.includes(current) : item.path === current;
 }
 
-function Header({ onLogin }: { onLogin: () => void }) {
+function Header() {
   const route = useRoute();
   const { t, sync, syncState } = useStore();
   const current = route.parts[0] ?? '';
@@ -133,8 +136,8 @@ function Header({ onLogin }: { onLogin: () => void }) {
   const sub = t
     ? [t.date && new Date(t.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), t.location]
         .filter(Boolean)
-        .join(' · ') || 'Live results'
-    : 'Brackets · scores · standings';
+        .join(' · ') || BRAND.organizer
+    : `${BRAND.organizer} · ${BRAND.tagline}`;
 
   return (
     <header className="app-header">
@@ -142,20 +145,24 @@ function Header({ onLogin }: { onLogin: () => void }) {
         <a className="brand" href="#/">
           <BallIcon size={34} className="ball-spin" />
           <div style={{ minWidth: 0 }}>
-            <div className="brand-title truncate">{t?.name ?? 'Pickleball Tournament'}</div>
+            <div className="brand-title truncate">
+              <BrandName name={t?.name ?? BRAND.eventName} />
+            </div>
             <div className="brand-sub truncate">{sub}</div>
           </div>
         </a>
-        <nav className="nav">
-          {items.map((item) => (
-            <a key={item.path} href={`#/${item.path}`} className={isActive(item, current) ? 'active' : ''}>
-              {item.label}
-            </a>
-          ))}
-        </nav>
+        {items.length > 0 && (
+          <nav className="nav">
+            {items.map((item) => (
+              <a key={item.path} href={`#/${item.path}`} className={isActive(item, current) ? 'active' : ''}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        )}
         <div className="header-actions">
-          {sync && (
-            <span className={`sync-pill ${syncState.status}`} title={syncState.message ?? 'Live sync'}>
+          {sync && t && (
+            <span className={`sync-pill ${syncState.status}`} title={syncState.message ?? 'Live scores'}>
               <span className="dot" />
               {syncState.status === 'synced'
                 ? 'Live'
@@ -166,7 +173,7 @@ function Header({ onLogin }: { onLogin: () => void }) {
                     : 'Offline'}
             </span>
           )}
-          <AccountButton onLogin={onLogin} />
+          <RoleBadge />
         </div>
       </div>
     </header>
@@ -175,16 +182,15 @@ function Header({ onLogin }: { onLogin: () => void }) {
 
 function BottomNav({ onMore }: { onMore: () => void }) {
   const route = useRoute();
-  const { t } = useStore();
   const current = route.parts[0] ?? '';
   const items = useNavItems();
-  const primaryPaths = t ? ['', 'teams', 'courts', 'standings'] : items.map((i) => i.path).slice(0, 4);
+  if (!items.length) return null;
+  const primaryPaths = ['', 'teams', 'courts', 'standings'];
   const primary = items.filter((i) => primaryPaths.includes(i.path));
   const overflow = items.filter((i) => !primaryPaths.includes(i.path));
-  const moreActive = overflow.some((i) => isActive(i, current)) && !(t && current === 'brackets');
-  const cols = primary.length + (overflow.length || t ? 1 : 0);
+  const moreActive = overflow.some((i) => isActive(i, current)) && current !== 'brackets';
   return (
-    <nav className="bottom-nav" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+    <nav className="bottom-nav" style={{ gridTemplateColumns: `repeat(${primary.length + 1}, 1fr)` }}>
       {primary.map((item) => (
         <a
           key={item.path}
@@ -195,19 +201,17 @@ function BottomNav({ onMore }: { onMore: () => void }) {
           {item.label}
         </a>
       ))}
-      {(overflow.length > 0 || t) && (
-        <button className={moreActive ? 'active' : ''} onClick={onMore}>
-          <Ellipsis size={18} />
-          More
-        </button>
-      )}
+      <button className={moreActive ? 'active' : ''} onClick={onMore}>
+        <Ellipsis size={18} />
+        More
+      </button>
     </nav>
   );
 }
 
 function MoreSheet({ onClose, onLogin }: { onClose: () => void; onLogin: () => void }) {
-  const { t, sync, connect } = useStore();
-  const items = useNavItems().filter((i) => !(t ? ['', 'teams', 'courts', 'standings'] : []).includes(i.path));
+  const { sync, connect } = useStore();
+  const items = useNavItems().filter((i) => !['', 'teams', 'courts', 'standings'].includes(i.path));
   return (
     <Modal title="More" onClose={onClose}>
       <div className="more-sheet">
@@ -217,6 +221,9 @@ function MoreSheet({ onClose, onLogin }: { onClose: () => void; onLogin: () => v
             {item.label}
           </a>
         ))}
+        <a href={BRAND.charity.url} target="_blank" rel="noreferrer">
+          <Activity size={18} /> About {BRAND.charity.name}
+        </a>
         {sync?.role === 'viewer' && (
           <button onClick={onLogin}>
             <LogIn size={18} /> Organizer login
@@ -237,16 +244,9 @@ function MoreSheet({ onClose, onLogin }: { onClose: () => void; onLogin: () => v
   );
 }
 
-function AccountButton({ onLogin }: { onLogin: () => void }) {
+function RoleBadge() {
   const { sync, connect } = useStore();
-  if (!sync) return null;
-  if (sync.role === 'viewer') {
-    return (
-      <button className="btn btn-sm btn-glass" onClick={onLogin}>
-        <LogIn size={15} /> Login
-      </button>
-    );
-  }
+  if (!sync || sync.role === 'viewer') return null;
   return (
     <button
       className="btn btn-sm btn-primary"
@@ -259,6 +259,38 @@ function AccountButton({ onLogin }: { onLogin: () => void }) {
     >
       <ShieldCheck size={15} /> {sync.role === 'admin' ? 'Admin' : 'Scorer'}
     </button>
+  );
+}
+
+function Footer({ onLogin }: { onLogin: () => void }) {
+  const { t, sync, isAdmin } = useStore();
+  return (
+    <footer className="site-footer">
+      <div className="footer-inner">
+        <div>
+          <div className="brand-title">
+            <BrandName name={BRAND.eventName} />
+          </div>
+          <div className="small muted">
+            Hosted by the {BRAND.organizer}. {BRAND.charity.pledge}
+          </div>
+        </div>
+        <div className="row">
+          <a className="small" href={BRAND.charity.url} target="_blank" rel="noreferrer">
+            {BRAND.charity.name}
+          </a>
+          {sync?.role === 'viewer' ? (
+            <button className="btn btn-ghost btn-sm" onClick={onLogin}>
+              Organizer login
+            </button>
+          ) : isAdmin ? (
+            <a className="btn btn-ghost btn-sm" href={t ? '#/settings' : '#/setup'}>
+              Organizer tools
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -284,7 +316,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal title="Organizer login" subtitle="Admins run the tournament. Scorers can enter scores." onClose={onClose}>
+    <Modal title="Organizer login" subtitle="For the SACS team running the tournament." onClose={onClose}>
       <form
         className="stack"
         onSubmit={(e) => {
@@ -301,7 +333,7 @@ function LoginModal({ onClose }: { onClose: () => void }) {
           <button className="btn btn-primary" disabled={!passcode.trim() || busy} type="submit">
             {busy ? 'Checking…' : 'Sign in'}
           </button>
-          <span className="muted tiny">Players don’t need to sign in. Live results are public.</span>
+          <span className="muted tiny">Players don’t need to sign in.</span>
         </div>
       </form>
     </Modal>
@@ -312,140 +344,73 @@ function LoginModal({ onClose }: { onClose: () => void }) {
 /* Landing                                                            */
 /* ------------------------------------------------------------------ */
 
-function AdminOnly() {
+function AdminOnly({ onLogin }: { onLogin: () => void }) {
+  const { sync } = useStore();
   return (
     <div className="card empty">
       <h2 style={{ color: 'var(--ink)' }}>Organizers only</h2>
-      <p>Tap “Login” at the top and enter the admin passcode.</p>
+      <p>This page is for the SACS team running the tournament.</p>
+      {sync?.role === 'viewer' && (
+        <button className="btn btn-primary" onClick={onLogin}>
+          <LogIn size={16} /> Organizer login
+        </button>
+      )}
     </div>
   );
 }
 
-function createDemo() {
-  const rows = sampleRegistrations();
-  const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
-  return buildTournament(
-    {
-      name: 'Demo Pickleball Classic',
-      date: new Date().toISOString().slice(0, 10),
-      location: 'Riverside Park',
-      courts: courtNames(4),
-      minutesPerMatch: 20,
-      doubles: true,
-    },
-    res.players,
-    res.teams,
-    res.divisions.map((d) => ({
-      name: d.name,
-      teamIds: seedTeams(d.teamIds, res.teams, 'rating'),
-      settings: defaultDivisionSettings(d.teamIds.length),
-    })),
-  );
-}
-
-const FEATURES: Array<[ReactNode, string, string]> = [
-  [<FileSpreadsheet size={20} />, 'Google Form → teams', 'Reads your sign-up sheet, matches partners who registered separately and pairs players who need one.'],
-  [<Network size={20} />, 'Any format', 'Round robin, pools into playoffs, single or double elimination, all with byes and seeding handled.'],
-  [<LayoutGrid size={20} />, 'Court desk', 'Sends the next match to each open court automatically and never double-books a team.'],
-  [<Activity size={20} />, 'Live scoring', 'Tap-to-score that calls the score for you (“4-2-1”), rally scoring, or type in the final.'],
-  [<Smartphone size={20} />, 'Players see everything', 'Live courts, “find my team” with wait times, standings, brackets and TV mode. No logins.'],
-  [<ShieldCheck size={20} />, 'You stay in control', 'Admin and scorer passcodes. Competitors can look but not touch, and contact details stay private.'],
+const DAY_OF: Array<[ReactNode, string, string]> = [
+  [<UserRound size={20} />, 'Find your team', 'Type your name to see your court, when you play next and how you’re doing.'],
+  [<LayoutGrid size={20} />, 'Live courts', 'All courts update point by point, so you know exactly when you’re up.'],
+  [<Trophy size={20} />, 'Standings & brackets', 'Follow every pool and the playoff race all the way to the final.'],
 ];
 
-function Welcome() {
-  const { sync, isAdmin, replace, connect } = useStore();
-  const [joinUrl, setJoinUrl] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  if (sync && !isAdmin) {
-    return (
-      <section className="hero" style={{ textAlign: 'center' }}>
-        <CourtLines />
-        <BallIcon size={88} />
-        <div className="eyebrow" style={{ marginTop: 18 }}>
-          Stay tuned
-        </div>
-        <h1 style={{ margin: '10px auto 14px' }}>Draw coming soon</h1>
-        <p style={{ margin: '0 auto' }}>
-          The organizer hasn’t published the brackets yet. This page updates by itself, so keep it open or check back shortly.
-        </p>
-      </section>
-    );
-  }
-
-  const join = async () => {
-    setError(null);
-    const raw = joinUrl.trim();
-    let url = raw;
-    try {
-      url = new URL(raw).searchParams.get('live') ?? raw;
-    } catch {
-      /* not a URL with params */
-    }
-    try {
-      await connect({ url, role: 'viewer' });
-    } catch (e) {
-      setError(`Couldn't open that tournament: ${(e as Error).message}`);
-    }
-  };
-
+function Landing() {
   return (
     <>
       <section className="hero">
-        <CourtLines />
-        <BallIcon size={220} className="hero-ball" />
-        <div className="eyebrow">Pickleball tournament manager</div>
+        <Toran />
+        <Mandala />
+        <div className="eyebrow">{BRAND.organizer} presents</div>
         <h1>
-          From Google Form <span className="hl">to final point.</span>
+          <span className="wordmark hero-wordmark">{BRAND.short}</span>
+          Pickleball <span className="hl">Tournament</span>
         </h1>
         <p>
-          Turn sign-ups into teams, pools, brackets, court assignments, live scores and standings. Players follow along on
-          their phones, and only you can change anything.
+          Grab a partner and play for a cause. {BRAND.charity.pledge}
         </p>
-        <div className="row">
-          <a className="btn btn-primary btn-lg" href="#/setup">
-            <Plus size={18} /> Create a tournament
+        <div className="row" style={{ marginBottom: 22 }}>
+          <span className="chip">
+            <LayoutGrid size={14} /> {BRAND.courts} courts
+          </span>
+          <span className="chip">
+            <CalendarClock size={14} /> About {BRAND.hours} hours of play
+          </span>
+          <span className="chip">
+            <Activity size={14} /> Live scores on your phone
+          </span>
+        </div>
+        {BRAND.signupUrl ? (
+          <a className="btn btn-primary btn-lg" href={BRAND.signupUrl} target="_blank" rel="noreferrer">
+            <ClipboardList size={18} /> Register your team
           </a>
-          <button
-            className="btn btn-glass btn-lg"
-            onClick={() => {
-              replace(createDemo());
-              navigate('/');
-            }}
-          >
-            Try the demo
-          </button>
-        </div>
-      </section>
-
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="row-between" style={{ flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h3 style={{ margin: 0 }}>Playing in a tournament?</h3>
-            <div className="muted small">Paste the link your organizer shared to follow it live.</div>
-          </div>
-          <div className="row" style={{ flex: '1 1 320px', flexWrap: 'nowrap' }}>
-            <input
-              className="input"
-              placeholder="Tournament link"
-              value={joinUrl}
-              onChange={(e) => setJoinUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && joinUrl && join()}
-            />
-            <button className="btn btn-dark" disabled={!joinUrl.trim()} onClick={join}>
-              Open
-            </button>
-          </div>
-        </div>
-        {error && (
-          <div className="alert alert-error small" style={{ marginTop: 10 }}>
-            {error}
+        ) : (
+          <div className="draw-soon">
+            <span className="dot" /> The draw is coming soon. Keep this page handy: it turns into the live scoreboard on
+            tournament day.
           </div>
         )}
+      </section>
+
+      <div style={{ marginTop: 16 }}>
+        <CauseCard />
       </div>
 
-      <div className="feature-list">
-        {FEATURES.map(([icon, title, text]) => (
+      <div className="section-title">
+        <h2>On tournament day</h2>
+      </div>
+      <div className="feature-list" style={{ marginTop: 0 }}>
+        {DAY_OF.map(([icon, title, text]) => (
           <div className="card" key={title}>
             <span className="feature-icon">{icon}</span>
             <h3>{title}</h3>
