@@ -9,8 +9,6 @@ export const BRAND = {
   /** Who is putting the event on. */
   organizer: 'South Asian Culture Show',
   tagline: 'Play for a cause',
-  /** Optional: link to the sign-up Google Form. Shows a "Register" button when set. */
-  signupUrl: '',
   /** Shown on the landing page before the draw is published. */
   courts: 10,
   hours: 4,

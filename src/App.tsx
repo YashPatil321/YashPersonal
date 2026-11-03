@@ -23,6 +23,7 @@ import { Admin } from './pages/Admin';
 import { Courts } from './pages/Courts';
 import { Matches } from './pages/Matches';
 import { Overview } from './pages/Overview';
+import { Register } from './pages/Register';
 import { Scorekeeper } from './pages/Scorekeeper';
 import { Settings } from './pages/Settings';
 import { Setup } from './pages/Setup';
@@ -70,6 +71,7 @@ function Page({ onLogin }: { onLogin: () => void }) {
   const [page, id] = route.parts;
 
   if (page === 'admin') return <Admin />;
+  if (page === 'register') return <Register />;
   if (page === 'setup') return isAdmin ? <Setup /> : <AdminOnly onLogin={onLogin} />;
   if (page === 'settings') return isAdmin ? <Settings /> : <AdminOnly onLogin={onLogin} />;
   if (!t) return <Landing />;
@@ -107,7 +109,11 @@ interface NavItem {
 /** Public navigation. Organizer pages only appear once the organizer has a draw on this device. */
 function useNavItems() {
   const { t, isAdmin } = useStore();
-  if (!t) return [] as NavItem[];
+  if (!t)
+    return [
+      { path: '', label: 'Home', icon: <House size={18} /> },
+      { path: 'register', label: 'Register', icon: <ClipboardList size={18} /> },
+    ] as NavItem[];
   const hasBrackets = t.divisions.some((d) => d.settings.format !== 'round_robin');
   const all: NavItem[] = [
     { path: '', label: 'Home', icon: <House size={18} /> },
@@ -188,12 +194,13 @@ function BottomNav({ onMore }: { onMore: () => void }) {
   const current = route.parts[0] ?? '';
   const items = useNavItems();
   if (!items.length) return null;
-  const primaryPaths = ['', 'teams', 'courts', 'standings'];
+  const primaryPaths = ['', 'teams', 'courts', 'standings', 'register'];
   const primary = items.filter((i) => primaryPaths.includes(i.path));
   const overflow = items.filter((i) => !primaryPaths.includes(i.path));
   const moreActive = overflow.some((i) => isActive(i, current)) && current !== 'brackets';
+  const showMore = overflow.length > 0;
   return (
-    <nav className="bottom-nav" style={{ gridTemplateColumns: `repeat(${primary.length + 1}, 1fr)` }}>
+    <nav className="bottom-nav" style={{ gridTemplateColumns: `repeat(${primary.length + (showMore ? 1 : 0)}, 1fr)` }}>
       {primary.map((item) => (
         <a
           key={item.path}
@@ -204,10 +211,12 @@ function BottomNav({ onMore }: { onMore: () => void }) {
           {item.label}
         </a>
       ))}
-      <button className={moreActive ? 'active' : ''} onClick={onMore}>
-        <Ellipsis size={18} />
-        More
-      </button>
+      {showMore && (
+        <button className={moreActive ? 'active' : ''} onClick={onMore}>
+          <Ellipsis size={18} />
+          More
+        </button>
+      )}
     </nav>
   );
 }
@@ -366,8 +375,7 @@ const DAY_OF: Array<[ReactNode, string, string]> = [
 ];
 
 function Landing() {
-  const info = useEventInfo();
-  const signupUrl = BRAND.signupUrl || info?.formUrl;
+  const { info } = useEventInfo();
   return (
     <>
       <section className="hero">
@@ -393,15 +401,18 @@ function Landing() {
           </span>
         </div>
         <div className="row" style={{ gap: 14, alignItems: 'center' }}>
-          {signupUrl && (
-            <a className="btn btn-primary btn-lg" href={signupUrl} target="_blank" rel="noreferrer">
-              <ClipboardList size={18} /> Register your team
-            </a>
+          <a className="btn btn-primary btn-lg" href="#/register">
+            <ClipboardList size={18} /> Register your team
+          </a>
+          {info && info.registrations > 0 && (
+            <span className="chip">
+              <UserRound size={14} /> {info.registrations} signed up
+            </span>
           )}
-          <div className="draw-soon">
-            <span className="dot" /> The draw is coming soon. Keep this page handy: it turns into the live scoreboard on
-            tournament day.
-          </div>
+        </div>
+        <div className="draw-soon" style={{ marginTop: 16 }}>
+          <span className="dot" /> The draw comes out when sign-ups close. Keep this page handy: it turns into the live
+          scoreboard on tournament day.
         </div>
       </section>
 

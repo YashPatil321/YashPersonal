@@ -2471,3 +2471,70 @@ h1 .wordmark,
   font-size: 0.82rem;
   padding: 8px 10px;
 }
+
+/* Register tab */
+.choice-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+}
+.choice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid var(--line);
+  background: var(--surface-2);
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.95rem;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.choice:hover {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--line));
+}
+.choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.choice.on {
+  border-color: var(--ball);
+  background: var(--ball-soft);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ball) 25%, transparent);
+}
+.choice:focus-within {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.choice-hint {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.register-form h2 {
+  margin-bottom: 12px;
+}
+.register-done {
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 32px 18px;
+}
+.register-done h2 {
+  margin: 6px 0 0;
+}
+.hp {
+  position: absolute !important;
+  left: -10000px !important;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.signup-table td {
+  font-size: 0.85rem;
+}
