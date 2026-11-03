@@ -1,8 +1,10 @@
-# Pickleball Tournament Manager
+# SACS Pickleball Tournament
 
-A website that turns your **Google Form sign-ups** into a complete pickleball tournament: teams, pools, brackets, a court schedule, live scoring, standings and final results.
+The website for the **SACS Pickleball Tournament**, hosted by the South Asian Culture Show. A portion of every entry fee is donated to the [Akshaya Patra Foundation](https://www.akshayapatrausa.org/), which serves free school lunches to children across India.
 
-**Live site:** https://pickleball-tournament-jet.vercel.app (try “Try the demo”)
+Organizers build the draw from the Google Form sign-ups. Competitors follow live courts, brackets and scores on their phones.
+
+**Live site:** https://pickleball-tournament-jet.vercel.app
 
 - **Competitors** open one link (or scan a QR code) to see live scores, find their team, check when they play next, and follow standings and brackets. No login needed, and nothing they can change.
 - **You (the organizer)** sign in with an admin passcode to build the draw, run the courts and enter or fix scores.
@@ -70,10 +72,10 @@ This is what lets competitors follow along on their own phones. It uses a free G
    Click **Deploy** and approve the permissions prompt (it only touches this spreadsheet).
 5. Copy the **Web app URL** (it ends in `/exec`).
 6. On the website: **Settings → Live sync** → paste the URL and your admin passcode → **Connect**.
-7. Click **Create** and choose **Google Sheet link → Use the connected Google Sheet** to load the sign-ups. Your spreadsheet can stay private.
+7. Click **Organizer tools** at the bottom of the page and choose **Google Sheet link → Use the connected Google Sheet** to load the sign-ups. Your spreadsheet can stay private.
 8. Share the link or QR code from **Settings → Share with players**.
 
-**Optional, but nice:** in Vercel go to **Settings → Environment Variables** and add `VITE_LIVE_URL` = your web app URL, then redeploy. Now the plain website address opens straight into the live tournament for everyone, and you use **Organizer login** at the top to get your admin controls.
+**Optional, but nice:** in Vercel go to **Settings → Environment Variables** and add `VITE_LIVE_URL` = your web app URL, then redeploy. Now the plain website address opens straight into the live tournament for everyone, and you use **Organizer login** at the bottom of the page to get your admin controls.
 
 > If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit → New version**. That keeps the same URL.
 
@@ -128,7 +130,10 @@ npm test           # engine, importer and Apps Script backend tests
 npm run build      # typecheck + production build into dist/
 ```
 
+Event name, organizer, charity and sign-up link live in [`src/brand.ts`](src/brand.ts). Set `signupUrl` there to show a **Register** button on the home page.
+
 ```
+src/brand.ts      SACS branding & charity details
 src/lib/          tournament engine (no UI)
   registrations.ts  Google Form → players / teams / divisions
   generate.ts       round robin, pools, single & double elimination

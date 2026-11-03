@@ -4,7 +4,9 @@ import { courtStatus, matchQueue } from '../lib/actions';
 import { teamName } from '../lib/tournament';
 import { divisionName, stageLabel } from '../components/match';
 import { MiniCourt } from '../components/MiniCourt';
-import { BallIcon } from '../components/ui';
+import { HandHeart } from 'lucide-react';
+import { BRAND } from '../brand';
+import { BallIcon, BrandName } from '../components/ui';
 import { useTournament } from '../state/store';
 
 /** Big-screen display for a TV at the venue. */
@@ -33,9 +35,11 @@ export function TV() {
           <BallIcon size={56} className="ball-spin" />
           <div style={{ minWidth: 0 }}>
             <div className="eyebrow" style={{ color: 'var(--ball)' }}>
-              Live courts
+              {BRAND.organizer} · Live courts
             </div>
-            <div className="tv-title truncate">{t.name}</div>
+            <div className="tv-title truncate">
+              <BrandName name={t.name} />
+            </div>
           </div>
         </div>
         <div className="row" style={{ gap: 18 }}>
@@ -128,6 +132,12 @@ export function TV() {
             </div>
           )}
         </div>
+      </div>
+      <div className="tv-cause">
+        <HandHeart size={22} color="var(--ball)" />
+        <span>
+          <b>Playing for the {BRAND.charity.name}.</b> {BRAND.charity.pledge.replace(`${BRAND.charity.name}`, 'cause')}
+        </span>
       </div>
     </div>
   );

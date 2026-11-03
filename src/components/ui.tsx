@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { ExternalLink, HandHeart, X } from 'lucide-react';
+import { BRAND } from '../brand';
 import type { Tournament } from '../lib/types';
 
 export function Modal({
@@ -117,15 +118,15 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
-/** A pickleball (lime with holes). */
+/** A pickleball in SACS marigold. */
 export function BallIcon({ size = 30, className }: { size?: number; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className={className}>
       <defs>
         <radialGradient id="ballShade" cx="35%" cy="30%" r="75%">
-          <stop offset="0%" stopColor="#f2ff9a" />
-          <stop offset="55%" stopColor="#d4ff3a" />
-          <stop offset="100%" stopColor="#a6cf12" />
+          <stop offset="0%" stopColor="#fff0b3" />
+          <stop offset="55%" stopColor="#ffb81c" />
+          <stop offset="100%" stopColor="#e07a00" />
         </radialGradient>
       </defs>
       <circle cx="16" cy="16" r="15" fill="url(#ballShade)" />
@@ -139,7 +140,7 @@ export function BallIcon({ size = 30, className }: { size?: number; className?: 
         [11.5, 23.5],
         [18.5, 25],
       ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="1.9" fill="#5f7a00" opacity="0.55" />
+        <circle key={i} cx={x} cy={y} r="1.9" fill="#8a3d00" opacity="0.5" />
       ))}
     </svg>
   );
@@ -161,7 +162,7 @@ export function CourtLines({ className = 'court-lines' }: { className?: string }
   );
 }
 
-const AVATAR_COLORS = ['#2b5fd9', '#ff5a36', '#0f9f58', '#8b5cf6', '#e11d74', '#0e9fb5', '#d97706', '#4f46e5', '#0d9488', '#db2777'];
+const AVATAR_COLORS = ['#8a2bb5', '#ff2e88', '#0f7b86', '#e85d04', '#c1121f', '#2a9d8f', '#7b2cbf', '#d97706', '#1d6fa5', '#b5179e'];
 
 function hash(s: string): number {
   let h = 0;
@@ -218,4 +219,99 @@ export function timeAgo(ts: number | undefined): string {
   if (s < 60) return 'just now';
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
   return `${Math.floor(s / 3600)}h ago`;
+}
+
+/** Renders a name with the event wordmark (e.g. "SACS") set in the display font. */
+export function BrandName({ name }: { name: string }) {
+  const parts = name.split(BRAND.short);
+  if (parts.length < 2) return <>{name}</>;
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {i > 0 && <span className="wordmark">{BRAND.short}</span>}
+          {part}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** Marigold-and-mango-leaf garland (toran) used along the top of banners. */
+export function Toran() {
+  const petals = Array.from({ length: 8 }, (_, i) => {
+    const a = (i / 8) * Math.PI * 2;
+    return [Math.cos(a) * 5.5, Math.sin(a) * 5.5];
+  });
+  return (
+    <svg className="toran" aria-hidden="true" preserveAspectRatio="none">
+      <defs>
+        <pattern id="toranPattern" width="64" height="40" patternUnits="userSpaceOnUse">
+          <path d="M0 3 Q32 13 64 3" stroke="#f7c873" strokeWidth="1.5" fill="none" opacity="0.8" />
+          <path d="M16 7 C11 13 12 21 16 26 C20 21 21 13 16 7 Z" fill="#1f9d6b" />
+          <path d="M48 7 C43 13 44 21 48 26 C52 21 53 13 48 7 Z" fill="#178a5c" />
+          <line x1="32" y1="8" x2="32" y2="15" stroke="#f7c873" strokeWidth="1.2" />
+          <g transform="translate(32 22)">
+            {petals.map(([x, y], i) => (
+              <circle key={i} cx={x} cy={y} r="4" fill={i % 2 ? '#ff9f1c' : '#ffb81c'} />
+            ))}
+            <circle r="4.5" fill="#f77f00" />
+            <circle r="1.8" fill="#ffd166" />
+          </g>
+        </pattern>
+      </defs>
+      <rect width="100%" height="40" fill="url(#toranPattern)" />
+    </svg>
+  );
+}
+
+/** Line-art mandala, drawn in currentColor. */
+export function Mandala({ className = 'mandala' }: { className?: string }) {
+  const rings = [
+    { n: 8, r: 62, rx: 16, ry: 40 },
+    { n: 12, r: 112, rx: 13, ry: 32 },
+    { n: 16, r: 158, rx: 10, ry: 24 },
+    { n: 24, r: 196, rx: 6, ry: 13 },
+  ];
+  return (
+    <svg className={className} viewBox="-225 -225 450 450" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="2.2">
+        {[24, 34, 88, 136, 180, 214].map((r) => (
+          <circle key={r} r={r} />
+        ))}
+        {rings.map((ring) =>
+          Array.from({ length: ring.n }, (_, i) => (
+            <ellipse key={`${ring.r}-${i}`} cx="0" cy={-ring.r} rx={ring.rx} ry={ring.ry} transform={`rotate(${(360 / ring.n) * i})`} />
+          )),
+        )}
+      </g>
+      <g fill="currentColor">
+        {Array.from({ length: 36 }, (_, i) => {
+          const a = (i / 36) * Math.PI * 2;
+          return <circle key={i} cx={Math.cos(a) * 205} cy={Math.sin(a) * 205} r="3" />;
+        })}
+      </g>
+    </svg>
+  );
+}
+
+/** "Playing for a cause" card for the charity partner. */
+export function CauseCard({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="cause">
+      <span className="cause-icon">
+        <HandHeart size={22} />
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div className="cause-title">Playing for {BRAND.charity.name}</div>
+        <div className="cause-text">
+          {BRAND.charity.pledge}
+          {!compact && ` ${BRAND.charity.blurb}`}
+        </div>
+      </div>
+      <a className="btn btn-sm" href={BRAND.charity.url} target="_blank" rel="noreferrer">
+        Learn more <ExternalLink size={13} />
+      </a>
+    </div>
+  );
 }

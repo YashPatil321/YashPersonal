@@ -1,4 +1,5 @@
 import { clampPoolCount, computeStructuralByes, generateAllMatches, generateDivision } from './generate';
+import { BRAND } from '../brand';
 import { uid } from './ids';
 import { DEFAULT_SCORING } from './scoring';
 import type { Division, DivisionSettings, Player, Team, Tournament } from './types';
@@ -61,7 +62,7 @@ export function buildTournament(
 
   const t: Tournament = {
     id: uid('tour'),
-    name: info.name || 'Pickleball Tournament',
+    name: info.name || BRAND.eventName,
     date: info.date,
     location: info.location,
     courts: info.courts.length ? info.courts : courtNames(4),

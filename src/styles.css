@@ -1,42 +1,44 @@
 /* =====================================================================
-   Night Court — design tokens
+   SACS Pickleball — design tokens
    ===================================================================== */
 :root {
-  --night: #0a1322;
-  --night-2: #0f1b30;
-  --night-3: #17263f;
+  /* SACS festival palette: royal plum, marigold gold, rani pink, peacock teal */
+  --night: #1c0a2e;
+  --night-2: #26103d;
+  --night-3: #32184f;
   --night-line: rgba(255, 255, 255, 0.1);
-  --on-night: #eef3fc;
-  --on-night-muted: #93a2bf;
+  --on-night: #fcf4ff;
+  --on-night-muted: #c3abd6;
 
-  --bg: #edf1f7;
+  --bg: #fbf6ef;
   --surface: #ffffff;
-  --surface-2: #f2f5fa;
-  --surface-3: #e7ecf4;
-  --ink: #0c1526;
-  --muted: #5d6a81;
-  --line: #dfe5ee;
+  --surface-2: #f8f0e7;
+  --surface-3: #f0e4d6;
+  --ink: #1e1029;
+  --muted: #6e5c79;
+  --line: #ecdfd0;
 
-  --ball: #d4ff3a;
-  --ball-ink: #132000;
-  --ball-soft: #f1fcc6;
-  --court: #2b5fd9;
-  --court-kitchen: #3a72ec;
-  --court-surround: #1a8a5b;
-  --brand: #2453c7;
-  --coral: #ff5a36;
-  --coral-soft: #ffe7e0;
-  --win: #0f9f58;
-  --loss: #e5484d;
-  --warn: #b25e00;
-  --warn-soft: #fff1d6;
+  --ball: #ffb81c;
+  --ball-ink: #2b1700;
+  --ball-soft: #fff2cf;
+  --court: #0f7b86;
+  --court-kitchen: #14919d;
+  --court-surround: #4a1f73;
+  --brand: #8a2bb5;
+  --coral: #ff2e88;
+  --coral-soft: #ffe1ef;
+  --win: #13915a;
+  --loss: #e0344b;
+  --warn: #a65a00;
+  --warn-soft: #fff0d4;
 
   --radius: 18px;
   --radius-sm: 12px;
-  --shadow-sm: 0 1px 2px rgba(12, 21, 38, 0.06);
-  --shadow: 0 1px 2px rgba(12, 21, 38, 0.05), 0 8px 24px -8px rgba(12, 21, 38, 0.12);
-  --shadow-lg: 0 24px 60px -20px rgba(10, 19, 34, 0.45);
+  --shadow-sm: 0 1px 2px rgba(30, 10, 46, 0.07);
+  --shadow: 0 1px 2px rgba(30, 10, 46, 0.05), 0 8px 24px -8px rgba(30, 10, 46, 0.14);
+  --shadow-lg: 0 24px 60px -20px rgba(28, 10, 46, 0.5);
   --display: 'Barlow Condensed', 'Arial Narrow', ui-sans-serif, system-ui, sans-serif;
+  --wordmark: 'Rozha One', Georgia, 'Times New Roman', serif;
   --font: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
   --header-h: 64px;
   color-scheme: light;
@@ -44,16 +46,16 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #070d18;
-    --surface: #0f1a2c;
-    --surface-2: #142138;
-    --surface-3: #1b2a45;
-    --ink: #eaf0fa;
-    --muted: #8e9bb4;
-    --line: #1f2e49;
-    --ball-soft: rgba(212, 255, 58, 0.12);
-    --brand: #8bb0ff;
-    --coral-soft: rgba(255, 90, 54, 0.16);
+    --bg: #0e0616;
+    --surface: #1a0e27;
+    --surface-2: #221432;
+    --surface-3: #2c1b40;
+    --ink: #f7eefc;
+    --muted: #a895b8;
+    --line: #352450;
+    --ball-soft: rgba(255, 184, 28, 0.13);
+    --brand: #d4a3ff;
+    --coral-soft: rgba(255, 46, 136, 0.16);
     --warn: #ffb547;
     --warn-soft: rgba(255, 181, 71, 0.13);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -10px rgba(0, 0, 0, 0.6);
@@ -184,10 +186,10 @@ p {
 @keyframes glow {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 90, 54, 0.45);
+    box-shadow: 0 0 0 0 rgba(255, 46, 136, 0.45);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(255, 90, 54, 0);
+    box-shadow: 0 0 0 6px rgba(255, 46, 136, 0);
   }
 }
 @keyframes float {
@@ -257,7 +259,7 @@ p {
 }
 .ball-spin {
   flex-shrink: 0;
-  filter: drop-shadow(0 0 10px rgba(212, 255, 58, 0.35));
+  filter: drop-shadow(0 0 10px rgba(255, 184, 28, 0.35));
 }
 .nav {
   display: flex;
@@ -518,7 +520,7 @@ main {
   background: var(--ball);
   color: var(--ball-ink);
   border-color: transparent;
-  box-shadow: 0 6px 18px -8px rgba(160, 210, 0, 0.9);
+  box-shadow: 0 6px 18px -8px rgba(230, 130, 0, 0.9);
 }
 .btn-primary:hover,
 .btn-accent:hover {
@@ -759,7 +761,7 @@ textarea.input {
 }
 .progress > div {
   height: 100%;
-  background: linear-gradient(90deg, var(--court), #5b8cff);
+  background: linear-gradient(90deg, var(--brand), var(--coral));
   border-radius: 99px;
   transition: width 0.4s;
 }
@@ -801,8 +803,8 @@ textarea.input {
   border-radius: 26px;
   padding: 28px;
   color: var(--on-night);
-  background: radial-gradient(900px 400px at 100% 0%, rgba(212, 255, 58, 0.16), transparent 60%),
-    radial-gradient(700px 400px at 0% 100%, rgba(43, 95, 217, 0.45), transparent 60%), var(--night);
+  background: radial-gradient(900px 400px at 100% 0%, rgba(255, 184, 28, 0.16), transparent 60%),
+    radial-gradient(700px 400px at 0% 100%, rgba(214, 31, 128, 0.4), transparent 60%), var(--night);
   box-shadow: var(--shadow-lg);
   isolation: isolate;
 }
@@ -1667,10 +1669,10 @@ tr.advancing .rank {
   border-radius: 16px;
   padding: 16px 14px;
   text-align: center;
-  background: radial-gradient(240px 120px at 50% 0%, rgba(212, 255, 58, 0.3), transparent 70%), var(--night);
+  background: radial-gradient(240px 120px at 50% 0%, rgba(255, 184, 28, 0.3), transparent 70%), var(--night);
   color: var(--on-night);
   box-shadow: var(--shadow);
-  border: 1px solid rgba(212, 255, 58, 0.25);
+  border: 1px solid rgba(255, 184, 28, 0.25);
 }
 .champion-card .eyebrow {
   color: var(--ball);
@@ -1721,7 +1723,7 @@ tr.advancing .rank {
 }
 .steps .on .bar {
   background: var(--ball);
-  box-shadow: 0 0 12px rgba(160, 210, 0, 0.6);
+  box-shadow: 0 0 12px rgba(230, 130, 0, 0.6);
 }
 .steps .on {
   color: var(--ink);
@@ -1797,8 +1799,8 @@ tr.advancing .rank {
   overflow: hidden;
   border-radius: 30px;
   padding: clamp(36px, 7vw, 76px) clamp(20px, 5vw, 64px);
-  background: radial-gradient(800px 420px at 85% 10%, rgba(212, 255, 58, 0.2), transparent 60%),
-    radial-gradient(900px 500px at 0% 100%, rgba(43, 95, 217, 0.55), transparent 60%), var(--night);
+  background: radial-gradient(800px 420px at 85% 10%, rgba(255, 184, 28, 0.2), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(214, 31, 128, 0.45), transparent 60%), var(--night);
   color: var(--on-night);
   box-shadow: var(--shadow-lg);
   isolation: isolate;
@@ -1834,7 +1836,7 @@ tr.advancing .rank {
   top: clamp(20px, 6vw, 60px);
   z-index: -1;
   animation: float 6s ease-in-out infinite;
-  filter: drop-shadow(0 20px 40px rgba(212, 255, 58, 0.35));
+  filter: drop-shadow(0 20px 40px rgba(255, 184, 28, 0.35));
   opacity: 0.95;
 }
 @media (max-width: 700px) {
@@ -1924,7 +1926,7 @@ tr.advancing .rank {
 .scoreboard {
   border-radius: 26px;
   padding: 16px;
-  background: radial-gradient(500px 200px at 50% 0%, rgba(212, 255, 58, 0.12), transparent 70%), var(--night);
+  background: radial-gradient(500px 200px at 50% 0%, rgba(255, 184, 28, 0.12), transparent 70%), var(--night);
   color: var(--on-night);
   box-shadow: var(--shadow-lg);
 }
@@ -1937,7 +1939,7 @@ tr.advancing .rank {
   line-height: 1;
   letter-spacing: 0.04em;
   color: var(--ball);
-  text-shadow: 0 0 24px rgba(212, 255, 58, 0.35);
+  text-shadow: 0 0 24px rgba(255, 184, 28, 0.35);
   font-variant-numeric: tabular-nums;
 }
 .scorer-teams {
@@ -1961,7 +1963,7 @@ tr.advancing .rank {
 }
 .scorer-side.serving {
   border-color: var(--ball);
-  box-shadow: 0 0 0 4px rgba(212, 255, 58, 0.15), inset 0 0 40px rgba(212, 255, 58, 0.06);
+  box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15), inset 0 0 40px rgba(255, 184, 28, 0.06);
 }
 .scorer-side .team {
   font-weight: 750;
@@ -2031,13 +2033,13 @@ tr.advancing .rank {
   min-height: 100vh;
   color: var(--on-night);
   padding: 26px clamp(16px, 3vw, 44px);
-  background: radial-gradient(1200px 600px at 100% 0%, rgba(212, 255, 58, 0.08), transparent 60%),
-    radial-gradient(1000px 600px at 0% 100%, rgba(43, 95, 217, 0.3), transparent 60%), #060c17;
-  --surface: #0f1a2c;
-  --surface-2: #142138;
-  --line: #22324f;
-  --muted: #8e9bb4;
-  --ink: #eaf0fa;
+  background: radial-gradient(1200px 600px at 100% 0%, rgba(255, 184, 28, 0.08), transparent 60%),
+    radial-gradient(1000px 600px at 0% 100%, rgba(214, 31, 128, 0.25), transparent 60%), #12061d;
+  --surface: #1d0f2c;
+  --surface-2: #26153a;
+  --line: #3a2554;
+  --muted: #b09fc2;
+  --ink: #f7eefc;
 }
 .tv-head {
   display: flex;
@@ -2071,8 +2073,8 @@ tr.advancing .rank {
   }
 }
 .tv .court-card {
-  background: #0f1a2c;
-  border-color: #22324f;
+  background: #1d0f2c;
+  border-color: #3a2554;
 }
 .tv .court-surface {
   min-height: 170px;
@@ -2091,8 +2093,8 @@ tr.advancing .rank {
   gap: 8px;
 }
 .tv-list .item {
-  background: #0f1a2c;
-  border: 1px solid #22324f;
+  background: #1d0f2c;
+  border: 1px solid #3a2554;
   border-radius: 14px;
   padding: 11px 14px;
   font-size: 1.05rem;
@@ -2153,11 +2155,11 @@ tr.advancing .rank {
   padding: 18px;
   margin-bottom: 16px;
   color: var(--on-night);
-  background: radial-gradient(500px 200px at 100% 0%, rgba(212, 255, 58, 0.14), transparent 70%), var(--night);
+  background: radial-gradient(500px 200px at 100% 0%, rgba(255, 184, 28, 0.14), transparent 70%), var(--night);
   box-shadow: var(--shadow);
 }
 .time-budget.over {
-  background: radial-gradient(500px 200px at 100% 0%, rgba(255, 90, 54, 0.28), transparent 70%), var(--night);
+  background: radial-gradient(500px 200px at 100% 0%, rgba(255, 46, 136, 0.3), transparent 70%), var(--night);
 }
 .time-budget .eyebrow {
   color: var(--ball);
@@ -2192,11 +2194,11 @@ tr.advancing .rank {
   height: 100%;
   border-radius: 99px;
   background: var(--ball);
-  box-shadow: 0 0 12px rgba(212, 255, 58, 0.6);
+  box-shadow: 0 0 12px rgba(255, 184, 28, 0.6);
 }
 .time-budget.over .tb-bar > div {
   background: var(--coral);
-  box-shadow: 0 0 12px rgba(255, 90, 54, 0.6);
+  box-shadow: 0 0 12px rgba(255, 46, 136, 0.6);
 }
 .tb-tips {
   margin: 12px 0 0;
@@ -2237,5 +2239,188 @@ tr.advancing .rank {
 @media (min-width: 1500px) {
   .tv-courts.compact {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+
+/* =====================================================================
+   SACS festival touches
+   ===================================================================== */
+.wordmark {
+  font-family: var(--wordmark);
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+.brand-title .wordmark {
+  color: var(--ball);
+  font-size: 1.15em;
+  margin-right: 0.12em;
+}
+h1 .wordmark,
+.tv-title .wordmark {
+  color: var(--ball);
+  margin-right: 0.08em;
+}
+.hero-wordmark {
+  display: block;
+  font-size: 1.25em;
+  line-height: 0.95;
+  color: var(--ball);
+  text-shadow: 0 6px 30px rgba(255, 184, 28, 0.35);
+}
+
+/* marigold & mango-leaf garland across the top of banners */
+.toran {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 40px;
+  z-index: -1;
+  pointer-events: none;
+}
+.hero-banner,
+.hero {
+  padding-top: 52px;
+}
+
+/* slowly turning mandala */
+.mandala {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  color: var(--ball);
+  opacity: 0.16;
+  width: 460px;
+  height: 460px;
+  right: -110px;
+  top: 50%;
+  margin-top: -230px;
+  animation: spin 160s linear infinite;
+}
+.hero .mandala {
+  width: 620px;
+  height: 620px;
+  margin-top: -310px;
+  right: -160px;
+  opacity: 0.2;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 640px) {
+  .mandala {
+    width: 300px;
+    height: 300px;
+    margin-top: -150px;
+    right: -120px;
+  }
+}
+
+/* cause card */
+.cause {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(100deg, var(--ball-soft), color-mix(in srgb, var(--coral) 10%, var(--surface)));
+  border: 1px solid color-mix(in srgb, var(--ball) 45%, var(--line));
+  box-shadow: var(--shadow-sm);
+}
+.cause .cause-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--ball), var(--coral));
+  color: #fff;
+  box-shadow: 0 6px 16px -6px rgba(255, 46, 136, 0.6);
+}
+.cause .cause-title {
+  font-family: var(--display);
+  font-weight: 800;
+  font-style: italic;
+  text-transform: uppercase;
+  font-size: 1.2rem;
+  line-height: 1.05;
+}
+.cause .cause-text {
+  font-size: 0.86rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+@media (max-width: 560px) {
+  .cause {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .cause > a {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+.tv-cause {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 184, 28, 0.1);
+  border: 1px solid rgba(255, 184, 28, 0.3);
+  font-size: 1.05rem;
+}
+
+.draw-soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 560px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 184, 28, 0.35);
+  color: var(--on-night);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.draw-soon .dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ball);
+  box-shadow: 0 0 10px var(--ball);
+  animation: pulse 1.6s infinite;
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 10px;
+}
+.footer-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 22px 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.site-footer .brand-title {
+  color: var(--ink);
+  font-size: 1.15rem;
+}
+@media (max-width: 860px) {
+  .footer-inner {
+    padding-bottom: calc(110px + env(safe-area-inset-bottom));
   }
 }

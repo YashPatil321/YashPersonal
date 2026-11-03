@@ -5,7 +5,8 @@ import { FORMAT_LABELS, teamName } from '../lib/tournament';
 import { divisionName, MatchCard, stageLabel } from '../components/match';
 import { MiniCourt } from '../components/MiniCourt';
 import { Podium } from '../components/Standings';
-import { CourtLines, Progress, ProgressRing, TeamAvatars, minutesLabel, timeAgo } from '../components/ui';
+import { BRAND } from '../brand';
+import { BrandName, CauseCard, Mandala, Progress, ProgressRing, TeamAvatars, Toran, minutesLabel, timeAgo } from '../components/ui';
 import { useMatchDialog } from '../components/useMatchDialog';
 import { useTournament } from '../state/store';
 
@@ -40,11 +41,16 @@ export function Overview() {
   return (
     <>
       <section className="hero-banner">
-        <CourtLines />
+        <Toran />
+        <Mandala />
         <div className="hero-grid">
           <div style={{ minWidth: 0 }}>
-            <div className="eyebrow">{finished ? 'Final results are in' : started ? 'Live now' : 'Draw is set'}</div>
-            <h1>{t.name}</h1>
+            <div className="eyebrow">
+              {BRAND.organizer} · {finished ? 'Final results are in' : started ? 'Live now' : 'Draw is set'}
+            </div>
+            <h1>
+              <BrandName name={t.name} />
+            </h1>
             <div className="row">
               {dateText && (
                 <span className="chip">
@@ -115,6 +121,10 @@ export function Overview() {
           </button>
         </div>
       )}
+
+      <div style={{ marginTop: 16 }}>
+        <CauseCard compact />
+      </div>
 
       <a className="card row-between" href="#/teams" style={{ marginTop: 16, color: 'inherit', textDecoration: 'none' }}>
         <span className="row" style={{ gap: 12, flexWrap: 'nowrap', minWidth: 0 }}>
