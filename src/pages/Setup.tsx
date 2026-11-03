@@ -378,6 +378,10 @@ function SourceStep({
   const [error, setError] = useState<string | null>(null);
   const isScript = classifyGoogleUrl(draft.sheetUrl).kind === 'appsScript';
   const [scriptPass, setScriptPass] = useState(sync?.role === 'admin' ? sync.passcode ?? '' : '');
+  // Connected organizers: default to the connected sign-up sheet.
+  useEffect(() => {
+    if (sync?.role === 'admin' && !draft.sheetUrl) patch({ sheetUrl: sync.url });
+  }, []);
 
   const acceptRows = (rows: string[][]) => {
     if (rows.length < 2) {

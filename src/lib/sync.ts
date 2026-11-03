@@ -41,7 +41,8 @@ async function postJSON(url: string, body: unknown): Promise<any> {
 }
 
 export const remote = {
-  ping: (url: string) => getJSON(url, 'ping') as Promise<{ spreadsheet: string; version: number; scorerEnabled: boolean }>,
+  ping: (url: string) =>
+    getJSON(url, 'ping') as Promise<{ spreadsheet: string; version: number; scorerEnabled: boolean; formUrl?: string }>,
   version: async (url: string) => (await getJSON(url, 'version')).version as number,
   /** Public read (no contact details), or the full state when an admin passcode is given. */
   state: async (url: string, passcode?: string): Promise<RemoteState> => {

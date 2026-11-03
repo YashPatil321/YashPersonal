@@ -26,62 +26,55 @@ Organizers build the draw from the Google Form sign-ups. Competitors follow live
 
 ---
 
-## 1. Make the Google Form
+## Organizer setup (sign-up form + live scores)
 
-Any form works. These questions are detected automatically:
+**Admin link:** https://pickleball-tournament-jet.vercel.app/#/admin (or **Organizer** in the footer)
 
-| Question | Type | Notes |
-|---|---|---|
-| Full name | Short answer | Or separate *First name* / *Last name* questions. |
-| Email | Short answer | Or turn on "Collect email addresses". |
-| Phone number | Short answer | Optional. Only the organizer ever sees it. |
-| Skill level | Short answer or dropdown | "3.5", "3.0-3.5", "DUPR 4.12", "Beginner / Intermediate / Advanced" all work. Used for seeding and partner pairing. |
-| Division | Multiple choice or checkboxes | e.g. *Intermediate (3.0-3.5)*, *Advanced (4.0+)*. With checkboxes, players can enter several divisions. |
-| Partner's name | Short answer | "Leave blank if you need a partner." Answers like "need one", "n/a" or "TBD" are treated as no partner. |
-| Partner's email | Short answer | Optional; makes partner matching exact. |
+The admin page walks you through it. About 3 minutes, no coding:
 
-Then in the form go to **Responses → Link to Sheets** to create the response spreadsheet.
+1. **Copy the setup script** from the admin page (it's [`apps-script/Code.gs`](apps-script/Code.gs)) and open [script.new](https://script.new), signed in to the Google account that should own the form.
+2. Paste it over everything, **Save**, choose **setup** in the function menu and press **Run**. Allow access. The **Execution log** prints:
+   - the **sign-up form link** to send to players
+   - the responses spreadsheet
+   - your **admin passcode** (`sacs-…`) and **scorer passcode** (`court-…`) for court volunteers
+3. **Deploy → New deployment →** gear icon **→ Web app**. Execute as **Me**, Who has access **Anyone**. Copy the **Web app URL** (ends in `/exec`).
+4. Back on the admin page, paste the URL and the admin passcode and press **Connect**.
 
-## 2. Put the website online
+The dashboard then gives you:
+- the **sign-up form** link (players also get a **Register your team** button on the home page)
+- a **players' link**: live and read-only, no login
+- an **admin link** that opens the dashboard on any device (passcode required)
+- **Build the draw**, which reads the form responses straight from your private sheet
 
-The site is a static app (Vite + React + TypeScript). It's already deployed to the Vercel project **`pickleball-tournament`**, which is connected to this GitHub repo: merging into `main` redeploys the live site automatically, and every other branch gets its own preview link. To redeploy by hand: `npx vercel deploy --prod`.
+### The sign-up form
 
-Other hosts work too:
+`setup` creates **"SACS Pickleball Tournament Registration"**, which mentions the South Asian Culture Show and the Akshaya Patra Foundation and points players back to this site:
 
-- **Vercel** (fresh setup): import this GitHub repo at vercel.com → *Add New Project*. It detects Vite on its own: build `npm run build`, output `dist`.
-- **Netlify / Cloudflare Pages**: build command `npm run build`, publish directory `dist`.
-- **Run it locally**: `npm install` then `npm run dev`.
+| Question | Type |
+|---|---|
+| Full name | Short answer, required |
+| Email | Short answer, required, must be an email |
+| Phone number | Short answer |
+| School | Short answer |
+| Skill level | Beginner / Intermediate (2.5 - 3.5) / Advanced (4.0+), required |
+| Bracket | Competitive / Just for fun, required. Each becomes its own division. |
+| Partner's full name, Partner's email, Partner's skill level | Optional. Leave blank to get paired up. |
+| Team name (optional) | Short answer |
+| Anything else we should know? | Paragraph |
 
-## 3. Choose how you'll run it
+Edit the form however you like in Google Forms. The site matches columns by their titles, and you can fix any mapping on the **Columns** step when you build the draw. Running `setup` again never creates a second form; it just prints the links and passcodes again.
 
-### Option A: Live for everyone (recommended)
-
-This is what lets competitors follow along on their own phones. It uses a free Google Apps Script that lives inside **your** response spreadsheet, so there are no servers or accounts to manage.
-
-1. Open the response spreadsheet → **Extensions → Apps Script**.
-2. Delete the sample code and paste in everything from [`apps-script/Code.gs`](apps-script/Code.gs).
-3. At the top of that file, set your passcodes:
-   ```js
-   var ADMIN_PASSCODE = 'pick-something-long';   // you
-   var SCORER_PASSCODE = 'court-volunteers';     // optional, '' to disable
-   ```
-4. Click **Deploy → New deployment**, choose type **Web app**, and set:
-   - *Execute as*: **Me**
-   - *Who has access*: **Anyone**
-
-   Click **Deploy** and approve the permissions prompt (it only touches this spreadsheet).
-5. Copy the **Web app URL** (it ends in `/exec`).
-6. On the website: **Settings → Live sync** → paste the URL and your admin passcode → **Connect**.
-7. Click **Organizer tools** at the bottom of the page and choose **Google Sheet link → Use the connected Google Sheet** to load the sign-ups. Your spreadsheet can stay private.
-8. Share the link or QR code from **Settings → Share with players**.
-
-**Optional, but nice:** in Vercel go to **Settings → Environment Variables** and add `VITE_LIVE_URL` = your web app URL, then redeploy. Now the plain website address opens straight into the live tournament for everyone, and you use **Organizer login** at the bottom of the page to get your admin controls.
+**Optional:** in Vercel go to **Settings → Environment Variables** and add `VITE_LIVE_URL` = your web app URL, then redeploy. The plain site address then opens the live tournament for everyone, with no `?live=` link needed.
 
 > If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit → New version**. That keeps the same URL.
 
-### Option B: One device only (zero setup)
+### Without the script (one device only)
 
-Skip Apps Script. In the Create wizard, paste your spreadsheet link (Share → *Anyone with the link → Viewer*), upload a CSV, or paste rows. The tournament is saved in that browser. Open **TV mode** in a second window on a big screen and it updates as you enter scores. You can switch to Option A at any time with **Settings → Live sync → Connect & publish this device's tournament**.
+On the admin page's setup screen you can also build a draw on just this device from a CSV or a shared sheet link (open `#/setup`). Nobody else will see it. TV mode in a second window still works.
+
+## Hosting
+
+The site is a static app (Vite + React + TypeScript), deployed to the Vercel project **`pickleball-tournament`** and connected to this GitHub repo. Merging into `main` redeploys the live site automatically, and other branches get preview links. To redeploy by hand: `npx vercel deploy --prod`. Run it locally with `npm install` then `npm run dev`.
 
 ## Planning for your time
 
@@ -99,7 +92,7 @@ What fits on **10 courts** with the default format (pools of about 5, top 2 into
 
 So in about 4 hours, plan for up to roughly 40 teams. Go bigger only with shorter games: to 9, or with a point cap.
 
-## 4. Tournament day
+## Tournament day
 
 1. **Home → Start tournament** sends the first matches to every court.
 2. **Courts** shows what's on each court. When a score is saved, the next match is called to that court automatically (toggle *Auto-call*).
