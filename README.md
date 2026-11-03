@@ -26,51 +26,42 @@ Organizers build the draw from the Google Form sign-ups. Competitors follow live
 
 ---
 
-## Organizer setup (sign-up form + live scores)
+## Organizer setup (registration + live scores)
 
 **Admin link:** https://pickleball-tournament-jet.vercel.app/#/admin (or **Organizer** in the footer)
 
-The admin page walks you through it. About 3 minutes, no coding:
+Players sign up on the site's **Register** tab (https://pickleball-tournament-jet.vercel.app/#/register). There's no Google Form. Sign-ups are saved to a private Google Sheet in your account through a small Google Apps Script, which also powers live scores. Set it up once (about 3 minutes, no coding); the admin page walks you through it:
 
-1. **Copy the setup script** from the admin page (it's [`apps-script/Code.gs`](apps-script/Code.gs)) and open [script.new](https://script.new), signed in to the Google account that should own the form.
-2. Paste it over everything, **Save**, choose **setup** in the function menu and press **Run**. Allow access. The **Execution log** prints:
-   - the **sign-up form link** to send to players
-   - the responses spreadsheet
-   - your **admin passcode** (`sacs-…`) and **scorer passcode** (`court-…`) for court volunteers
+1. **Copy the setup script** from the admin page (it's [`apps-script/Code.gs`](apps-script/Code.gs)) and open [script.new](https://script.new), signed in to the Google account that should own the sign-ups sheet.
+2. Paste it over everything, **Save**, choose **setup** in the function menu and press **Run**. Allow access. The **Execution log** prints the sign-ups sheet link, your **admin passcode** (`sacs-…`) and the **scorer passcode** (`court-…`) for court volunteers.
 3. **Deploy → New deployment →** gear icon **→ Web app**. Execute as **Me**, Who has access **Anyone**. Copy the **Web app URL** (ends in `/exec`).
 4. Back on the admin page, paste the URL and the admin passcode and press **Connect**.
 
 The dashboard then gives you:
-- the **sign-up form** link (players also get a **Register your team** button on the home page)
-- a **players' link**: live and read-only, no login
-- an **admin link** that opens the dashboard on any device (passcode required)
-- **Build the draw**, which reads the form responses straight from your private sheet
+- the **registration** count, a list of who signed up, and an **open/close** switch. Registration also closes automatically when you publish the draw.
+- a **registration link** to send players, a **players' link** (live, read-only) and an **admin link** that opens the dashboard on any device (passcode required)
+- **Build the draw**, which turns the sign-ups into teams and brackets
 
-### The sign-up form
+**Make the plain site address work for everyone:** in Vercel go to **Settings → Environment Variables**, add `VITE_LIVE_URL` = your web app URL, then redeploy. Until then, share the links from the dashboard (they include `?live=…`).
 
-`setup` creates **"SACS Pickleball Tournament Registration"**, which mentions the South Asian Culture Show and the Akshaya Patra Foundation and points players back to this site:
+### The Register tab
 
-| Question | Type |
+| Field | Notes |
 |---|---|
-| Full name | Short answer, required |
-| Email | Short answer, required, must be an email |
-| Phone number | Short answer |
-| School | Short answer |
-| Skill level | Beginner / Intermediate (2.5 - 3.5) / Advanced (4.0+), required |
+| Full name, Email | Required |
+| Phone number, School | Optional |
+| Skill level | Beginner / Intermediate (2.5 - 3.5) / Advanced (4.0+), required. Used for seeding and pairing. |
 | Bracket | Competitive / Just for fun, required. Each becomes its own division. |
-| Partner's full name, Partner's email, Partner's skill level | Optional. Leave blank to get paired up. |
-| Team name (optional) | Short answer |
-| Anything else we should know? | Paragraph |
+| Partner's full name, email, skill level | Optional. Leave blank to get paired with someone. Only one person per team needs to register. |
+| Team name, Anything else we should know? | Optional |
 
-Edit the form however you like in Google Forms. The site matches columns by their titles, and you can fix any mapping on the **Columns** step when you build the draw. Running `setup` again never creates a second form; it just prints the links and passcodes again.
-
-**Optional:** in Vercel go to **Settings → Environment Variables** and add `VITE_LIVE_URL` = your web app URL, then redeploy. The plain site address then opens the live tournament for everyone, with no `?live=` link needed.
+Entries land in the **Registrations** tab of the sheet, where you can edit or delete rows. The form has a spam honeypot, and values can't turn into spreadsheet formulas.
 
 > If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit → New version**. That keeps the same URL.
 
 ### Without the script (one device only)
 
-On the admin page's setup screen you can also build a draw on just this device from a CSV or a shared sheet link (open `#/setup`). Nobody else will see it. TV mode in a second window still works.
+The admin page's setup screen also has a link to build a draw on just this device, from a CSV or a shared sheet link. Nobody else will see it. TV mode in a second window still works.
 
 ## Hosting
 

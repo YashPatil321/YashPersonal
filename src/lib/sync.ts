@@ -2,6 +2,21 @@ import type { Match, Tournament } from './types';
 
 export type Role = 'admin' | 'scorer' | 'viewer';
 
+/** One sign-up from the website's Register tab (keys match the Apps Script REG_FIELDS). */
+export interface RegistrationEntry {
+  name: string;
+  email: string;
+  phone?: string;
+  school?: string;
+  skill: string;
+  bracket?: string;
+  partnerName?: string;
+  partnerEmail?: string;
+  partnerSkill?: string;
+  teamName?: string;
+  notes?: string;
+}
+
 export interface SyncConfig {
   /** Google Apps Script web-app URL (…/exec). */
   url: string;
@@ -42,7 +57,20 @@ async function postJSON(url: string, body: unknown): Promise<any> {
 
 export const remote = {
   ping: (url: string) =>
-    getJSON(url, 'ping') as Promise<{ spreadsheet: string; version: number; scorerEnabled: boolean; formUrl?: string }>,
+    getJSON(url, 'ping') as Promise<{
+      spreadsheet: string;
+      version: number;
+      scorerEnabled: boolean;
+      registrationOpen?: boolean;
+      registrations?: number;
+    }>,
+  /** Public: save one sign-up from the Register tab. `website` is a honeypot that must stay empty. */
+  register: (url: string, entry: RegistrationEntry, website = ''): Promise<{ count?: number }> =>
+    postJSON(url, { action: 'register', entry, website }),
+  setRegistration: (url: string, passcode: string, open: boolean): Promise<{ registrationOpen: boolean }> =>
+    postJSON(url, { action: 'setRegistration', passcode, open }),
+  registrations: async (url: string, passcode: string): Promise<string[][]> =>
+    (await postJSON(url, { action: 'registrations', passcode })).rows,
   version: async (url: string) => (await getJSON(url, 'version')).version as number,
   /** Public read (no contact details), or the full state when an admin passcode is given. */
   state: async (url: string, passcode?: string): Promise<RemoteState> => {

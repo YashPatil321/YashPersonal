@@ -67,6 +67,9 @@ class FakeSheet {
   clearContents() {
     this.cells = [];
   }
+  appendRow(row) {
+    this.cells.push(row.map((v) => (typeof v === 'string' && v.startsWith('=') ? (() => { throw new Error('formula'); })() : v)));
+  }
   setFrozenRows() {}
 }
 
