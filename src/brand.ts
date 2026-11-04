@@ -15,14 +15,14 @@ export const BRAND = {
   /**
    * Optional GoFundMe (or other donation page) for extra donations from people who
    * aren't playing. Shows a "Donate" button next to the cause when set.
-   * Keep entry fees on Zelle/Venmo/cash: GoFundMe's terms don't allow giving event
-   * entry in exchange for donations.
+   * Keep the required $20 sign-up donations on Zelle/Venmo/cash: GoFundMe's terms
+   * don't allow giving event entry in exchange for donations.
    */
   donateUrl: '',
-  /** Entry fee and where to send it. Shown on the Register tab; leave '' to hide a line. */
+  /** Required donation and where to send it. Shown on the Register tab; leave '' to hide a line. */
   payment: {
-    fee: '$20 per player',
-    /** Entry fee in dollars PER PLAYER (a pair pays twice this). */
+    fee: '$20 per player (required)',
+    /** Required donation in dollars PER PLAYER (a pair gives twice this). */
     feeAmount: 20,
     zelle: '', // e.g. 'sacsexec@gmail.com' or a phone number
     venmo: '', // e.g. '@SACS-Pickleball'
@@ -32,6 +32,6 @@ export const BRAND = {
     url: 'https://www.akshayapatrausa.org/',
     /** One-line description of the cause. */
     blurb: 'Akshaya Patra serves free, nutritious school lunches to children across India, so they can stay in class and learn.',
-    pledge: 'A portion of every entry fee is donated to the Akshaya Patra Foundation.',
+    pledge: 'A portion of every donation goes to the Akshaya Patra Foundation.',
   },
 };

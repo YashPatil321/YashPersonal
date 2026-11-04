@@ -2606,3 +2606,153 @@ h1 .wordmark,
   align-items: center;
   padding: 10px 8px;
 }
+
+/* Photo banner (Register) */
+.photo-banner {
+  position: relative;
+  border-radius: 26px;
+  overflow: hidden;
+  min-height: 300px;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: var(--shadow-lg);
+  background: var(--night);
+}
+.photo-banner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 60%;
+}
+.photo-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(28, 10, 46, 0.55) 62%, rgba(28, 10, 46, 0.94) 100%);
+}
+.photo-banner-text {
+  position: relative;
+  z-index: 1;
+  padding: 22px 24px;
+  color: var(--on-night);
+}
+.photo-banner-text .eyebrow {
+  color: var(--ball);
+}
+.photo-banner-text h1 {
+  color: #fff;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  margin: 4px 0 6px;
+}
+.photo-banner-sub {
+  max-width: 640px;
+  color: var(--on-night-muted);
+  font-size: 0.95rem;
+}
+@media (min-width: 641px) {
+  .photo-banner {
+    aspect-ratio: 2000 / 825;
+  }
+}
+@media (max-width: 640px) {
+  .photo-banner {
+    min-height: 340px;
+    border-radius: 20px;
+  }
+  .photo-banner img {
+    object-position: 30% 40%;
+  }
+}
+
+/* Donation wall */
+.top-donor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: radial-gradient(300px 120px at 0% 0%, rgba(255, 184, 28, 0.3), transparent 70%), var(--night);
+  color: var(--on-night);
+  box-shadow: var(--shadow);
+}
+.top-donor .eyebrow {
+  color: var(--ball);
+}
+.top-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--ball);
+  color: var(--ball-ink);
+}
+.top-name {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 800;
+  font-size: 1.4rem;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.top-amount {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.8rem;
+  color: var(--ball);
+}
+.donation-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+.donation-heart {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ball-soft);
+  color: var(--coral);
+}
+.donation-amount {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+.donation-when {
+  min-width: 64px;
+  text-align: right;
+}
+
+/* Who we are */
+.about-sacs {
+  display: grid;
+  gap: 14px;
+}
+.photo-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+.photo-grid figure {
+  margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  background: var(--surface-2);
+}
+.photo-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}

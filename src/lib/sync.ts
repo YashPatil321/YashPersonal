@@ -6,6 +6,8 @@ export type Role = 'admin' | 'scorer' | 'viewer';
 export interface Fundraising {
   donations: number;
   donors: number;
+  /** Public donation wall, newest first (names shortened, or 'Anonymous'). */
+  list?: Array<{ name: string; players: number; extra: number; at: string }>;
   /** Players signed up: 1 per registration, 2 when a partner is listed. */
   players: number;
   goal: number;
@@ -27,8 +29,10 @@ export interface RegistrationEntry {
   payment: 'Zelle' | 'Venmo' | 'Cash at check-in' | '';
   /** The registrant ticked "I've paid" (or will bring cash). */
   paid: boolean;
-  /** Optional extra donation in dollars on top of the entry fee. */
+  /** Optional extra donation in dollars on top of the required $20 per player. */
   donation?: number;
+  /** Show as "Anonymous" on the public donation list. */
+  anonymous?: boolean;
 }
 
 export interface SyncConfig {
