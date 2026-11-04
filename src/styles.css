@@ -2756,3 +2756,201 @@ h1 .wordmark,
   object-fit: cover;
   display: block;
 }
+
+/* GoFundMe-style Register page */
+.gf-page {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'title' 'photo' 'side' 'main';
+}
+.gf-title {
+  grid-area: title;
+  margin: 4px 0 0;
+  font-size: clamp(1.8rem, 4.4vw, 2.8rem);
+  line-height: 1.05;
+}
+.gf-photo {
+  grid-area: photo;
+  margin: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: var(--night);
+  box-shadow: var(--shadow-lg);
+}
+.gf-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 30% 45%;
+  display: block;
+}
+.gf-side {
+  grid-area: side;
+  min-width: 0;
+}
+.gf-main {
+  grid-area: main;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .gf-page {
+    grid-template-columns: minmax(0, 1fr) 370px;
+    grid-template-areas: 'title title' 'photo side' 'main side';
+    column-gap: 28px;
+  }
+  .gf-side {
+    align-self: start;
+    position: sticky;
+    top: 84px;
+  }
+}
+.gf-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: var(--shadow-lg);
+}
+.gf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.gf-raised {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 2.1rem;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.gf-raised span {
+  font-family: var(--sans, inherit);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.gf-ring {
+  width: 72px;
+  height: 72px;
+  flex: none;
+}
+.gf-ring circle {
+  fill: none;
+  stroke-width: 7;
+}
+.gf-ring-track {
+  stroke: var(--surface-3);
+}
+.gf-ring-fill {
+  stroke: var(--win, #1f9d55);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.8s;
+}
+.gf-ring text {
+  font-size: 15px;
+  font-weight: 800;
+  fill: var(--ink);
+}
+.gf-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.gf-btn {
+  width: 100%;
+  justify-content: center;
+  border-radius: 14px;
+}
+.gf-share {
+  background: var(--ball-soft);
+  color: var(--ink);
+  border-color: transparent;
+}
+.gf-trend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  color: var(--brand);
+  font-size: 0.92rem;
+}
+.gf-trend-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ball-soft);
+  color: var(--brand);
+}
+.gf-list {
+  margin-top: 6px;
+}
+.gf-gift {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.gf-gift:last-child {
+  border-bottom: 0;
+}
+.gf-gift-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--coral);
+}
+.gf-tag {
+  color: var(--brand);
+  font-weight: 700;
+}
+.gf-more {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.gf-more .btn {
+  justify-content: center;
+  border-radius: 12px;
+}
+.gf-modal-list {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding: 0 4px;
+}
+.gf-organizer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.gf-avatar {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--night);
+  color: var(--ball);
+}
+.gf-story {
+  padding: 6px 0 4px;
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+.gf-form-title {
+  margin: 14px 0 12px;
+  scroll-margin-top: 90px;
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Crown, HandHeart } from 'lucide-react';
+import { Crown, HandHeart, Star, TrendingUp } from 'lucide-react';
+import { Modal } from './ui';
 import { BRAND } from '../brand';
 import type { EventInfo } from '../state/useEventInfo';
 
@@ -131,6 +132,169 @@ export function DonationWall({ info }: { info: EventInfo | null }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** GoFundMe-style short time: "44 mins", "2 hrs", "3 d". */
+function ago(at: string): string {
+  const t = Date.parse(at);
+  if (Number.isNaN(t)) return '';
+  const m = Math.max(1, Math.floor((Date.now() - t) / 60000));
+  if (m < 60) return `${m} min${m === 1 ? '' : 's'}`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr${h === 1 ? '' : 's'}`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d} d`;
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function Ring({ pct }: { pct: number }) {
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg className="gf-ring" viewBox="0 0 72 72" role="img" aria-label={`${pct}% of goal`}>
+      <circle cx="36" cy="36" r={r} className="gf-ring-track" />
+      <circle
+        cx="36"
+        cy="36"
+        r={r}
+        className="gf-ring-fill"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - pct / 100)}
+        transform="rotate(-90 36 36)"
+      />
+      <text x="36" y="41" textAnchor="middle">
+        {pct}%
+      </text>
+    </svg>
+  );
+}
+
+function GiftRow({ g, tag }: { g: Gift; tag?: string }) {
+  return (
+    <div className="gf-gift">
+      <span className="gf-gift-icon">
+        <HandHeart size={18} />
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div className="truncate bold">{g.name}</div>
+        <div className="small">
+          <b>{money(g.amount)}</b>
+          {tag ? (
+            <>
+              {' '}
+              · <span className="gf-tag">{tag}</span>
+            </>
+          ) : g.at ? (
+            <span className="muted"> · {ago(g.at)}</span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The sticky GoFundMe-style card: ring, raised of goal, buttons, recent + top donations. */
+export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; onDonate: () => void }) {
+  const [modal, setModal] = useState<'all' | 'top' | null>(null);
+  const [copied, setCopied] = useState(false);
+  const raised = info ? raisedTotal(info) : 0;
+  const goal = info?.fundraising.goal ?? 0;
+  const pct = goal ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+  const list = info ? gifts(info) : [];
+  const top = list.length ? list.reduce((best, g) => (g.amount > best.amount ? g : best), list[0]) : null;
+  const recent = list.filter((g) => g !== top).slice(0, 2);
+  const lastDay = list.filter((g) => Date.now() - Date.parse(g.at) < 86400000).length;
+
+  const share = async () => {
+    const url = window.location.href;
+    const data = { title: BRAND.eventName, text: `Play or donate: ${BRAND.eventName}`, url };
+    try {
+      if (navigator.share) return await navigator.share(data);
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* cancelled */
+    }
+  };
+
+  const modalList = modal === 'top' ? [...list].sort((a, b) => b.amount - a.amount) : list;
+
+  return (
+    <div className="gf-card">
+      <div className="gf-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="gf-raised">
+            {money(raised)} <span>raised</span>
+          </div>
+          <div className="small muted">
+            {goal ? `${money(goal)} goal · ` : ''}
+            {list.length || info?.registrations || 0} {(list.length || info?.registrations) === 1 ? 'donation' : 'donations'}
+          </div>
+        </div>
+        {goal > 0 && <Ring pct={pct} />}
+      </div>
+      <div className="gf-actions">
+        <button className="btn btn-primary btn-lg gf-btn" type="button" onClick={onDonate}>
+          Register &amp; donate
+        </button>
+        <button className="btn btn-lg gf-btn gf-share" type="button" onClick={() => void share()}>
+          {copied ? 'Link copied!' : 'Share'}
+        </button>
+        {BRAND.donateUrl && (
+          <a className="btn gf-btn" href={BRAND.donateUrl} target="_blank" rel="noreferrer">
+            Just donate
+          </a>
+        )}
+      </div>
+      {lastDay > 0 && (
+        <div className="gf-trend">
+          <span className="gf-trend-icon">
+            <TrendingUp size={16} />
+          </span>
+          <b>{lastDay === 1 ? '1 person' : `${lastDay} people`} just donated</b>
+        </div>
+      )}
+      {top ? (
+        <div className="gf-list">
+          {recent.slice(0, 1).map((g, i) => (
+            <GiftRow key={`r${i}`} g={g} />
+          ))}
+          <GiftRow g={top} tag="Top donation" />
+          {recent.slice(1).map((g, i) => (
+            <GiftRow key={`s${i}`} g={g} />
+          ))}
+        </div>
+      ) : (
+        <p className="small muted" style={{ margin: '14px 0 0' }}>
+          Be the first to donate. Every player gives ${BRAND.payment.feeAmount}.
+        </p>
+      )}
+      {list.length > 0 && (
+        <div className="gf-more">
+          <button className="btn btn-sm" type="button" onClick={() => setModal('all')}>
+            See all
+          </button>
+          <button className="btn btn-sm" type="button" onClick={() => setModal('top')}>
+            <Star size={14} /> See top
+          </button>
+        </div>
+      )}
+      {modal && (
+        <Modal
+          title={modal === 'top' ? 'Top donations' : `Donations (${list.length})`}
+          subtitle={`${money(raised)} raised${goal ? ` of ${money(goal)}` : ''}`}
+          onClose={() => setModal(null)}
+        >
+          <div className="gf-modal-list">
+            {modalList.map((g, i) => (
+              <GiftRow key={i} g={g} tag={modal === 'top' && i === 0 ? 'Top donation' : undefined} />
+            ))}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
