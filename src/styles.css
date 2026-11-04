@@ -2954,3 +2954,30 @@ h1 .wordmark,
   margin: 14px 0 12px;
   scroll-margin-top: 90px;
 }
+
+.price-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 12px 16px;
+  margin: 2px 0 10px;
+  border-radius: 16px;
+  background: var(--ball-soft);
+  border: 1px solid color-mix(in srgb, var(--ball) 55%, transparent);
+}
+.price-big {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.price-big span {
+  font-size: 1.1rem;
+}
+.gf-price {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 0.92rem;
+}

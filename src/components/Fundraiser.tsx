@@ -249,6 +249,9 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
           </a>
         )}
       </div>
+      <div className="gf-price">
+        <b>${BRAND.payment.feeAmount} per person</b> to play · ${BRAND.payment.feeAmount * 2} for a team of two
+      </div>
       {lastDay > 0 && (
         <div className="gf-trend">
           <span className="gf-trend-icon">
@@ -269,7 +272,7 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
         </div>
       ) : (
         <p className="small muted" style={{ margin: '14px 0 0' }}>
-          Be the first to donate. Every player gives ${BRAND.payment.feeAmount}.
+          Be the first to donate. It’s ${BRAND.payment.feeAmount} per person to play.
         </p>
       )}
       {list.length > 0 && (

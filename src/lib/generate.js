@@ -378,3 +378,63 @@ export function regenerateDivision(t, divisionId) {
         matches[m.id] = { ...m, number: m.bye ? 0 : ++n };
     return { ...t, divisions: newDivisions, matches, updatedAt: Date.now() };
 }
+/**
+ * Can `teamId` (already in its division's teamIds) join the schedule without
+ * rebuilding? Yes for round robin, and for pool play until the playoffs start.
+ */
+export function canAddLateTeam(t, divisionId) {
+    const div = t.divisions.find((d) => d.id === divisionId);
+    if (!div)
+        return false;
+    if (div.settings.format === 'round_robin')
+        return true;
+    if (div.settings.format !== 'pools_playoff' || !div.pools.length)
+        return false;
+    return !Object.values(t.matches).some((m) => m.divisionId === divisionId && m.stage !== 'pool' && m.status !== 'pending');
+}
+/**
+ * Add a late team to the schedule, keeping every existing match and score.
+ * Round robin: it plays everyone. Pool play: it joins the smallest pool and plays
+ * everyone there. New matches are spread across the early rounds so the team
+ * gets called in soon, and are numbered after the existing ones.
+ */
+export function addLateTeam(t, teamId) {
+    const div = t.divisions.find((d) => d.teamIds.includes(teamId));
+    if (!div || !canAddLateTeam(t, div.id))
+        return t;
+    const inSchedule = Object.values(t.matches).some((m) => m.divisionId === div.id && [m.a, m.b].some((s) => s.kind === 'team' && s.teamId === teamId));
+    if (inSchedule)
+        return t;
+    let pools = div.pools;
+    let opponents;
+    let poolId;
+    if (div.settings.format === 'pools_playoff') {
+        const pool = pools.reduce((best, p) => (p.teamIds.length < best.teamIds.length ? p : best), pools[0]);
+        poolId = pool.id;
+        opponents = pool.teamIds.filter((id) => id !== teamId);
+        pools = pools.map((p) => (p.id === pool.id ? { ...p, teamIds: [...p.teamIds, teamId] } : p));
+    }
+    else {
+        opponents = div.teamIds.filter((id) => id !== teamId);
+    }
+    const stage = poolId ? 'pool' : 'rr';
+    const now = Date.now();
+    let number = Math.max(0, ...Object.values(t.matches).map((m) => m.number));
+    const matches = { ...t.matches };
+    const cycles = Math.max(1, div.settings.roundRobinCycles);
+    let k = 0;
+    for (let c = 0; c < cycles; c++) {
+        opponents.forEach((opp) => {
+            k++;
+            const d = draft(div.id, stage, k, 100 + k, // after the slots already used in that round
+            { kind: 'team', teamId: c % 2 === 0 ? teamId : opp }, { kind: 'team', teamId: c % 2 === 0 ? opp : teamId }, { poolId });
+            matches[d.id] = { ...d, depth: k, number: ++number, status: 'pending', games: [], updatedAt: now };
+        });
+    }
+    return {
+        ...t,
+        divisions: t.divisions.map((d) => (d.id === div.id ? { ...d, pools } : d)),
+        matches,
+        updatedAt: now,
+    };
+}

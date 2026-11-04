@@ -139,6 +139,14 @@ function doPost(e) {
     props().setProperty('FUND_EXTRA', String(extra));
     return json({ ok: true, fundraising: fundraising() });
   }
+  if (body.action === 'addRegistration') {
+    if (role !== 'admin') return json({ ok: false, error: 'Admin passcode required', auth: false });
+    return json(register(body.entry || {}, '', 'add'));
+  }
+  if (body.action === 'editRegistration' || body.action === 'deleteRegistration') {
+    if (role !== 'admin') return json({ ok: false, error: 'Admin passcode required', auth: false });
+    return json(editRegistration(body.row, body.stamp, body.action === 'deleteRegistration' ? null : body.entry || {}));
+  }
   if (body.action === 'setRegistration') {
     if (role !== 'admin') return json({ ok: false, error: 'Admin passcode required', auth: false });
     props().setProperty('REG_OPEN', body.open ? 'true' : 'false');
@@ -459,38 +467,86 @@ function clean(value, max) {
     .slice(0, max);
 }
 
-/** Save one sign-up from the website's Register tab. Public: no passcode. */
-function register(entry, honeypot) {
-  if (honeypot) return { ok: true }; // bots fill the hidden field; pretend it worked
-  if (!registrationOpen()) return { ok: false, error: 'Registration is closed.' };
+/**
+ * Check a sign-up and turn it into sheet values ({ values } or { error }).
+ * mode: 'public' (Register tab), 'add' or 'edit' (organizer: email and payment optional).
+ */
+function registrationValues(entry, mode) {
+  var byOrganizer = mode === 'add' || mode === 'edit';
+  var bad = function (error) {
+    return { ok: false, error: error };
+  };
   var values = {};
   REG_FIELDS.forEach(function (f) {
     values[f] = clean(entry[f], f === 'notes' ? 500 : 120);
   });
-  if (!values.name) return { ok: false, error: 'Please enter your full name.' };
+  if (!values.name) return bad('Please enter your full name.');
   var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRe.test(values.email)) return { ok: false, error: 'Please enter a valid email.' };
-  if (values.partnerEmail && !emailRe.test(values.partnerEmail)) return { ok: false, error: "Please check your partner's email." };
-  if (DIVISIONS.indexOf(values.division) < 0) return { ok: false, error: 'Please choose Adults or Kids/Teens.' };
-  if (PAYMENT_METHODS.indexOf(values.payment) < 0) return { ok: false, error: 'Please choose how you are paying.' };
-  if (entry.paid !== true && entry.paid !== 'yes') return { ok: false, error: 'Please confirm your donation.' };
-  values.paid = values.payment === 'Cash at check-in' ? 'Will pay cash at check-in' : 'Yes, sent';
+  if (!(byOrganizer && !values.email) && !emailRe.test(values.email)) return bad('Please enter a valid email.');
+  if (values.partnerEmail && !emailRe.test(values.partnerEmail)) return bad("Please check your partner's email.");
+  if (DIVISIONS.indexOf(values.division) < 0) return bad('Please choose Adults or Kids/Teens.');
+  var paid = entry.paid === true || entry.paid === 'yes';
+  if (byOrganizer) {
+    if (values.payment && PAYMENT_METHODS.indexOf(values.payment) < 0) return bad('Please choose how they are paying.');
+    values.paid = mode === 'add' ? (paid ? 'Yes (added by organizer)' : 'Not yet (added by organizer)') : paid ? 'Yes' : 'Not yet';
+  } else {
+    if (PAYMENT_METHODS.indexOf(values.payment) < 0) return bad('Please choose how you are paying.');
+    if (!paid) return bad('Please confirm your donation.');
+    values.paid = values.payment === 'Cash at check-in' ? 'Will pay cash at check-in' : 'Yes, sent';
+  }
   values.anonymous = entry.anonymous === true || entry.anonymous === 'yes' ? 'Yes' : '';
   var donation = Math.round(Number(String(entry.donation || '0').replace(/[^0-9.\-]/g, '')) * 100) / 100;
-  if (!isFinite(donation) || donation < 0 || donation > 10000) return { ok: false, error: 'Please check the donation amount.' };
+  if (!isFinite(donation) || donation < 0 || donation > 10000) return bad('Please check the donation amount.');
   values.donation = donation ? '$' + donation.toFixed(2).replace(/\.00$/, '') : '';
+  return {
+    ok: true,
+    values: REG_FIELDS.map(function (f) {
+      return values[f];
+    }),
+  };
+}
+
+/**
+ * Save one sign-up from the website's Register tab. Public: no passcode.
+ * mode 'add': added by hand from the admin page (works while registration is closed).
+ */
+function register(entry, honeypot, mode) {
+  if (honeypot) return { ok: true }; // bots fill the hidden field; pretend it worked
+  if (mode !== 'add' && !registrationOpen()) return { ok: false, error: 'Registration is closed.' };
+  var checked = registrationValues(entry, mode === 'add' ? 'add' : 'public');
+  if (!checked.ok) return checked;
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { ok: false, error: 'Busy, please try again.' };
   try {
     var sheet = registrationSheet();
     if (sheet.getLastRow() - 1 >= MAX_REGISTRATIONS) return { ok: false, error: 'Registration is full.' };
-    var row = [new Date().toLocaleString('en-US')].concat(
-      REG_FIELDS.map(function (f) {
-        return values[f];
-      })
-    );
-    sheet.appendRow(row);
+    sheet.appendRow([new Date().toLocaleString('en-US')].concat(checked.values));
+    return { ok: true, count: sheet.getLastRow() - 1 };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Organizer: change (entry) or delete (entry = null) sign-up number `row`
+ * (1 = first sign-up). `stamp` is that row's timestamp as the admin page saw it,
+ * so a row that moved in the meantime is never overwritten.
+ */
+function editRegistration(row, stamp, entry) {
+  var checked = entry ? registrationValues(entry, 'edit') : null;
+  if (checked && !checked.ok) return checked;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { ok: false, error: 'Busy, please try again.' };
+  try {
+    var sheet = registrationSheet();
+    var r = Math.floor(Number(row)) + 1;
+    if (!(r >= 2 && r <= sheet.getLastRow())) return { ok: false, error: 'That sign-up no longer exists. Refresh and try again.' };
+    if (String(sheet.getRange(r, 1).getDisplayValues()[0][0]) !== String(stamp)) {
+      return { ok: false, error: 'The sign-ups changed since you loaded them. Refresh and try again.' };
+    }
+    if (checked) sheet.getRange(r, 2, 1, REG_FIELDS.length).setValues([checked.values]);
+    else sheet.deleteRow(r);
     return { ok: true, count: sheet.getLastRow() - 1 };
   } finally {
     lock.releaseLock();

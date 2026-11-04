@@ -97,7 +97,7 @@ export function Register() {
   const intro = (
     <>
       Doubles, Adults &amp; Kids/Teens. Sign up as a pair or on your own (we’ll match you), with a ${BRAND.payment.feeAmount} donation per
-      player. {BRAND.charity.pledge}
+      person. {BRAND.charity.pledge}
     </>
   );
 
@@ -244,7 +244,7 @@ export function Register() {
             {BRAND.minGames} games.
           </p>
           <p>
-            Every player gives a required ${BRAND.payment.feeAmount} donation, and you can add more if you’d like. {BRAND.charity.pledge}{' '}
+            It’s a <b>${BRAND.payment.feeAmount} donation per person</b> to play (${BRAND.payment.feeAmount * 2} for a team of two), and you can add more if you’d like. {BRAND.charity.pledge}{' '}
             {BRAND.charity.blurb}
           </p>
         </div>
@@ -340,10 +340,15 @@ export function Register() {
 
         <div className="card">
           <h2>Your donation</h2>
-          <p className="muted small" style={{ marginTop: -4 }}>
-            Required: <b>${BRAND.payment.feeAmount} per player</b> (${BRAND.payment.feeAmount * 2} for a pair).{' '}
-            {BRAND.charity.pledge}
-          </p>
+          <div className="price-callout">
+            <div className="price-big">
+              ${BRAND.payment.feeAmount} <span>per person</span>
+            </div>
+            <div className="small">
+              Required to play. Signing up with a partner? That’s <b>${BRAND.payment.feeAmount * 2}</b> for the two of you.
+            </div>
+          </div>
+          <p className="muted small">{BRAND.charity.pledge}</p>
           <div className="field" style={{ marginBottom: 14 }}>
             Want to give more? (optional)
             <span className="hint">Add it to your required donation and send it all as one payment.</span>
@@ -378,7 +383,7 @@ export function Register() {
             Total to send: <b>${amountDue}</b>
             <span className="muted">
               {' '}
-              (${BRAND.payment.feeAmount} × {players} {players === 1 ? 'player' : 'players'}
+              (${BRAND.payment.feeAmount} per person × {players} {players === 1 ? 'person' : 'people'}
               {form.donation ? ` + $${form.donation} extra` : ''})
             </span>
             <div style={{ marginTop: 4 }}>

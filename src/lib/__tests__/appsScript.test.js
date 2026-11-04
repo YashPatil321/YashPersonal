@@ -130,6 +130,39 @@ describe('Apps Script backend (Code.gs)', () => {
         expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', division: 'Kids/Teens', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 2 });
         expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', division: 'Kids/Teens', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 3 });
         expect(api.get({ action: 'ping' }).registrations).toBe(3);
+        // Organizers can add sign-ups by hand, even while registration is closed
+        const scorer = api.props.get('SCORER_PASSCODE');
+        const add = (entry, passcode = admin) => api.post({ action: 'addRegistration', passcode, entry });
+        api.post({ action: 'setRegistration', passcode: admin, open: false });
+        expect(register({ ...base, division: 'Adults', payment: 'Zelle', paid: true })).toMatchObject({ ok: false, error: 'Registration is closed.' });
+        expect(add({ name: 'Walk Up', division: 'Adults' }, scorer)).toMatchObject({ ok: false });
+        expect(add({ name: '', division: 'Adults' })).toMatchObject({ ok: false });
+        expect(add({ name: 'Walk Up', division: 'Seniors' })).toMatchObject({ ok: false });
+        expect(add({ name: 'Walk Up', division: 'Adults', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 4 });
+        api.post({ action: 'setRegistration', passcode: admin, open: true });
+        const walkUp = api.post({ action: 'registrations', passcode: admin }).rows[4];
+        expect(walkUp[1]).toBe('Walk Up');
+        expect(walkUp.slice(-4)).toEqual(['Cash at check-in', 'Yes (added by organizer)', '', '']);
+        expect(add({ name: 'Unpaid Pal', email: 'nope', division: 'Kids/Teens' })).toMatchObject({ ok: false }); // bad email still rejected
+        expect(add({ name: 'Unpaid Pal', division: 'Kids/Teens' })).toMatchObject({ ok: true, count: 5 });
+        // ...and edit or delete any sign-up
+        const listRows = () => api.post({ action: 'registrations', passcode: admin }).rows;
+        const stamp5 = listRows()[5][0];
+        expect(api.post({ action: 'deleteRegistration', passcode: scorer, row: 5, stamp: stamp5 }).ok).toBe(false);
+        expect(api.post({ action: 'deleteRegistration', passcode: admin, row: 5, stamp: 'wrong' })).toMatchObject({ ok: false });
+        expect(api.post({ action: 'deleteRegistration', passcode: admin, row: 9, stamp: stamp5 })).toMatchObject({ ok: false });
+        expect(api.post({ action: 'editRegistration', passcode: admin, row: 5, stamp: stamp5, entry: { name: 'Unpaid Pal', division: 'Nope' } })).toMatchObject({ ok: false });
+        expect(api.post({
+            action: 'editRegistration', passcode: admin, row: 5, stamp: stamp5,
+            entry: { name: 'Paid Pal', partnerName: 'New Partner', division: 'Adults', payment: 'Venmo', paid: true, donation: '10' },
+        })).toMatchObject({ ok: true, count: 5 });
+        const edited = listRows()[5];
+        expect(edited[0]).toBe(stamp5); // timestamp kept
+        expect(edited.slice(1, 2).concat(edited.slice(5, 7))).toEqual(['Paid Pal', 'Adults', 'New Partner']);
+        expect(edited.slice(-4)).toEqual(['Venmo', 'Yes', '$10', '']);
+        expect(api.post({ action: 'deleteRegistration', passcode: admin, row: 5, stamp: stamp5 })).toMatchObject({ ok: true, count: 4 });
+        expect(api.post({ action: 'deleteRegistration', passcode: admin, row: 4, stamp: listRows()[4][0] })).toMatchObject({ ok: true, count: 3 });
+        expect(api.get({ action: 'ping' }).registrations).toBe(3);
         const fund = api.get({ action: 'ping' }).fundraising;
         expect(fund).toMatchObject({ donations: 25, donors: 1, players: 4, goal: 0, extra: 0 });
         expect(fund.list.map((d) => d.name)).toEqual(['Dev P.', 'Maya I.', 'Riya S. & Arjun R.']);
