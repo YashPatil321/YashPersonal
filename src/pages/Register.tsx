@@ -4,8 +4,8 @@ import { CheckCircle2, ClipboardList, Users } from 'lucide-react';
 import { BRAND } from '../brand';
 import { remote } from '../lib/sync';
 import type { RegistrationEntry } from '../lib/sync';
-import { FundraiserCard } from '../components/Fundraiser';
-import { CauseCard, Mandala, Toran } from '../components/ui';
+import { DonationWall, FundraiserCard } from '../components/Fundraiser';
+import { CauseCard } from '../components/ui';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
@@ -30,6 +30,7 @@ const EMPTY: RegistrationEntry = {
   payment: '',
   paid: false,
   donation: 0,
+  anonymous: false,
 };
 
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -71,12 +72,13 @@ function Choices({
 
 function Hero({ children }: { children?: ReactNode }) {
   return (
-    <section className="hero-banner" style={{ marginBottom: 16 }}>
-      <Toran />
-      <Mandala />
-      <div className="eyebrow">{BRAND.eventName} · Registration</div>
-      <h1>Register your team</h1>
-      <div style={{ color: 'var(--on-night-muted)', maxWidth: 640 }}>{children}</div>
+    <section className="photo-banner" style={{ marginBottom: 16 }}>
+      <img src="./photos/sacs-cast.webp" alt="The SACS 2026 cast on stage after the show" />
+      <div className="photo-banner-text">
+        <div className="eyebrow">{BRAND.eventName}</div>
+        <h1>Register &amp; donate</h1>
+        <div className="photo-banner-sub">{children}</div>
+      </div>
     </section>
   );
 }
@@ -95,7 +97,8 @@ export function Register() {
 
   const intro = (
     <>
-      Doubles. Sign up as a pair, or sign up on your own and we’ll match you with a partner. {BRAND.charity.pledge}
+      Doubles, Adult &amp; Kids. Sign up as a pair or on your own (we’ll match you), with a ${BRAND.payment.feeAmount} donation per
+      player. {BRAND.charity.pledge}
     </>
   );
 
@@ -190,8 +193,8 @@ export function Register() {
     if (!form.name.trim()) return setError('Please enter your full name.');
     if (!emailOk(form.email)) return setError('Please enter a valid email.');
     if (!form.division) return setError('Please choose Adult or Kids division.');
-    if (!form.payment) return setError('Please choose how you’re paying the entry fee.');
-    if (!form.paid) return setError('Please confirm your entry fee payment.');
+    if (!form.payment) return setError('Please choose how you’re sending your donation.');
+    if (!form.paid) return setError('Please confirm your donation.');
     if (donationChoice === 'Other' && !(form.donation && form.donation > 0))
       return setError('Enter a donation amount, or choose “No thanks”.');
     if (form.partnerEmail && !emailOk(form.partnerEmail)) return setError('Please check your partner’s email.');
@@ -224,6 +227,9 @@ export function Register() {
 
       <div style={{ marginBottom: 14 }}>
         <FundraiserCard info={info} />
+      </div>
+      <div style={{ marginBottom: 18 }}>
+        <DonationWall info={info} />
       </div>
 
       <form
@@ -320,14 +326,14 @@ export function Register() {
         </div>
 
         <div className="card">
-          <h2>Entry fee</h2>
+          <h2>Your donation</h2>
           <p className="muted small" style={{ marginTop: -4 }}>
-            {BRAND.payment.fee ? `${BRAND.payment.fee} (a pair pays $${BRAND.payment.feeAmount * 2}). ` : ''}
+            Required: <b>${BRAND.payment.feeAmount} per player</b> (${BRAND.payment.feeAmount * 2} for a pair).{' '}
             {BRAND.charity.pledge}
           </p>
           <div className="field" style={{ marginBottom: 14 }}>
-            Add a donation? (optional)
-            <span className="hint">Send it together with your entry fee as one payment.</span>
+            Want to give more? (optional)
+            <span className="hint">Add it to your required donation and send it all as one payment.</span>
             <Choices
               name="Extra donation"
               value={donationChoice}
@@ -360,7 +366,7 @@ export function Register() {
             <span className="muted">
               {' '}
               (${BRAND.payment.feeAmount} × {players} {players === 1 ? 'player' : 'players'}
-              {form.donation ? ` + $${form.donation} donation` : ''})
+              {form.donation ? ` + $${form.donation} extra` : ''})
             </span>
             <div style={{ marginTop: 4 }}>
               In the Zelle/Venmo note, write{' '}
@@ -381,7 +387,7 @@ export function Register() {
             </li>
           </ul>
           <div className="field" style={{ marginTop: 10 }}>
-            How are you paying? *
+            How are you sending it? *
             <Choices
               name="Payment method"
               value={form.payment}
@@ -389,7 +395,11 @@ export function Register() {
               options={PAYMENT_METHODS}
             />
           </div>
-          <label className="check" style={{ marginTop: 14, fontWeight: 600 }}>
+          <label className="check" style={{ marginTop: 14 }}>
+            <input type="checkbox" checked={!!form.anonymous} onChange={(e) => set({ anonymous: e.target.checked })} />
+            Show me as “Anonymous” on the donations list
+          </label>
+          <label className="check" style={{ marginTop: 10, fontWeight: 600 }}>
             <input type="checkbox" checked={form.paid} onChange={(e) => set({ paid: e.target.checked })} />
             {form.payment === 'Cash at check-in'
               ? `I’ll bring $${amountDue} in cash to check-in. *`

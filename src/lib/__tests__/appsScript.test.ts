@@ -134,7 +134,7 @@ describe('Apps Script backend (Code.gs)', () => {
       ok: false,
       error: 'Please check the donation amount.',
     });
-    expect(register({ ...base, division: 'Adult', payment: 'Zelle', paid: false })).toMatchObject({ ok: false, error: 'Please confirm your entry fee payment.' });
+    expect(register({ ...base, division: 'Adult', payment: 'Zelle', paid: false })).toMatchObject({ ok: false, error: 'Please confirm your donation.' });
 
     expect(
       register({
@@ -151,7 +151,11 @@ describe('Apps Script backend (Code.gs)', () => {
     expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 2 });
     expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 3 });
     expect(api.get({ action: 'ping' }).registrations).toBe(3);
-    expect(api.get({ action: 'ping' }).fundraising).toEqual({ donations: 25, donors: 1, players: 4, goal: 0, extra: 0 });
+    const fund = api.get({ action: 'ping' }).fundraising;
+    expect(fund).toMatchObject({ donations: 25, donors: 1, players: 4, goal: 0, extra: 0 });
+    expect(fund.list.map((d: { name: string }) => d.name)).toEqual(['Dev P.', 'Maya I.', 'Riya S. & Arjun R.']);
+    expect(fund.list[2]).toMatchObject({ players: 2, extra: 25 });
+    expect(JSON.stringify(fund)).not.toMatch(/@example\.com|Shah|Iyer/);
     expect(api.post({ action: 'setFundraising', passcode: api.props.get('SCORER_PASSCODE'), goal: 1 }).ok).toBe(false);
     expect(api.post({ action: 'setFundraising', passcode: admin, goal: 3000, extra: 150 }).fundraising).toMatchObject({ goal: 3000, extra: 150 });
 
@@ -160,10 +164,10 @@ describe('Apps Script backend (Code.gs)', () => {
     const rows = api.post({ action: 'registrations', passcode: admin }).rows as string[][];
     expect(rows.length).toBe(4);
     expect(rows[1][8]).toBe('HYPERLINK("x")'); // formula prefix stripped
-    expect(rows[0].slice(-3)).toEqual(['Payment method', 'Payment confirmed', 'Extra donation']);
+    expect(rows[0].slice(-4)).toEqual(['Payment method', 'Payment confirmed', 'Extra donation', 'Anonymous']);
     expect(rows[0]).not.toContain('Skill level');
-    expect(rows[1].slice(-3)).toEqual(['Zelle', 'Yes, sent', '$25']);
-    expect(rows[2].slice(-3)).toEqual(['Cash at check-in', 'Will pay cash at check-in', '']);
+    expect(rows[1].slice(-4)).toEqual(['Zelle', 'Yes, sent', '$25', '']);
+    expect(rows[2].slice(-4)).toEqual(['Cash at check-in', 'Will pay cash at check-in', '', '']);
     expect(detectColumns(rows[0])).toMatchObject({
       timestamp: 0, name: 1, email: 2, phone: 3, division: 5, partnerName: 6, partnerEmail: 7, teamName: 8,
     });

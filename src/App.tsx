@@ -428,6 +428,25 @@ function Landing() {
       </div>
 
       <div className="section-title">
+        <h2>Who we are</h2>
+      </div>
+      <div className="about-sacs card">
+        <p style={{ margin: 0 }}>
+          The <b>{BRAND.organizer}</b> is a student-run dance production: over 100 high schoolers from five San Diego
+          schools, putting on one big show every year. This tournament helps fund the show and gives back to the{' '}
+          {BRAND.charity.name}.
+        </p>
+        <div className="photo-grid">
+          <figure>
+            <img src="./photos/sacs-bhangra.webp" alt="SACS dancers in matching white and colored costumes" loading="lazy" />
+          </figure>
+          <figure>
+            <img src="./photos/sacs-guys.webp" alt="SACS dancers posing together on the steps after the show" loading="lazy" />
+          </figure>
+        </div>
+      </div>
+
+      <div className="section-title">
         <h2>On tournament day</h2>
       </div>
       <div className="feature-list" style={{ marginTop: 0 }}>

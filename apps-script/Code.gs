@@ -59,9 +59,10 @@ var REG_HEADERS = [
   'Payment method',
   'Payment confirmed',
   'Extra donation',
+  'Anonymous',
 ];
 /** Matching keys sent by the website's form. */
-var REG_FIELDS = ['name', 'email', 'phone', 'school', 'division', 'partnerName', 'partnerEmail', 'teamName', 'notes', 'payment', 'paid', 'donation'];
+var REG_FIELDS = ['name', 'email', 'phone', 'school', 'division', 'partnerName', 'partnerEmail', 'teamName', 'notes', 'payment', 'paid', 'donation', 'anonymous'];
 var DIVISIONS = ['Adult', 'Kids'];
 var PAYMENT_METHODS = ['Zelle', 'Venmo', 'Cash at check-in'];
 var MAX_REGISTRATIONS = 1000;
@@ -381,15 +382,26 @@ function fundraising() {
   var donations = 0;
   var donors = 0;
   var players = 0;
+  var list = [];
   try {
     var sheet = book().getSheetByName(REGISTRATION_SHEET);
     if (sheet && sheet.getLastRow() > 1) {
       var values = sheet.getDataRange().getDisplayValues();
       var col = values[0].indexOf('Extra donation');
       var partnerCol = values[0].indexOf("Partner's full name");
+      var anonCol = values[0].indexOf('Anonymous');
       for (var r = 1; r < values.length; r++) {
         if (!String(values[r][1] || '').trim()) continue;
-        players += partnerCol >= 0 && String(values[r][partnerCol] || '').trim() ? 2 : 1;
+        var partner = partnerCol >= 0 ? String(values[r][partnerCol] || '').trim() : '';
+        var count = partner ? 2 : 1;
+        players += count;
+        var anon = anonCol >= 0 && values[r][anonCol] === 'Yes';
+        list.push({
+          name: anon ? 'Anonymous' : shortName(values[r][1]) + (partner ? ' & ' + shortName(partner) : ''),
+          players: count,
+          extra: col >= 0 ? Number(String(values[r][col] || '').replace(/[^0-9.]/g, '')) || 0 : 0,
+          at: String(values[r][0] || ''),
+        });
       }
       if (col >= 0) {
         for (var i = 1; i < values.length; i++) {
@@ -408,9 +420,17 @@ function fundraising() {
     donations: Math.round(donations * 100) / 100,
     donors: donors,
     players: players,
+    list: list.reverse().slice(0, 300),
     goal: Number(props().getProperty('FUND_GOAL') || 0),
     extra: Number(props().getProperty('FUND_EXTRA') || 0),
   };
+}
+
+/** "Riya Shah" -> "Riya S." so the public donation list doesn't show full names. */
+function shortName(name) {
+  var parts = String(name || '').trim().split(/\s+/);
+  if (!parts[0]) return 'Someone';
+  return parts.length > 1 ? parts[0] + ' ' + parts[parts.length - 1].charAt(0).toUpperCase() + '.' : parts[0];
 }
 
 function registrationCount() {
@@ -454,8 +474,9 @@ function register(entry, honeypot) {
   if (values.partnerEmail && !emailRe.test(values.partnerEmail)) return { ok: false, error: "Please check your partner's email." };
   if (DIVISIONS.indexOf(values.division) < 0) return { ok: false, error: 'Please choose Adult or Kids division.' };
   if (PAYMENT_METHODS.indexOf(values.payment) < 0) return { ok: false, error: 'Please choose how you are paying.' };
-  if (entry.paid !== true && entry.paid !== 'yes') return { ok: false, error: 'Please confirm your entry fee payment.' };
+  if (entry.paid !== true && entry.paid !== 'yes') return { ok: false, error: 'Please confirm your donation.' };
   values.paid = values.payment === 'Cash at check-in' ? 'Will pay cash at check-in' : 'Yes, sent';
+  values.anonymous = entry.anonymous === true || entry.anonymous === 'yes' ? 'Yes' : '';
   var donation = Math.round(Number(String(entry.donation || '0').replace(/[^0-9.\-]/g, '')) * 100) / 100;
   if (!isFinite(donation) || donation < 0 || donation > 10000) return { ok: false, error: 'Please check the donation amount.' };
   values.donation = donation ? '$' + donation.toFixed(2).replace(/\.00$/, '') : '';
