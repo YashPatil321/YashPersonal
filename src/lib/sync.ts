@@ -9,12 +9,15 @@ export interface RegistrationEntry {
   phone?: string;
   school?: string;
   skill: string;
-  bracket?: string;
+  division: 'Adult' | 'Kids' | '';
   partnerName?: string;
   partnerEmail?: string;
   partnerSkill?: string;
   teamName?: string;
   notes?: string;
+  payment: 'Zelle' | 'Venmo' | 'Cash at check-in' | '';
+  /** The registrant ticked "I've paid" (or will bring cash). */
+  paid: boolean;
 }
 
 export interface SyncConfig {

@@ -12,6 +12,12 @@ export const BRAND = {
   /** Shown on the landing page before the draw is published. */
   courts: 10,
   hours: 4,
+  /** Entry fee and where to send it. Shown on the Register tab; leave '' to hide a line. */
+  payment: {
+    fee: '', // e.g. '$20 per team'
+    zelle: '', // e.g. 'sacsexec@gmail.com' or a phone number
+    venmo: '', // e.g. '@SACS-Pickleball'
+  },
   charity: {
     name: 'Akshaya Patra Foundation',
     url: 'https://www.akshayapatrausa.org/',

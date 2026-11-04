@@ -154,3 +154,20 @@ export function fillCourts(t: Tournament): Tournament {
   }
   return next;
 }
+
+/**
+ * Organizer override: put specific teams into a match (fix a matchup, fill a
+ * bracket slot by hand). Clears any in-progress score for the old pairing.
+ */
+export function setMatchTeams(t: Tournament, id: string, a: string, b: string): Tournament {
+  const m = t.matches[id];
+  if (!m || !a || !b || a === b || m.status === 'final') return t;
+  if (!t.teams[a] || !t.teams[b]) return t;
+  return patchMatch(t, id, {
+    a: { kind: 'team', teamId: a },
+    b: { kind: 'team', teamId: b },
+    bye: undefined,
+    games: [],
+    serve: undefined,
+  });
+}

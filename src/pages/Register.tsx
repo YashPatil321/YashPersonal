@@ -9,9 +9,11 @@ import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
 export const SKILL_LEVELS = ['Beginner (new to pickleball)', 'Intermediate (2.5 - 3.5)', 'Advanced (4.0+)'];
-export const BRACKETS: Array<{ value: string; hint: string }> = [
-  { value: 'Competitive', hint: 'Play to win. Seeded by skill.' },
-  { value: 'Just for fun', hint: 'Relaxed games, all levels welcome.' },
+export const DIVISIONS: Array<{ value: 'Adult' | 'Kids' }> = [{ value: 'Adult' }, { value: 'Kids' }];
+export const PAYMENT_METHODS: Array<{ value: 'Zelle' | 'Venmo' | 'Cash at check-in' }> = [
+  { value: 'Zelle' },
+  { value: 'Venmo' },
+  { value: 'Cash at check-in' },
 ];
 
 const EMPTY: RegistrationEntry = {
@@ -20,12 +22,14 @@ const EMPTY: RegistrationEntry = {
   phone: '',
   school: '',
   skill: '',
-  bracket: '',
+  division: '',
   partnerName: '',
   partnerEmail: '',
   partnerSkill: '',
   teamName: '',
   notes: '',
+  payment: '',
+  paid: false,
 };
 
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -174,7 +178,9 @@ export function Register() {
     if (!form.name.trim()) return setError('Please enter your full name.');
     if (!emailOk(form.email)) return setError('Please enter a valid email.');
     if (!form.skill) return setError('Please choose your skill level.');
-    if (!form.bracket) return setError('Please choose a bracket.');
+    if (!form.division) return setError('Please choose Adult or Kids division.');
+    if (!form.payment) return setError('Please choose how you’re paying the entry fee.');
+    if (!form.paid) return setError('Please confirm your entry fee payment.');
     if (form.partnerEmail && !emailOk(form.partnerEmail)) return setError('Please check your partner’s email.');
     if (!sync) return;
     setBusy(true);
@@ -244,8 +250,13 @@ export function Register() {
             <Choices name="Skill level" value={form.skill} onChange={(v) => set({ skill: v })} options={SKILL_LEVELS.map((v) => ({ value: v }))} />
           </div>
           <div className="field" style={{ marginTop: 14 }}>
-            Bracket *
-            <Choices name="Bracket" value={form.bracket ?? ''} onChange={(v) => set({ bracket: v })} options={BRACKETS} />
+            Division *
+            <Choices
+              name="Division"
+              value={form.division}
+              onChange={(v) => set({ division: v as RegistrationEntry['division'] })}
+              options={DIVISIONS}
+            />
           </div>
         </div>
 
@@ -305,12 +316,47 @@ export function Register() {
           />
         </div>
 
+        <div className="card">
+          <h2>Entry fee</h2>
+          <p className="muted small" style={{ marginTop: -4 }}>
+            {BRAND.payment.fee ? `${BRAND.payment.fee}. ` : ''}
+            {BRAND.charity.pledge}
+          </p>
+          <ul className="small pay-list">
+            <li>
+              <b>Zelle</b>
+              {BRAND.payment.zelle ? ` to ${BRAND.payment.zelle}` : ''}
+            </li>
+            <li>
+              <b>Venmo</b>
+              {BRAND.payment.venmo ? ` ${BRAND.payment.venmo}` : ''}
+            </li>
+            <li>
+              <b>Cash</b> at check-in
+            </li>
+          </ul>
+          <div className="field" style={{ marginTop: 10 }}>
+            How are you paying? *
+            <Choices
+              name="Payment method"
+              value={form.payment}
+              onChange={(v) => set({ payment: v as RegistrationEntry['payment'], paid: false })}
+              options={PAYMENT_METHODS}
+            />
+          </div>
+          <label className="check" style={{ marginTop: 14, fontWeight: 600 }}>
+            <input type="checkbox" checked={form.paid} onChange={(e) => set({ paid: e.target.checked })} />
+            {form.payment === 'Cash at check-in'
+              ? 'I’ll bring the entry fee in cash to check-in. *'
+              : `I’ve sent the entry fee${form.payment ? ` by ${form.payment}` : ''}. *`}
+          </label>
+        </div>
+
         {error && <div className="alert alert-error">{error}</div>}
         <div className="row">
           <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>
             {busy ? 'Registering…' : 'Register'}
           </button>
-          <span className="small muted">{BRAND.charity.pledge}</span>
         </div>
       </form>
     </>

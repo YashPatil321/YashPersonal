@@ -8,7 +8,7 @@ import { useMatchDialog } from '../components/useMatchDialog';
 import { useTournament } from '../state/store';
 
 export function Courts() {
-  const { t, resolved, canScore, update } = useTournament();
+  const { t, resolved, canScore, isAdmin, update } = useTournament();
   const { open, dialog } = useMatchDialog();
   const courts = courtStatus(t, resolved);
   const queue = matchQueue(resolved);
@@ -41,6 +41,11 @@ export function Courts() {
               />
               Auto-call next match
             </label>
+            {isAdmin && (
+              <a className="btn" href="#/settings">
+                Edit courts
+              </a>
+            )}
             <button className="btn btn-primary" disabled={!openCourts.length || !next} onClick={() => update(fillCourts)}>
               <Zap size={16} /> Fill open courts
             </button>

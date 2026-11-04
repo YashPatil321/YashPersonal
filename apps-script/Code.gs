@@ -52,15 +52,19 @@ var REG_HEADERS = [
   'Phone number',
   'School',
   'Skill level',
-  'Bracket',
+  'Division',
   "Partner's full name",
   "Partner's email",
   "Partner's skill level",
   'Team name (optional)',
   'Anything else we should know?',
+  'Payment method',
+  'Payment confirmed',
 ];
 /** Matching keys sent by the website's form. */
-var REG_FIELDS = ['name', 'email', 'phone', 'school', 'skill', 'bracket', 'partnerName', 'partnerEmail', 'partnerSkill', 'teamName', 'notes'];
+var REG_FIELDS = ['name', 'email', 'phone', 'school', 'skill', 'division', 'partnerName', 'partnerEmail', 'partnerSkill', 'teamName', 'notes', 'payment', 'paid'];
+var DIVISIONS = ['Adult', 'Kids'];
+var PAYMENT_METHODS = ['Zelle', 'Venmo', 'Cash at check-in'];
 var MAX_REGISTRATIONS = 1000;
 
 /** Public tournament site, shown to people after they register. */
@@ -404,6 +408,10 @@ function register(entry, honeypot) {
   if (!emailRe.test(values.email)) return { ok: false, error: 'Please enter a valid email.' };
   if (values.partnerEmail && !emailRe.test(values.partnerEmail)) return { ok: false, error: "Please check your partner's email." };
   if (!values.skill) return { ok: false, error: 'Please choose your skill level.' };
+  if (DIVISIONS.indexOf(values.division) < 0) return { ok: false, error: 'Please choose Adult or Kids division.' };
+  if (PAYMENT_METHODS.indexOf(values.payment) < 0) return { ok: false, error: 'Please choose how you are paying.' };
+  if (entry.paid !== true && entry.paid !== 'yes') return { ok: false, error: 'Please confirm your entry fee payment.' };
+  values.paid = values.payment === 'Cash at check-in' ? 'Will pay cash at check-in' : 'Yes, sent';
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { ok: false, error: 'Busy, please try again.' };

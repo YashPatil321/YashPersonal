@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { callMatch, finishMatch, reopenMatch, resetMatch, saveLiveScore, unassignMatch } from '../lib/actions';
+import { callMatch, finishMatch, reopenMatch, resetMatch, saveLiveScore, setMatchTeams, unassignMatch } from '../lib/actions';
 import { describeRules, scoreWarnings, winnerFromGames } from '../lib/scoring';
 import { teamName } from '../lib/tournament';
 import type { GameScore } from '../lib/types';
@@ -8,7 +8,7 @@ import { divisionName, slotName, stageLabel, StatusBadge } from './match';
 import { Modal } from './ui';
 
 export function ScoreDialog({ matchId, onClose }: { matchId: string; onClose: () => void }) {
-  const { t, resolved, canScore, update } = useTournament();
+  const { t, resolved, canScore, isAdmin, update } = useTournament();
   const r = resolved.matches[matchId];
   const m = t.matches[matchId];
   const rules = r?.rules;
@@ -229,6 +229,86 @@ export function ScoreDialog({ matchId, onClose }: { matchId: string; onClose: ()
           )}
         </>
       )}
+
+      {isAdmin && m.status !== 'final' && (
+        <MatchupEditor
+          key={`${String(r.a)}-${String(r.b)}`}
+          divisionId={m.divisionId}
+          a={typeof r.a === 'string' && r.a !== 'BYE' ? r.a : ''}
+          b={typeof r.b === 'string' && r.b !== 'BYE' ? r.b : ''}
+          onSave={(a, b) => update((tt) => setMatchTeams(tt, m.id, a, b))}
+        />
+      )}
     </Modal>
+  );
+}
+
+/** Organizer-only: swap which teams play in this match. */
+function MatchupEditor({
+  divisionId,
+  a,
+  b,
+  onSave,
+}: {
+  divisionId: string;
+  a: string;
+  b: string;
+  onSave: (a: string, b: string) => void;
+}) {
+  const { t } = useTournament();
+  const [open, setOpen] = useState(false);
+  const [teamA, setTeamA] = useState(a);
+  const [teamB, setTeamB] = useState(b);
+  const division = t.divisions.find((d) => d.id === divisionId);
+  const ids = division?.teamIds ?? Object.keys(t.teams);
+  if (!open) {
+    return (
+      <div style={{ marginTop: 14 }}>
+        <button className="btn btn-sm btn-ghost" onClick={() => setOpen(true)}>
+          Edit matchup
+        </button>
+      </div>
+    );
+  }
+  const select = (value: string, onChange: (v: string) => void, label: string) => (
+    <label className="field">
+      {label}
+      <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Choose a team…</option>
+        {ids.map((id) => (
+          <option key={id} value={id}>
+            {t.teams[id]?.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <div className="card card-tight" style={{ marginTop: 14, background: 'var(--surface-2)' }}>
+      <h3 style={{ marginBottom: 8 }}>Edit matchup</h3>
+      <div className="form-grid">
+        {select(teamA, setTeamA, 'Team A')}
+        {select(teamB, setTeamB, 'Team B')}
+      </div>
+      {teamA && teamA === teamB && <div className="alert alert-warn small" style={{ marginTop: 8 }}>Pick two different teams.</div>}
+      <p className="tiny muted" style={{ margin: '8px 0 0' }}>
+        This replaces the teams in this match only. Any score already entered for it is cleared.
+      </p>
+      <div className="row" style={{ marginTop: 10 }}>
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={!teamA || !teamB || teamA === teamB || (teamA === a && teamB === b)}
+          onClick={() => {
+            onSave(teamA, teamB);
+            setOpen(false);
+          }}
+        >
+          Save matchup
+        </button>
+        <button className="btn btn-sm btn-ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
