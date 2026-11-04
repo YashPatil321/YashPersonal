@@ -3148,3 +3148,23 @@ h1 .wordmark,
   border-color: var(--win, #1f9d55);
   background: color-mix(in srgb, var(--win, #1f9d55) 10%, var(--surface));
 }
+
+.join-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.join-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.join-item.on {
+  border-color: var(--ball);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ball) 30%, transparent);
+}

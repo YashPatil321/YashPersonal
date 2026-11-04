@@ -39,6 +39,7 @@ export function rowToEntry(header: string[], row: string[]): RegistrationEntry {
     paid: /^yes/i.test(paid),
     donation: Number(get('Extra donation').replace(/[^0-9.]/g, '')) || 0,
     anonymous: /^yes/i.test(get('Anonymous')),
+    partnerSeparate: /^yes/i.test(get('Partner pays separately')),
   };
 }
 
@@ -68,7 +69,7 @@ export function SignupDialog({
   const [error, setError] = useState<string | null>(null);
   const set = (p: Partial<RegistrationEntry>) => setForm((f) => ({ ...f, ...p }));
   const editing = target.row !== undefined;
-  const players = form.partnerName?.trim() ? 2 : 1;
+  const players = form.partnerName?.trim() && !form.partnerSeparate ? 2 : 1;
   const due = players * BRAND.payment.feeAmount + (form.donation || 0);
 
   const save = async () => {
@@ -149,6 +150,12 @@ export function SignupDialog({
           Paid ${due} (${BRAND.payment.feeAmount} per person × {players}
           {form.donation ? ` + $${form.donation} extra` : ''})
         </label>
+        {form.partnerName?.trim() && (
+          <label className="check">
+            <input type="checkbox" checked={!!form.partnerSeparate} onChange={(e) => set({ partnerSeparate: e.target.checked })} />
+            Their partner signs up and pays on their own
+          </label>
+        )}
         <label className="check">
           <input type="checkbox" checked={!!form.anonymous} onChange={(e) => set({ anonymous: e.target.checked })} />
           Show as “Anonymous” on the donations list
@@ -226,11 +233,14 @@ export function SignupTable({
                 .reverse()
                 .map(({ r, row }) => {
                   const e = rowToEntry(header, r);
-                  const players = e.partnerName ? 2 : 1;
+                  const players = e.partnerName && !e.partnerSeparate ? 2 : 1;
                   return (
                     <tr key={`${row}-${r[0]}`}>
                       <td className="bold">{e.name}</td>
-                      <td>{e.partnerName || <span className="muted">Needs a partner</span>}</td>
+                      <td>
+                        {e.partnerName || <span className="muted">Needs a partner</span>}
+                        {e.partnerSeparate && <div className="tiny muted">pays on their own</div>}
+                      </td>
                       <td>{e.division}</td>
                       <td className="small">
                         {r[col('Payment confirmed')] || '—'}

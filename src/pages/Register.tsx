@@ -31,6 +31,14 @@ const EMPTY: RegistrationEntry = {
   anonymous: false,
 };
 
+type PartnerMode = 'solo' | 'both' | 'separate' | 'join';
+const PARTNER_MODES: Array<{ mode: PartnerMode; value: string; hint: string }> = [
+  { mode: 'solo', value: 'Pair me with someone', hint: 'We’ll find you a partner' },
+  { mode: 'both', value: 'I’m signing up my partner too', hint: `You give $${BRAND.payment.feeAmount * 2} for both` },
+  { mode: 'separate', value: 'My partner will sign up on their own', hint: `You each give $${BRAND.payment.feeAmount}` },
+  { mode: 'join', value: 'Join a partner', hint: 'They already signed up' },
+];
+
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 function Choices({
@@ -87,6 +95,7 @@ export function Register() {
   const [form, setForm] = useState<RegistrationEntry>(EMPTY);
   const [honeypot, setHoneypot] = useState('');
   const [donationChoice, setDonationChoice] = useState('No thanks');
+  const [partnerMode, setPartnerMode] = useState<PartnerMode>('solo');
   const [customDonation, setCustomDonation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +175,7 @@ export function Register() {
               onClick={() => {
                 setDone(null);
                 setForm(EMPTY);
+                setPartnerMode('solo');
                 setDonationChoice('No thanks');
                 setCustomDonation('');
               }}
@@ -181,9 +191,9 @@ export function Register() {
     );
   }
 
-  const players = form.partnerName?.trim() ? 2 : 1;
+  const players = partnerMode === 'both' && form.partnerName?.trim() ? 2 : 1;
   const amountDue = BRAND.payment.feeAmount * players + (form.donation ?? 0);
-  const names = [form.name.trim(), form.partnerName?.trim()].filter(Boolean).join(' & ');
+  const names = [form.name.trim(), players === 2 ? form.partnerName?.trim() : ''].filter(Boolean).join(' & ');
   const noteText = `${names || 'your name'} – SACS Pickleball`;
 
   const submit = async () => {
@@ -191,6 +201,8 @@ export function Register() {
     if (!form.name.trim()) return setError('Please enter your full name.');
     if (!emailOk(form.email)) return setError('Please enter a valid email.');
     if (!form.division) return setError('Please choose Adults or Kids/Teens.');
+    if ((partnerMode === 'both' || partnerMode === 'separate') && !form.partnerName?.trim()) return setError('Please enter your partner’s name.');
+    if (partnerMode === 'join' && !form.joinId) return setError('Pick the partner you’re joining.');
     if (!form.payment) return setError('Please choose how you’re sending your donation.');
     if (!form.paid) return setError('Please confirm your donation.');
     if (donationChoice === 'Other' && !(form.donation && form.donation > 0))
@@ -295,19 +307,62 @@ export function Register() {
 
         <div className="card">
           <h2>Your partner</h2>
-          <p className="muted small" style={{ marginTop: -4 }}>
-            Optional. Leave this blank and we’ll pair you with someone. Only one of you needs to register.
-          </p>
-          <div className="form-grid">
-            <label className="field">
-              Partner’s full name
-              <input className="input" value={form.partnerName} onChange={(e) => set({ partnerName: e.target.value })} />
-            </label>
-            <label className="field">
-              Partner’s email
-              <input className="input" type="email" value={form.partnerEmail} onChange={(e) => set({ partnerEmail: e.target.value })} />
-            </label>
-          </div>
+          <Choices
+            name="Partner"
+            value={PARTNER_MODES.find((m) => m.mode === partnerMode)!.value}
+            onChange={(v) => {
+              const mode = PARTNER_MODES.find((m) => m.value === v)!.mode;
+              setPartnerMode(mode);
+              set({
+                partnerSeparate: mode === 'separate',
+                joinId: undefined,
+                partnerName: mode === 'solo' || mode === 'join' ? '' : form.partnerName,
+                partnerEmail: mode === 'both' ? form.partnerEmail : '',
+                paid: false,
+              });
+            }}
+            options={PARTNER_MODES.filter((m) => m.mode !== 'join' || (info?.waiting.length ?? 0) > 0)}
+          />
+          {(partnerMode === 'both' || partnerMode === 'separate') && (
+            <div className="form-grid" style={{ marginTop: 12 }}>
+              <label className="field">
+                Partner’s full name *
+                <input className="input" value={form.partnerName} onChange={(e) => set({ partnerName: e.target.value })} />
+              </label>
+              {partnerMode === 'both' && (
+                <label className="field">
+                  Partner’s email
+                  <input className="input" type="email" value={form.partnerEmail} onChange={(e) => set({ partnerEmail: e.target.value })} />
+                </label>
+              )}
+            </div>
+          )}
+          {partnerMode === 'separate' && (
+            <p className="small muted" style={{ margin: '10px 0 0' }}>
+              Tell {form.partnerName?.trim().split(' ')[0] || 'your partner'} to sign up and choose <b>Join a partner</b>. You each give ${BRAND.payment.feeAmount}.
+            </p>
+          )}
+          {partnerMode === 'join' && (
+            <div className="join-list" role="radiogroup" aria-label="Who are you joining?">
+              {(info?.waiting ?? []).map((w) => (
+                <label key={w.id} className={`join-item ${form.joinId === w.id ? 'on' : ''}`}>
+                  <input
+                    type="radio"
+                    name="join"
+                    checked={form.joinId === w.id}
+                    onChange={() => set({ joinId: w.id, division: w.division, partnerSeparate: true, paid: false })}
+                  />
+                  <span>
+                    <b>{w.name}</b> is waiting for {w.partner || 'a partner'}
+                    <span className="small muted"> · {w.division}</span>
+                  </span>
+                </label>
+              ))}
+              <p className="small muted" style={{ margin: '6px 0 0' }}>
+                Don’t see them? They haven’t signed up yet. Choose “My partner will sign up on their own” instead.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="card">

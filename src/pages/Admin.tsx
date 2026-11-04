@@ -362,9 +362,12 @@ function DrawTab({ onSignups }: { onSignups: () => void }) {
       const d = quickDraw(rows);
       replace(d.t);
       setNote(
-        `Draft created: ${d.teams} teams across ${BRAND.courts} courts.` +
+        `Draft created: ${d.teams} ${d.teams === 1 ? 'team' : 'teams'} across ${BRAND.courts} courts.` +
           (d.needPartner.length
             ? ` ${d.needPartner.join(', ')} still ${d.needPartner.length === 1 ? 'needs' : 'need'} a partner: add one under Teams & players below.`
+            : '') +
+          (d.notSignedUp.length
+            ? ` Not signed up yet (so not paid): ${d.notSignedUp.join(', ')}. They’re on the team; check they pay at check-in.`
             : ''),
       );
     } catch (e) {
