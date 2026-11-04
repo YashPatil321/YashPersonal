@@ -285,7 +285,7 @@ function Dashboard() {
 
   const count = info?.registrations ?? 0;
   const steps = [
-    { title: 'Sign-ups', done: count > 0, text: `${count} signed up`, tab: 'signups' as Tab },
+    { title: 'Sign-ups', done: count > 0, text: info ? `${count} signed up` : 'Loading…', tab: 'signups' as Tab },
     { title: 'Create the draw', done: !!t, text: t ? 'Draft ready' : 'When sign-ups close', tab: 'draw' as Tab },
     { title: 'Publish', done: published, text: published ? `Published · ${played} played` : 'Players see nothing yet', tab: 'draw' as Tab },
   ];

@@ -1,3 +1,4 @@
+import { SUPABASE_KEY } from '../config';
 import type { Match, Tournament } from './types';
 
 export type Role = 'admin' | 'scorer' | 'viewer';
@@ -45,7 +46,27 @@ export interface RemoteState {
   state: Tournament | null;
 }
 
+const isSupabase = (url: string) => /\.supabase\.co\/?$/.test(url);
+
+/** Supabase: every action goes to the one `pb` database function. */
+async function rpc(url: string, body: { action: string } & Record<string, unknown>): Promise<any> {
+  const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/pb`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: body.action, body }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.ok) {
+    const err = new Error(data.error || 'Request failed') as Error & { auth?: boolean };
+    if (data.auth === false) err.auth = true;
+    throw err;
+  }
+  return data;
+}
+
 async function getJSON(url: string, action: string): Promise<any> {
+  if (isSupabase(url)) return rpc(url, { action });
   const res = await fetch(`${url}?action=${action}&t=${Date.now()}`, { redirect: 'follow' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -53,7 +74,8 @@ async function getJSON(url: string, action: string): Promise<any> {
   return data;
 }
 
-async function postJSON(url: string, body: unknown): Promise<any> {
+async function postJSON(url: string, body: { action: string } & Record<string, unknown>): Promise<any> {
+  if (isSupabase(url)) return rpc(url, body);
   // text/plain keeps this a "simple" CORS request (Apps Script can't answer preflights)
   const res = await fetch(url, {
     method: 'POST',

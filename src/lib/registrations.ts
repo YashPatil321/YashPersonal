@@ -350,8 +350,8 @@ export function importRegistrations(
   if (options.dedupe) {
     const latest = new Map<string, Entry>();
     for (const e of entries) {
-      const who = e.player.email || nameKey(e.player.name);
-      const key = `${who}|${e.division.toLowerCase()}`;
+      // By name: siblings often sign up with a parent's email, so email alone isn't a person.
+      const key = `${nameKey(e.player.name)}|${e.division.toLowerCase()}`;
       const prev = latest.get(key);
       if (prev) {
         const keepNew = (e.timestamp ?? e.row) >= (prev.timestamp ?? prev.row);
@@ -368,9 +368,10 @@ export function importRegistrations(
   }
 
   // One Player object per real person across divisions
-  const personKey = (p: Player) => p.email || nameKey(p.name);
+  const personKey = (p: Player) => nameKey(p.name);
   const people = new Map<string, Player>();
   const peopleByName = new Map<string, Player>();
+  const peopleByEmail = new Map<string, Player>();
   for (const e of entries) {
     const k = personKey(e.player);
     const existing = people.get(k);
@@ -379,10 +380,12 @@ export function importRegistrations(
       people.set(k, e.player);
       players[e.player.id] = e.player;
       if (!peopleByName.has(nameKey(e.player.name))) peopleByName.set(nameKey(e.player.name), e.player);
+      if (e.player.email && !peopleByEmail.has(e.player.email)) peopleByEmail.set(e.player.email, e.player);
     }
   }
+  // A partner is found by name; their email is only used when no name was given.
   const findPerson = (email: string | undefined, name: string | undefined): Player | undefined =>
-    (email ? people.get(email) : undefined) ?? (name ? peopleByName.get(nameKey(name)) ?? people.get(nameKey(name)) : undefined);
+    name ? peopleByName.get(nameKey(name)) : email ? peopleByEmail.get(email) : undefined;
 
   // 3) Group by division (preserving first-seen order)
   const divisionOrder: string[] = [];
@@ -427,8 +430,10 @@ export function importRegistrations(
         (f) =>
           f !== e &&
           !teamed.has(f) &&
-          ((e.partnerEmail && f.player.email && e.partnerEmail === f.player.email) ||
-            (e.partnerName && namesMatch(e.partnerName, f.player.name))),
+          // Match the partner by name; use the email only when no name was given (families share emails).
+          (e.partnerName
+            ? namesMatch(e.partnerName, f.player.name)
+            : !!(e.partnerEmail && f.player.email && e.partnerEmail === f.player.email)),
       );
 
     for (const e of list) {
@@ -450,7 +455,7 @@ export function importRegistrations(
       } else {
         // Partner didn't register separately — create them from the row.
         const pName = e.partnerName || e.partnerEmail!;
-        const key = e.partnerEmail || nameKey(pName);
+        const key = nameKey(pName);
         let partner = findPerson(e.partnerEmail, e.partnerName);
         if (!partner) {
           partner = {
