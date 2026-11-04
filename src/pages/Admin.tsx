@@ -5,6 +5,7 @@ import setupScript from '../../apps-script/Code.gs?raw';
 import { BRAND } from '../brand';
 import { download } from '../lib/exporters';
 import { Mandala, Toran } from '../components/ui';
+import { DEFAULT_LIVE_URL } from '../config';
 import { quickDraw } from '../lib/quickDraw';
 import { remote } from '../lib/sync';
 import { FundraiserCard, raisedTotal } from '../components/Fundraiser';
@@ -453,7 +454,7 @@ function DrawTab({ onSignups }: { onSignups: () => void }) {
 function ShareTab() {
   const { sync } = useStore();
   if (!sync) return null;
-  const base = `${siteBase()}?live=${encodeURIComponent(sync.url)}`;
+  const base = sync.url === DEFAULT_LIVE_URL ? siteBase() : `${siteBase()}?live=${encodeURIComponent(sync.url)}`;
   return (
     <div className="card">
       <div className="stack" style={{ gap: 14 }}>
