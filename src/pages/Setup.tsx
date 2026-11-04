@@ -11,6 +11,7 @@ import {
   FIELD_ORDER,
   importRegistrations,
   seedTeams,
+  distinctTeamNames,
   teamDisplayName,
 } from '../lib/registrations';
 import type { ColumnMapping, FieldKey, ImportOptions, PairingStrategy, SeedingMethod } from '../lib/registrations';
@@ -159,7 +160,7 @@ export function Setup() {
         hoursAvailable: info.hours ?? 4,
       },
       draft.players,
-      draft.teams,
+      distinctTeamNames(draft.teams, draft.players),
       divisions,
     );
     replace({ ...tournament, published: false });

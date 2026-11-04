@@ -4,7 +4,7 @@ import { toCSV } from '../lib/csv';
 import { download, matchesTable, placementsTable, slug, standingsTable, teamsTable } from '../lib/exporters';
 import { addLateTeam, canAddLateTeam, regenerateDivision } from '../lib/generate';
 import { uid } from '../lib/ids';
-import { averageRating, teamDisplayName } from '../lib/registrations';
+import { autoTeamNames, averageRating, distinctTeamNames, teamDisplayName } from '../lib/registrations';
 import { remote } from '../lib/sync';
 import { FORMAT_LABELS, defaultDivisionSettings } from '../lib/tournament';
 import type { FormatType, Player, Team, Tournament } from '../lib/types';
@@ -339,7 +339,7 @@ export function DivisionsCard() {
       const next: Tournament = {
         ...tt,
         players,
-        teams: { ...tt.teams, [team.id]: team },
+        teams: distinctTeamNames({ ...tt.teams, [team.id]: team }, players),
         divisions: tt.divisions.map((d) => (d.id === divisionId ? { ...d, teamIds: [...d.teamIds, team.id] } : d)),
         updatedAt: Date.now(),
       };
@@ -568,8 +568,8 @@ function DataCard() {
                   const data = JSON.parse(await file.text()) as Tournament;
                   if (!data.matches || !data.divisions || !data.teams) throw new Error('Not a tournament backup');
                   if (t && !window.confirm('Replace the current tournament with this backup?')) return;
-                  replace({ ...data, id: data.id ?? uid('tour') });
-                  setMsg('Backup loaded.');
+                  replace({ ...data, id: data.id ?? uid('tour'), published: false });
+                  setMsg('Backup loaded as a draft. Press “Publish to players” when you’re ready.');
                   navigate('/');
                 } catch (err) {
                   setMsg(`Couldn't load that file: ${(err as Error).message}`);
@@ -622,13 +622,13 @@ export function PlayersCard() {
       if (!team || !tt.players[playerId]) return tt;
       const players = { ...tt.players, [playerId]: { ...tt.players[playerId], name } };
       const oldName = tt.players[playerId].name;
-      const autoName = team.name === teamDisplayName(team.playerIds.map((id) => tt.players[id]).filter(Boolean));
+      const autoName = autoTeamNames(team.playerIds.map((id) => tt.players[id]).filter(Boolean)).includes(team.name);
       const members = team.playerIds.map((id) => players[id]).filter(Boolean);
       const teamName = autoName ? teamDisplayName(members) : team.name.includes(oldName) ? team.name.replace(oldName, name) : team.name;
       return {
         ...tt,
         players,
-        teams: { ...tt.teams, [teamId]: { ...team, name: teamName } },
+        teams: distinctTeamNames({ ...tt.teams, [teamId]: { ...team, name: teamName } }, players),
         updatedAt: Date.now(),
       };
     });
@@ -644,7 +644,7 @@ export function PlayersCard() {
       return {
         ...tt,
         players,
-        teams: { ...tt.teams, [teamId]: { ...team, playerIds: [...team.playerIds, p.id], name: teamDisplayName(members) } },
+        teams: distinctTeamNames({ ...tt.teams, [teamId]: { ...team, playerIds: [...team.playerIds, p.id], name: teamDisplayName(members) } }, players),
         updatedAt: Date.now(),
       };
     });
