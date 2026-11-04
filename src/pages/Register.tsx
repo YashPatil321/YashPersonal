@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { CheckCircle2, ClipboardList, Users } from 'lucide-react';
+import { CheckCircle2, HandHeart, Users } from 'lucide-react';
 import { BRAND } from '../brand';
 import { remote } from '../lib/sync';
 import type { RegistrationEntry } from '../lib/sync';
-import { DonationWall, FundraiserCard } from '../components/Fundraiser';
+import { FundraiserSidebar } from '../components/Fundraiser';
 import { CauseCard } from '../components/ui';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
@@ -211,26 +211,45 @@ export function Register() {
     }
   };
 
+  const toForm = () => document.getElementById('register-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
-    <>
-      <Hero>
-        {intro}
-        {info && info.registrations > 0 && (
-          <div style={{ marginTop: 10 }}>
-            <span className="chip">
-              <ClipboardList size={14} /> {info.registrations} signed up so far
-            </span>
+    <div className="gf-page">
+      <h1 className="gf-title">
+        {BRAND.eventName}: play for SACS &amp; Akshaya Patra
+      </h1>
+      <figure className="gf-photo">
+        <img src="./photos/sacs-cast.webp" alt="The SACS 2026 cast on stage after the show" />
+      </figure>
+      <aside className="gf-side">
+        <FundraiserSidebar info={info} onDonate={toForm} />
+      </aside>
+      <div className="gf-main">
+        <div className="gf-organizer">
+          <span className="gf-avatar">
+            <HandHeart size={20} />
+          </span>
+          <div className="small">
+            <b>South Asian Culture Show</b> is organizing this fundraiser for the{' '}
+            <a href={BRAND.charity.url} target="_blank" rel="noreferrer">
+              {BRAND.charity.name}
+            </a>
+            .
           </div>
-        )}
-      </Hero>
-
-      <div style={{ marginBottom: 14 }}>
-        <FundraiserCard info={info} />
-      </div>
-      <div style={{ marginBottom: 18 }}>
-        <DonationWall info={info} />
-      </div>
-
+        </div>
+        <div className="gf-story">
+          <p>
+            Grab a partner (or come solo and we’ll pair you) and play in the {BRAND.eventName}: {BRAND.courts} courts, about{' '}
+            {BRAND.hours} hours of doubles, with an Adults division and a Kids/Teens division.
+          </p>
+          <p>
+            Every player gives a required ${BRAND.payment.feeAmount} donation, and you can add more if you’d like. {BRAND.charity.pledge}{' '}
+            {BRAND.charity.blurb}
+          </p>
+        </div>
+        <h2 id="register-form" className="gf-form-title">
+          Register &amp; donate
+        </h2>
       <form
         className="stack register-form"
         style={{ gap: 14 }}
@@ -407,6 +426,7 @@ export function Register() {
           </button>
         </div>
       </form>
-    </>
+      </div>
+    </div>
   );
 }

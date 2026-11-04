@@ -1,0 +1,64 @@
+import { describe, expect, it } from 'vitest';
+import { finishMatch } from '../actions';
+import { resolveTournament } from '../resolve';
+import { matchMinutes, projectSchedule } from '../schedule';
+import { buildTournament, courtNames, defaultDivisionSettings } from '../tournament';
+function make(divs, courts, minutes = 20) {
+    const players = {};
+    const teams = {};
+    const divisions = divs.map((d, di) => {
+        const ids = [];
+        for (let i = 0; i < d.n; i++) {
+            const id = `d${di}t${i}`;
+            players[id] = { id, name: id };
+            teams[id] = { id, name: id, playerIds: [id], divisionId: 'x' };
+            ids.push(id);
+        }
+        return { name: `D${di}`, teamIds: ids, settings: { ...defaultDivisionSettings(d.n), ...d.settings } };
+    });
+    return buildTournament({ name: 'T', courts: courtNames(courts), minutesPerMatch: minutes, doubles: true }, players, teams, divisions);
+}
+describe('projectSchedule', () => {
+    it('match length scales with games and points', () => {
+        const base = { bestOf: 1, pointsToWin: 11, winBy: 2 };
+        expect(matchMinutes(base, 20)).toBe(20);
+        expect(matchMinutes({ ...base, bestOf: 3 }, 20)).toBe(48);
+        expect(Math.round(matchMinutes({ ...base, pointsToWin: 15 }, 22))).toBe(30);
+    });
+    it('round robin is limited by teams, not courts', () => {
+        expect(projectSchedule(make([{ n: 4, settings: { format: 'round_robin' } }], 2)).minutes).toBe(60);
+        expect(projectSchedule(make([{ n: 4, settings: { format: 'round_robin' } }], 10)).minutes).toBe(60);
+        expect(projectSchedule(make([{ n: 4, settings: { format: 'round_robin' } }], 1)).minutes).toBe(120);
+    });
+    it('brackets wait for earlier rounds', () => {
+        expect(projectSchedule(make([{ n: 8, settings: { format: 'single_elim' } }], 4)).minutes).toBe(60);
+        expect(projectSchedule(make([{ n: 8, settings: { format: 'single_elim' } }], 2)).minutes).toBe(80);
+    });
+    it('counts down as matches finish', () => {
+        let t = make([{ n: 6, settings: { format: 'round_robin' } }], 3);
+        const before = projectSchedule(t, { fromNow: true });
+        for (let i = 0; i < 5; i++) {
+            const r = resolveTournament(t).ordered.find((x) => x.ready);
+            t = finishMatch(t, r.m.id, [{ a: 11, b: 5 }]);
+        }
+        const after = projectSchedule(t, { fromNow: true });
+        expect(after.matches).toBe(before.matches - 5);
+        expect(after.minutes).toBeLessThan(before.minutes);
+        while (resolveTournament(t).ordered.some((x) => x.ready)) {
+            const r = resolveTournament(t).ordered.find((x) => x.ready);
+            t = finishMatch(t, r.m.id, [{ a: 11, b: 5 }]);
+        }
+        expect(projectSchedule(t, { fromNow: true })).toEqual({ minutes: 0, matches: 0 });
+    });
+    it('a 40-team, two-division event fits in 4 hours on 10 courts', () => {
+        const t = make([
+            { n: 20, settings: { format: 'pools_playoff', poolCount: 4, advancePerPool: 2 } },
+            { n: 20, settings: { format: 'pools_playoff', poolCount: 4, advancePerPool: 2 } },
+        ], 10);
+        const p = projectSchedule(t);
+        expect(p.matches).toBe(94);
+        // 94 matches × 20 min / 10 courts ≈ 188 min is the floor; pools of 5 need 5 rounds + 3 bracket rounds.
+        expect(p.minutes).toBeGreaterThanOrEqual(188);
+        expect(p.minutes).toBeLessThanOrEqual(240);
+    });
+});
