@@ -54,7 +54,6 @@ var REG_HEADERS = [
   'Division',
   "Partner's full name",
   "Partner's email",
-  'Team name (optional)',
   'Anything else we should know?',
   'Payment method',
   'Payment confirmed',
@@ -62,7 +61,7 @@ var REG_HEADERS = [
   'Anonymous',
 ];
 /** Matching keys sent by the website's form. */
-var REG_FIELDS = ['name', 'email', 'phone', 'school', 'division', 'partnerName', 'partnerEmail', 'teamName', 'notes', 'payment', 'paid', 'donation', 'anonymous'];
+var REG_FIELDS = ['name', 'email', 'phone', 'school', 'division', 'partnerName', 'partnerEmail', 'notes', 'payment', 'paid', 'donation', 'anonymous'];
 var DIVISIONS = ['Adult', 'Kids'];
 var PAYMENT_METHODS = ['Zelle', 'Venmo', 'Cash at check-in'];
 var MAX_REGISTRATIONS = 1000;

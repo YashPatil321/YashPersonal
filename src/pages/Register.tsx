@@ -25,7 +25,6 @@ const EMPTY: RegistrationEntry = {
   division: '',
   partnerName: '',
   partnerEmail: '',
-  teamName: '',
   notes: '',
   payment: '',
   paid: false,
@@ -298,13 +297,7 @@ export function Register() {
 
         <div className="card">
           <h2>Extras</h2>
-          <div className="form-grid">
-            <label className="field">
-              Team name (optional)
-              <input className="input" value={form.teamName} onChange={(e) => set({ teamName: e.target.value })} />
-            </label>
-          </div>
-          <label className="field" style={{ marginTop: 14 }}>
+          <label className="field">
             Anything else we should know?
             <textarea
               className="input"

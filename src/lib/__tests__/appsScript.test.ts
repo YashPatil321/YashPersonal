@@ -144,7 +144,7 @@ describe('Apps Script backend (Code.gs)', () => {
         school: 'Del Norte',
         division: 'Adult', payment: 'Zelle', paid: true,
         partnerName: 'Arjun Rao',
-        teamName: '=HYPERLINK("x")',
+        notes: '=HYPERLINK("x")',
         donation: '25',
       }),
     ).toMatchObject({ ok: true, count: 1 });
@@ -166,10 +166,11 @@ describe('Apps Script backend (Code.gs)', () => {
     expect(rows[1][8]).toBe('HYPERLINK("x")'); // formula prefix stripped
     expect(rows[0].slice(-4)).toEqual(['Payment method', 'Payment confirmed', 'Extra donation', 'Anonymous']);
     expect(rows[0]).not.toContain('Skill level');
+    expect(rows[0]).not.toContain('Team name (optional)');
     expect(rows[1].slice(-4)).toEqual(['Zelle', 'Yes, sent', '$25', '']);
     expect(rows[2].slice(-4)).toEqual(['Cash at check-in', 'Will pay cash at check-in', '', '']);
     expect(detectColumns(rows[0])).toMatchObject({
-      timestamp: 0, name: 1, email: 2, phone: 3, division: 5, partnerName: 6, partnerEmail: 7, teamName: 8,
+      timestamp: 0, name: 1, email: 2, phone: 3, division: 5, partnerName: 6, partnerEmail: 7,
     });
     const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
     expect(res.divisions.map((d) => d.name)).toEqual(['Adult', 'Kids']);

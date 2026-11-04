@@ -24,7 +24,6 @@ export interface RegistrationEntry {
   division: 'Adult' | 'Kids' | '';
   partnerName?: string;
   partnerEmail?: string;
-  teamName?: string;
   notes?: string;
   payment: 'Zelle' | 'Venmo' | 'Cash at check-in' | '';
   /** The registrant ticked "I've paid" (or will bring cash). */
