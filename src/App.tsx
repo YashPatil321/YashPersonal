@@ -391,6 +391,9 @@ function Landing() {
         </p>
         <div className="row" style={{ marginBottom: 22 }}>
           <span className="chip">
+            <UserRound size={14} /> Adult &amp; Kids divisions
+          </span>
+          <span className="chip">
             <LayoutGrid size={14} /> {BRAND.courts} courts
           </span>
           <span className="chip">

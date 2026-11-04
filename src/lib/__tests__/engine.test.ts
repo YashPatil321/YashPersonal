@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { finishMatch } from '../actions';
+import { finishMatch, setMatchTeams } from '../actions';
 import { parseCSV, toCSV } from '../csv';
 import { bracketSeedOrder, roundRobinRounds, snakePools } from '../generate';
 import { seededRandom } from '../ids';
@@ -229,5 +229,31 @@ describe('pools → playoffs', () => {
         expect(poolOf.get(sf.a as string)).not.toBe(poolOf.get(sf.b as string));
       }
     }
+  });
+});
+
+describe('organizer edits', () => {
+  it('can change who plays in a match before it is finished', () => {
+    let t = makeTournament(6, { format: 'round_robin' });
+    const first = resolveTournament(t).ordered[0];
+    const [a, b] = [first.a as string, first.b as string];
+    const other = t.divisions[0].teamIds.find((id) => id !== a && id !== b)!;
+    t = setMatchTeams(t, first.m.id, a, other);
+    let r = resolveTournament(t).matches[first.m.id];
+    expect([r.a, r.b]).toEqual([a, other]);
+    expect(setMatchTeams(t, first.m.id, a, a)).toBe(t); // same team twice is ignored
+    t = finishMatch(t, first.m.id, [{ a: 11, b: 4 }]);
+    expect(setMatchTeams(t, first.m.id, a, b)).toBe(t); // finished matches are locked
+    r = resolveTournament(t).matches[first.m.id];
+    expect(r.winner).toBe(a);
+  });
+
+  it('can fill a bracket slot by hand', () => {
+    let t = makeTournament(4, { format: 'single_elim' });
+    const final = resolveTournament(t).ordered.find((x) => x.m.round === 2)!;
+    expect(final.a).toBeNull();
+    t = setMatchTeams(t, final.m.id, 't0', 't3');
+    const r = resolveTournament(t).matches[final.m.id];
+    expect([r.a, r.b, r.ready]).toEqual(['t0', 't3', true]);
   });
 });

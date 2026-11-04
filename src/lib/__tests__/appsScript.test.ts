@@ -121,12 +121,16 @@ describe('Apps Script backend (Code.gs)', () => {
     const api = createAppsScript({ standalone: true });
     api.setup();
     const admin = api.props.get('ADMIN_PASSCODE');
-    const register = (entry: Record<string, string>, website = '') => api.post({ action: 'register', entry, website });
+    const register = (entry: Record<string, string | boolean>, website = '') => api.post({ action: 'register', entry, website });
 
     expect(register({ name: '', email: 'x@y.com', skill: 'Advanced (4.0+)' })).toMatchObject({ ok: false });
     expect(register({ name: 'Riya Shah', email: 'not-an-email', skill: 'Advanced (4.0+)' })).toMatchObject({ ok: false });
     expect(register({ name: 'Riya Shah', email: 'riya@example.com' })).toMatchObject({ ok: false }); // skill required
     expect(register({ name: 'Bot', email: 'bot@spam.com', skill: 'x' }, 'http://spam')).toEqual({ ok: true }); // honeypot
+    const base = { name: 'Riya Shah', email: 'riya@example.com', skill: 'Advanced (4.0+)' };
+    expect(register({ ...base, division: 'Seniors', payment: 'Zelle', paid: true })).toMatchObject({ ok: false });
+    expect(register({ ...base, division: 'Adult', payment: '', paid: true })).toMatchObject({ ok: false });
+    expect(register({ ...base, division: 'Adult', payment: 'Zelle', paid: false })).toMatchObject({ ok: false, error: 'Please confirm your entry fee payment.' });
 
     expect(
       register({
@@ -135,14 +139,14 @@ describe('Apps Script backend (Code.gs)', () => {
         phone: '+1 858 555 0100',
         school: 'Del Norte',
         skill: 'Intermediate (2.5 - 3.5)',
-        bracket: 'Competitive',
+        division: 'Adult', payment: 'Zelle', paid: true,
         partnerName: 'Arjun Rao',
         partnerSkill: 'Advanced (4.0+)',
         teamName: '=HYPERLINK("x")',
       }),
     ).toMatchObject({ ok: true, count: 1 });
-    expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', bracket: 'Just for fun' })).toMatchObject({ ok: true, count: 2 });
-    expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', bracket: 'Just for fun' })).toMatchObject({ ok: true, count: 3 });
+    expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 2 });
+    expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 3 });
     expect(api.get({ action: 'ping' }).registrations).toBe(3);
 
     // Only the admin can read them; headers import cleanly
@@ -150,11 +154,14 @@ describe('Apps Script backend (Code.gs)', () => {
     const rows = api.post({ action: 'registrations', passcode: admin }).rows as string[][];
     expect(rows.length).toBe(4);
     expect(rows[1][10]).toBe('HYPERLINK("x")'); // formula prefix stripped
+    expect(rows[0].slice(-2)).toEqual(['Payment method', 'Payment confirmed']);
+    expect(rows[1].slice(-2)).toEqual(['Zelle', 'Yes, sent']);
+    expect(rows[2].slice(-2)).toEqual(['Cash at check-in', 'Will pay cash at check-in']);
     expect(detectColumns(rows[0])).toMatchObject({
       timestamp: 0, name: 1, email: 2, phone: 3, skill: 5, division: 6, partnerName: 7, partnerEmail: 8, partnerSkill: 9, teamName: 10,
     });
     const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
-    expect(res.divisions.map((d) => d.name)).toEqual(['Competitive', 'Just for fun']);
+    expect(res.divisions.map((d) => d.name)).toEqual(['Adult', 'Kids']);
     const riyaTeam = Object.values(res.teams).find((t) => t.playerIds.some((id) => res.players[id].name === 'Arjun Rao'))!;
     expect(riyaTeam.rating).toBe(3.5); // (3.0 + 4.0) / 2
     expect(riyaTeam.playerIds.map((id) => res.players[id].name)).toEqual(['Riya Shah', 'Arjun Rao']);
@@ -162,7 +169,7 @@ describe('Apps Script backend (Code.gs)', () => {
 
     // Organizer can close registration; publishing the draw also closes it
     expect(api.post({ action: 'setRegistration', passcode: admin, open: false })).toMatchObject({ ok: true, registrationOpen: false });
-    expect(register({ name: 'Late', email: 'late@example.com', skill: 'Advanced (4.0+)' })).toMatchObject({ ok: false, error: 'Registration is closed.' });
+    expect(register({ name: 'Late', email: 'late@example.com', skill: 'Advanced (4.0+)', division: 'Adult', payment: 'Venmo', paid: true })).toMatchObject({ ok: false, error: 'Registration is closed.' });
     api.post({ action: 'setRegistration', passcode: admin, open: true });
     expect(api.post({ action: 'saveState', passcode: admin, state: tournament() }).ok).toBe(true);
     expect(api.get({ action: 'ping' }).registrationOpen).toBe(false);

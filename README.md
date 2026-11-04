@@ -51,11 +51,13 @@ The dashboard then gives you:
 | Full name, Email | Required |
 | Phone number, School | Optional |
 | Skill level | Beginner / Intermediate (2.5 - 3.5) / Advanced (4.0+), required. Used for seeding and pairing. |
-| Bracket | Competitive / Just for fun, required. Each becomes its own division. |
+| Division | Adult / Kids, required. Each becomes its own division in the draw. |
 | Partner's full name, email, skill level | Optional. Leave blank to get paired with someone. Only one person per team needs to register. |
 | Team name, Anything else we should know? | Optional |
+| Payment method | Zelle / Venmo / Cash at check-in, required |
+| Payment confirmation | Required checkbox: "I've sent the entry fee" (or "I'll bring cash to check-in") |
 
-Entries land in the **Registrations** tab of the sheet, where you can edit or delete rows. The form has a spam honeypot, and values can't turn into spreadsheet formulas.
+Set the entry fee and your Zelle/Venmo handles in [`src/brand.ts`](src/brand.ts) (`payment`). Entries land in the **Registrations** tab of the sheet, including how each person paid, so you can match them against your Zelle/Venmo history. You can edit or delete rows. The form has a spam honeypot, and values can't turn into spreadsheet formulas.
 
 > If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit → New version**. That keeps the same URL.
 

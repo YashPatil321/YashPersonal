@@ -2538,3 +2538,10 @@ h1 .wordmark,
 .signup-table td {
   font-size: 0.85rem;
 }
+
+.pay-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
