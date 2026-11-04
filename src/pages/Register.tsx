@@ -21,7 +21,6 @@ const EMPTY: RegistrationEntry = {
   name: '',
   email: '',
   phone: '',
-  school: '',
   division: '',
   partnerName: '',
   partnerEmail: '',
@@ -103,7 +102,7 @@ export function Register() {
 
   // Closed / not ready states
   let closed: ReactNode = null;
-  if (t) {
+  if (t && t.published !== false) {
     closed = (
       <>
         <h2>The draw is out!</h2>
@@ -282,10 +281,6 @@ export function Register() {
               <input className="input" type="tel" autoComplete="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} />
               <span className="hint">In case we need to reach you on tournament day.</span>
             </label>
-            <label className="field">
-              School
-              <input className="input" value={form.school} onChange={(e) => set({ school: e.target.value })} />
-            </label>
           </div>
           <div className="field" style={{ marginTop: 14 }}>
             Division *
@@ -379,16 +374,23 @@ export function Register() {
               />
             )}
           </div>
-          <div className="alert alert-ok small" style={{ marginBottom: 12 }}>
-            Total to send: <b>${amountDue}</b>
-            <span className="muted">
-              {' '}
-              (${BRAND.payment.feeAmount} per person × {players} {players === 1 ? 'person' : 'people'}
-              {form.donation ? ` + $${form.donation} extra` : ''})
-            </span>
-            <div style={{ marginTop: 4 }}>
-              In the Zelle/Venmo note, write{' '}
-              <b>{noteText}</b>.
+          <div className="total-box" aria-live="polite">
+            <div className="total-line">
+              <span>
+                Required: ${BRAND.payment.feeAmount} per person × {players} {players === 1 ? 'person' : 'people'}
+              </span>
+              <b>${BRAND.payment.feeAmount * players}</b>
+            </div>
+            <div className="total-line">
+              <span>Extra donation</span>
+              <b>{form.donation ? `$${form.donation}` : '$0'}</b>
+            </div>
+            <div className="total-line total-sum">
+              <span>Total to send</span>
+              <b>${amountDue}</b>
+            </div>
+            <div className="total-note">
+              Send <b>${amountDue}</b> in one payment. In the Zelle/Venmo note, write <b>{noteText}</b>.
             </div>
           </div>
           <ul className="small pay-list">

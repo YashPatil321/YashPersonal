@@ -65,6 +65,19 @@ describe('Apps Script backend (Code.gs)', () => {
     expect(api.get({ action: 'version' }).version).toBe(1);
   });
 
+  it('keeps a draft draw hidden from players until the organizer publishes it', () => {
+    const api = createAppsScript({ adminPasscode: 'secret', scorerPasscode: 'courts' });
+    const draft = { ...tournament(), published: false };
+    expect(api.post({ action: 'saveState', passcode: 'secret', state: draft }).ok).toBe(true);
+    expect(api.get({ action: 'state' }).state).toBeNull();
+    expect(api.post({ action: 'state', passcode: 'courts' }).state).toBeNull();
+    expect(api.post({ action: 'state', passcode: 'secret' }).state.published).toBe(false);
+    expect(api.get({ action: 'ping' }).registrationOpen).toBe(true); // sign-ups stay open
+    api.post({ action: 'saveState', passcode: 'secret', state: { ...draft, published: true } });
+    expect(api.get({ action: 'state' }).state.name).toBe('T');
+    expect(api.get({ action: 'ping' }).registrationOpen).toBe(false);
+  });
+
   it('scorers can only change result fields; newer scores are never overwritten', () => {
     const api = createAppsScript({ adminPasscode: 'secret', scorerPasscode: 'courts' });
     const t = tournament();
@@ -141,7 +154,6 @@ describe('Apps Script backend (Code.gs)', () => {
         name: 'Riya Shah',
         email: 'riya@example.com',
         phone: '+1 858 555 0100',
-        school: 'Del Norte',
         division: 'Adults', payment: 'Zelle', paid: true,
         partnerName: 'Arjun Rao',
         notes: '=HYPERLINK("x")',
@@ -184,7 +196,7 @@ describe('Apps Script backend (Code.gs)', () => {
     ).toMatchObject({ ok: true, count: 5 });
     const edited = listRows()[5];
     expect(edited[0]).toBe(stamp5); // timestamp kept
-    expect(edited.slice(1, 2).concat(edited.slice(5, 7))).toEqual(['Paid Pal', 'Adults', 'New Partner']);
+    expect(edited.slice(1, 2).concat(edited.slice(4, 6))).toEqual(['Paid Pal', 'Adults', 'New Partner']);
     expect(edited.slice(-4)).toEqual(['Venmo', 'Yes', '$10', '']);
     expect(api.post({ action: 'deleteRegistration', passcode: admin, row: 5, stamp: stamp5 })).toMatchObject({ ok: true, count: 4 });
     expect(api.post({ action: 'deleteRegistration', passcode: admin, row: 4, stamp: listRows()[4][0] })).toMatchObject({ ok: true, count: 3 });
@@ -201,14 +213,15 @@ describe('Apps Script backend (Code.gs)', () => {
     expect(api.post({ action: 'registrations', passcode: api.props.get('SCORER_PASSCODE') }).ok).toBe(false);
     const rows = api.post({ action: 'registrations', passcode: admin }).rows as string[][];
     expect(rows.length).toBe(4);
-    expect(rows[1][8]).toBe('HYPERLINK("x")'); // formula prefix stripped
+    expect(rows[1][7]).toBe('HYPERLINK("x")'); // formula prefix stripped
     expect(rows[0].slice(-4)).toEqual(['Payment method', 'Payment confirmed', 'Extra donation', 'Anonymous']);
     expect(rows[0]).not.toContain('Skill level');
     expect(rows[0]).not.toContain('Team name (optional)');
+    expect(rows[0]).not.toContain('School');
     expect(rows[1].slice(-4)).toEqual(['Zelle', 'Yes, sent', '$25', '']);
     expect(rows[2].slice(-4)).toEqual(['Cash at check-in', 'Will pay cash at check-in', '', '']);
     expect(detectColumns(rows[0])).toMatchObject({
-      timestamp: 0, name: 1, email: 2, phone: 3, division: 5, partnerName: 6, partnerEmail: 7,
+      timestamp: 0, name: 1, email: 2, phone: 3, division: 4, partnerName: 5, partnerEmail: 6,
     });
     const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
     expect(res.divisions.map((d) => d.name)).toEqual(['Adults', 'Kids/Teens']);

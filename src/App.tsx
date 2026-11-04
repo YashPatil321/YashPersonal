@@ -48,6 +48,7 @@ export function App() {
   return (
     <>
       <Header />
+      <DraftBar />
       <main key={route.path}>
         <Page onLogin={() => setLogin(true)} />
       </main>
@@ -64,6 +65,28 @@ export function App() {
         />
       )}
     </>
+  );
+}
+
+/** Organizers only: the draw is a draft until they publish it. */
+function DraftBar() {
+  const { t, isAdmin, update } = useStore();
+  if (!t || !isAdmin || t.published !== false) return null;
+  return (
+    <div className="draft-bar" role="status">
+      <span>
+        <b>Draft.</b> Only organizers can see this draw. Edit courts, matchups and teams as much as you like.
+      </span>
+      <button
+        className="btn btn-primary btn-sm"
+        onClick={() => {
+          if (window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.'))
+            update((tt) => ({ ...tt, published: true, updatedAt: Date.now() }));
+        }}
+      >
+        Publish to players
+      </button>
+    </div>
   );
 }
 
@@ -173,10 +196,10 @@ function Header() {
         )}
         <div className="header-actions">
           {sync && t && (
-            <span className={`sync-pill ${syncState.status}`} title={syncState.message ?? 'Live scores'}>
+            <span className={`sync-pill ${syncState.status}`} title={syncState.message ?? 'Saved to the Google Sheet'}>
               <span className="dot" />
               {syncState.status === 'synced'
-                ? 'Live'
+                ? 'Synced'
                 : syncState.status === 'saving'
                   ? 'Saving'
                   : syncState.status === 'connecting'
