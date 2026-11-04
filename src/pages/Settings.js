@@ -13,10 +13,10 @@ import { navigate } from '../state/router';
 import { useStore } from '../state/store';
 export function Settings() {
     const { t, isAdmin } = useStore();
-    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "page-head", children: _jsx("h1", { children: "Settings" }) }), _jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsx(SyncCard, {}), t && _jsx(ShareCard, {}), t && isAdmin && _jsx(EventCard, {}), t && isAdmin && _jsx(DivisionsCard, {}), t && isAdmin && _jsx(PlayersCard, {}), _jsx(DataCard, {})] })] }));
+    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "page-head", children: _jsx("h1", { children: "Settings" }) }), _jsxs("div", { className: "stack", style: { gap: 14 }, children: [t && _jsx(ShareCard, {}), t && isAdmin && _jsx(EventCard, {}), t && isAdmin && _jsx(DivisionsCard, {}), t && isAdmin && _jsx(PlayersCard, {}), _jsx(DataCard, {})] })] }));
 }
 /* ------------------------------------------------------------------ */
-function SyncCard() {
+export function SyncCard() {
     const { sync, syncState, connect, t, refresh } = useStore();
     const [url, setUrl] = useState(sync?.url ?? '');
     const [passcode, setPasscode] = useState(sync?.passcode ?? '');
