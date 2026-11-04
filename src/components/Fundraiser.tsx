@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Crown, HandHeart, Star, TrendingUp } from 'lucide-react';
+import { Crown, HandHeart, Star } from 'lucide-react';
 import { Modal } from './ui';
 import { BRAND } from '../brand';
 import type { EventInfo } from '../state/useEventInfo';
@@ -26,7 +26,7 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
         <div>
           <div className="fund-raised">{money(raised)}</div>
           <div className="small muted">
-            raised{goal ? ` of ${money(goal)} goal` : ''} for SACS and the {BRAND.charity.name}
+            raised{goal ? ` of ${money(goal)}` : ''}
           </div>
         </div>
         {goal > 0 && <div className="fund-pct">{pct}%</div>}
@@ -43,11 +43,6 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
         <span>
           <b>{supporters}</b> {supporters === 1 ? 'player' : 'players'}
         </span>
-        {info.fundraising.donors > 0 && (
-          <span>
-            <b>{info.fundraising.donors}</b> gave extra
-          </span>
-        )}
       </div>
       {cta && (
         <div className="row" style={{ marginTop: 12 }}>
@@ -205,7 +200,6 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
   const list = info ? gifts(info) : [];
   const top = list.length ? list.reduce((best, g) => (g.amount > best.amount ? g : best), list[0]) : null;
   const recent = list.filter((g) => g !== top).slice(0, 2);
-  const lastDay = list.filter((g) => Date.now() - Date.parse(g.at) < 86400000).length;
 
   const share = async () => {
     const url = window.location.href;
@@ -238,7 +232,7 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
       </div>
       <div className="gf-actions">
         <button className="btn btn-primary btn-lg gf-btn" type="button" onClick={onDonate}>
-          Register &amp; donate
+          Register
         </button>
         <button className="btn btn-lg gf-btn gf-share" type="button" onClick={() => void share()}>
           {copied ? 'Link copied!' : 'Share'}
@@ -249,17 +243,6 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
           </a>
         )}
       </div>
-      <div className="gf-price">
-        <b>${BRAND.payment.feeAmount} per person</b> to play · partners sign up separately
-      </div>
-      {lastDay > 0 && (
-        <div className="gf-trend">
-          <span className="gf-trend-icon">
-            <TrendingUp size={16} />
-          </span>
-          <b>{lastDay === 1 ? '1 person' : `${lastDay} people`} just donated</b>
-        </div>
-      )}
       {top ? (
         <div className="gf-list">
           {recent.slice(0, 1).map((g, i) => (
@@ -272,7 +255,7 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
         </div>
       ) : (
         <p className="small muted" style={{ margin: '14px 0 0' }}>
-          Be the first to donate. It’s ${BRAND.payment.feeAmount} per person to play.
+          No donations yet.
         </p>
       )}
       {list.length > 0 && (

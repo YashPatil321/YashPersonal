@@ -2,8 +2,6 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Activity,
-  HandHeart,
-  CalendarClock,
   ClipboardList,
   Ellipsis,
   House,
@@ -156,7 +154,7 @@ function Header() {
     ? [t.date && new Date(t.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), t.location]
         .filter(Boolean)
         .join(' · ') || BRAND.organizer
-    : `${BRAND.organizer} · ${BRAND.tagline}`;
+    : BRAND.organizer;
 
   return (
     <header className="app-header">
@@ -378,11 +376,6 @@ function AdminOnly({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-const DAY_OF: Array<[ReactNode, string, string]> = [
-  [<UserRound size={20} />, 'Find your team', 'Type your name to see your court, when you play next and how you’re doing.'],
-  [<LayoutGrid size={20} />, 'Courts & schedule', `${BRAND.minGames}+ games for every team, across ${BRAND.courts} courts. See which court you’re on and when you’re up.`],
-  [<Trophy size={20} />, 'Standings & brackets', 'Follow every pool and the playoff race all the way to the final.'],
-];
 
 function Landing() {
   const { info } = useEventInfo();
@@ -391,59 +384,52 @@ function Landing() {
       <section className="hero">
         <Toran />
         <Mandala />
-        <div className="eyebrow">{BRAND.organizer} presents</div>
+        <div className="eyebrow">{BRAND.organizer}</div>
         <h1>
           <span className="wordmark hero-wordmark">{BRAND.short}</span>
           Pickleball <span className="hl">Tournament</span>
         </h1>
-        <p>
-          Grab a partner and play for a cause. {BRAND.charity.pledge}
-        </p>
-        <div className="row" style={{ marginBottom: 22 }}>
-          <span className="chip">
-            <CalendarClock size={14} /> {BRAND.when}
-          </span>
-          <span className="chip">
-            <HandHeart size={14} /> ${BRAND.payment.feeAmount} per person
-          </span>
-          <span className="chip">
-            <UserRound size={14} /> Adults &amp; Kids/Teens
-          </span>
-          <span className="chip">
-            <Activity size={14} /> {BRAND.minGames}+ games per team
-          </span>
-        </div>
+        <p>A doubles tournament supporting SACS and the {BRAND.charity.name}.</p>
+        <dl className="facts">
+          <div>
+            <dt>Date</dt>
+            <dd>{BRAND.when}</dd>
+          </div>
+          <div>
+            <dt>Registration</dt>
+            <dd>${BRAND.payment.feeAmount} per player</dd>
+          </div>
+          <div>
+            <dt>Divisions</dt>
+            <dd>Adults · Kids/Teens</dd>
+          </div>
+          <div>
+            <dt>Format</dt>
+            <dd>{BRAND.minGames}-game minimum</dd>
+          </div>
+        </dl>
         <div className="row" style={{ gap: 14, alignItems: 'center' }}>
           <a className="btn btn-primary btn-lg" href="#/register">
-            <ClipboardList size={18} /> Register your team
+            Register
           </a>
-          {info && info.registrations > 0 && (
-            <span className="chip">
-              <UserRound size={14} /> {info.registrations} signed up
-            </span>
-          )}
-        </div>
-        <div className="draw-soon" style={{ marginTop: 16 }}>
-          <span className="dot" /> The draw comes out when sign-ups close. Keep this page handy: on tournament day it shows
-          your court, your matches and the brackets.
+          {info && info.registrations > 0 && <span className="hero-count">{info.registrations} registered</span>}
         </div>
       </section>
 
       <div style={{ marginTop: 16 }}>
-        <FundraiserCard info={info} cta />
+        <FundraiserCard info={info} />
       </div>
       <div style={{ marginTop: 16 }}>
         <CauseCard />
       </div>
 
       <div className="section-title">
-        <h2>Who we are</h2>
+        <h2>About SACS</h2>
       </div>
       <div className="about-sacs card">
         <p style={{ margin: 0 }}>
-          The <b>{BRAND.organizer}</b> is a student-run dance production: over 100 high schoolers from five San Diego
-          schools, putting on one big show every year. This tournament helps fund the show and gives back to the{' '}
-          {BRAND.charity.name}.
+          The {BRAND.organizer} is a student-run dance production with more than 100 performers from five San Diego high
+          schools. Proceeds from the tournament support the show and the {BRAND.charity.name}.
         </p>
         <div className="photo-grid">
           <figure>
@@ -455,18 +441,6 @@ function Landing() {
         </div>
       </div>
 
-      <div className="section-title">
-        <h2>On tournament day</h2>
-      </div>
-      <div className="feature-list" style={{ marginTop: 0 }}>
-        {DAY_OF.map(([icon, title, text]) => (
-          <div className="card" key={title}>
-            <span className="feature-icon">{icon}</span>
-            <h3>{title}</h3>
-            <div className="muted small">{text}</div>
-          </div>
-        ))}
-      </div>
     </>
   );
 }
