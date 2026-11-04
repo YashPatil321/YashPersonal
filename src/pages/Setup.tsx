@@ -116,14 +116,17 @@ export function Setup() {
     if (!draft.rows) return;
     if (draft.importKey === importKey && draft.divisions.length) return go(3);
     const res = importRegistrations(draft.rows, draft.mapping, { ...draft.options, doubles: draft.info.doubles });
-    const divisions: DraftDivision[] = res.divisions.map((d) => ({
-      id: uid('d'),
-      name: d.name,
-      teamIds: d.teamIds,
-      settings: defaultDivisionSettings(d.teamIds.length),
-      seeding: 'rating',
-    }));
-    const nameToId = new Map(divisions.map((d) => [d.name, d.id]));
+    // Exactly two divisions. Anything else (an old sheet, a typo) goes to the closest one.
+    const fixedName = (name: string) => (/kid|teen|youth|junior|child|student/i.test(name) ? 'Kids/Teens' : 'Adults');
+    const divisions: DraftDivision[] = BRAND.divisions.map((name) => {
+      const teamIds = res.divisions.filter((d) => fixedName(d.name) === name).flatMap((d) => d.teamIds);
+      return { id: uid('d'), name, teamIds, settings: defaultDivisionSettings(teamIds.length), seeding: 'rating' as const };
+    });
+    const moved = res.divisions.filter((d) => !(BRAND.divisions as readonly string[]).includes(d.name));
+    if (moved.length)
+      res.warnings.push(`Put “${moved.map((d) => d.name).join('”, “')}” sign-ups into ${[...new Set(moved.map((d) => fixedName(d.name)))].join(' / ')}. Move any team that’s in the wrong division.`);
+    const idOf = (name: string) => divisions.find((d) => d.name === fixedName(name))!.id;
+    const nameToId = new Map(res.divisions.map((d) => [d.name, idOf(d.name)]));
     const teams = { ...res.teams };
     for (const d of divisions) for (const id of d.teamIds) teams[id] = { ...teams[id], divisionId: d.id };
     setDraft((prev) => ({
@@ -226,7 +229,7 @@ function skipImport(setDraft: Dispatch<SetStateAction<Draft>>) {
     warnings: [],
     divisions: d.divisions.length
       ? d.divisions
-      : [{ id: uid('d'), name: 'Open', teamIds: [], settings: defaultDivisionSettings(0), seeding: 'registration' }],
+      : BRAND.divisions.map((name) => ({ id: uid('d'), name, teamIds: [], settings: defaultDivisionSettings(0), seeding: 'registration' as const })),
     step: 3,
   }));
 }
@@ -801,15 +804,6 @@ function TeamsStep({
     setSelected([]);
   };
 
-  const addDivision = () =>
-    setDraft((d) => ({
-      ...d,
-      divisions: [
-        ...d.divisions,
-        { id: uid('d'), name: `Division ${d.divisions.length + 1}`, teamIds: [], settings: defaultDivisionSettings(0), seeding: 'rating' },
-      ],
-    }));
-
   return (
     <>
       {draft.warnings.length > 0 && (
@@ -865,13 +859,7 @@ function TeamsStep({
         {draft.divisions.map((div) => (
           <div className="card" key={div.id}>
             <div className="card-head">
-              <input
-                className="inline-input"
-                style={{ fontSize: '1.1rem', fontWeight: 750 }}
-                value={div.name}
-                onChange={(e) => updateDivision(div.id, (x) => ({ ...x, name: e.target.value }))}
-                aria-label="Division name"
-              />
+              <h3 style={{ margin: 0 }}>{div.name}</h3>
               <span className="muted small nowrap">
                 {div.teamIds.length} {doubles ? 'teams' : 'players'}
               </span>
@@ -966,11 +954,6 @@ function TeamsStep({
             </div>
           </div>
         ))}
-      </div>
-      <div style={{ marginTop: 12 }}>
-        <button className="btn btn-sm" onClick={addDivision}>
-          + Add division
-        </button>
       </div>
       <Foot
         back={back}

@@ -146,7 +146,7 @@ export interface Tournament {
   divisions: Division[];
   matches: Record<ID, Match>;
   settings: TournamentSettings;
-  /** false = draft: only organizers see it until they press Publish. Missing = published (older saves). */
+  /** Only true once the organizer presses Publish; until then only organizers see it. */
   published?: boolean;
   createdAt: number;
   updatedAt: number;

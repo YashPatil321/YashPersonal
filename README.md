@@ -1,6 +1,6 @@
 # SACS Pickleball Tournament
 
-The website for the **SACS Pickleball Tournament**, hosted by the South Asian Culture Show. A portion of every entry fee is donated to the [Akshaya Patra Foundation](https://www.akshayapatrausa.org/), which serves free school lunches to children across India.
+The website for the **SACS Pickleball Tournament**, hosted by the South Asian Culture Show. A portion of every entry fee is donated to the [Akshaya Patra Foundation](https://apusa.org/), which serves free school lunches to children across India.
 
 Organizers build the draw from the Google Form sign-ups. Competitors follow live courts, brackets and scores on their phones.
 

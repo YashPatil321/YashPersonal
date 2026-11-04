@@ -205,7 +205,7 @@ function json(obj) {
 
 /** What competitors see: everything except players' contact details. */
 function publicState(state) {
-  if (state && state.published === false) return null; // draft: organizers only
+  if (state && state.published !== true) return null; // not published yet: organizers only
   if (!state || !state.players) return state;
   var copy = JSON.parse(JSON.stringify(state));
   Object.keys(copy.players).forEach(function (id) {
@@ -257,7 +257,7 @@ function book() {
 
 function registrationRows(sheetName) {
   var ss = book();
-  var sheet = sheetName ? ss.getSheetByName(sheetName) : REGISTRATION_SHEET ? ss.getSheetByName(REGISTRATION_SHEET) : null;
+  var sheet = sheetName ? ss.getSheetByName(sheetName) : existingRegistrationSheet();
   if (sheet && sheet.getLastRow() < 2 && !sheetName) {
     // Empty Registrations tab: fall back to a linked Google Form tab if there is one
     var linked = ss.getSheets().filter(function (s) {
@@ -375,6 +375,18 @@ function writeTables(tables) {
 function registrationSheet() {
   var ss = book();
   var sheet = ss.getSheetByName(REGISTRATION_SHEET);
+  if (sheet && sheet.getLastRow() > 0 && !headersMatch(sheet)) {
+    // Made by an older version of this script with different columns. Writing into it
+    // would put answers under the wrong titles, so keep it as-is and start a fresh tab.
+    var oldName = REGISTRATION_SHEET + ' (old)';
+    for (var n = 2; ss.getSheetByName(oldName); n++) oldName = REGISTRATION_SHEET + ' (old ' + n + ')';
+    sheet.setName(oldName);
+    sheet = null;
+  }
+  if (sheet && sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, REG_HEADERS.length).setValues([REG_HEADERS]);
+    sheet.getRange(1, 1, 1, REG_HEADERS.length).setFontWeight('bold');
+  }
   if (!sheet) {
     sheet = ss.insertSheet(REGISTRATION_SHEET);
     sheet.getRange(1, 1, 1, REG_HEADERS.length).setValues([REG_HEADERS]);
@@ -384,6 +396,22 @@ function registrationSheet() {
   return sheet;
 }
 
+/** The sign-up tab if there is one (fixing its columns first), without creating it. */
+function existingRegistrationSheet() {
+  if (!REGISTRATION_SHEET || !book().getSheetByName(REGISTRATION_SHEET)) return null;
+  return registrationSheet();
+}
+
+/** True when the tab's first row is exactly this script's column titles. */
+function headersMatch(sheet) {
+  var width = Math.max(sheet.getLastColumn ? sheet.getLastColumn() : REG_HEADERS.length, REG_HEADERS.length);
+  var row = sheet.getRange(1, 1, 1, width).getDisplayValues()[0];
+  for (var i = 0; i < width; i++) {
+    if (String(row[i] || '').trim() !== (REG_HEADERS[i] || '')) return false;
+  }
+  return true;
+}
+
 /** Public fundraising numbers for the progress bar. */
 function fundraising() {
   var donations = 0;
@@ -391,7 +419,7 @@ function fundraising() {
   var players = 0;
   var list = [];
   try {
-    var sheet = book().getSheetByName(REGISTRATION_SHEET);
+    var sheet = existingRegistrationSheet();
     if (sheet && sheet.getLastRow() > 1) {
       var values = sheet.getDataRange().getDisplayValues();
       var col = values[0].indexOf('Extra donation');
@@ -442,7 +470,7 @@ function shortName(name) {
 
 function registrationCount() {
   try {
-    var sheet = book().getSheetByName(REGISTRATION_SHEET);
+    var sheet = existingRegistrationSheet();
     return sheet ? Math.max(0, sheet.getLastRow() - 1) : 0;
   } catch (err) {
     return 0;
@@ -454,7 +482,7 @@ function registrationOpen() {
   if (props().getProperty('REG_OPEN') === 'false') return false;
   try {
     var st = readState().state;
-    return !st || st.published === false; // a draft doesn't close sign-ups
+    return !st || st.published !== true; // an unpublished draw doesn't close sign-ups
   } catch (err) {
     return true;
   }

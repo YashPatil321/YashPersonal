@@ -15,7 +15,6 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Trophy,
-  Tv,
   UserRound,
 } from 'lucide-react';
 import { BRAND } from './brand';
@@ -31,19 +30,15 @@ import { Settings } from './pages/Settings';
 import { Setup } from './pages/Setup';
 import { Brackets, Standings } from './pages/Standings';
 import { TeamDetail, Teams } from './pages/Teams';
-import { TV } from './pages/TV';
 import { useRoute } from './state/router';
 import { useStore } from './state/store';
 import { useEventInfo } from './state/useEventInfo';
 
 export function App() {
   const route = useRoute();
-  const { t } = useStore();
-  const [page] = route.parts;
   const [login, setLogin] = useState(false);
   const [more, setMore] = useState(false);
 
-  if (page === 'tv' && t) return <TV />;
 
   return (
     <>
@@ -71,7 +66,7 @@ export function App() {
 /** Organizers only: the draw is a draft until they publish it. */
 function DraftBar() {
   const { t, isAdmin, update } = useStore();
-  if (!t || !isAdmin || t.published !== false) return null;
+  if (!t || !isAdmin || t.published === true) return null;
   return (
     <div className="draft-bar" role="status">
       <span>
@@ -153,7 +148,6 @@ function useNavItems() {
     },
   ];
   if (hasBrackets) all.push({ path: 'brackets', label: 'Brackets', icon: <Network size={18} /> });
-  all.push({ path: 'tv', label: 'TV', icon: <Tv size={18} /> });
   if (isAdmin) all.push({ path: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> });
   return all;
 }

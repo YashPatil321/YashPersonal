@@ -255,13 +255,13 @@ function Dashboard() {
         <div className="card">
           <div className="card-head">
             <h2>Tournament</h2>
-            {t && t.published === false ? (
+            {t && t.published !== true ? (
               <span className="badge badge-warn">Draft · players can’t see it</span>
             ) : (
               t && <span className="badge badge-final">Published · {played} matches played</span>
             )}
           </div>
-          {t && isAdmin && t.published === false && (
+          {t && isAdmin && t.published !== true && (
             <div className="row" style={{ marginBottom: 10 }}>
               <button
                 className="btn btn-primary"
@@ -275,7 +275,7 @@ function Dashboard() {
               <span className="small muted">Check courts and matchups first. You can still edit everything after publishing.</span>
             </div>
           )}
-          {t && isAdmin && t.published !== false && (
+          {t && isAdmin && t.published === true && (
             <div className="row" style={{ marginBottom: 10 }}>
               <button
                 className="btn btn-sm btn-ghost"
@@ -416,7 +416,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
     }
   };
 
-  const drawOut = !!t && t.published !== false;
+  const drawOut = !!t && t.published === true;
   const header = rows?.[0] ?? [];
   const col = (title: string) => header.indexOf(title);
   const body = rows?.slice(1) ?? [];

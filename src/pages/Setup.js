@@ -58,14 +58,17 @@ export function Setup() {
         if (draft.importKey === importKey && draft.divisions.length)
             return go(3);
         const res = importRegistrations(draft.rows, draft.mapping, { ...draft.options, doubles: draft.info.doubles });
-        const divisions = res.divisions.map((d) => ({
-            id: uid('d'),
-            name: d.name,
-            teamIds: d.teamIds,
-            settings: defaultDivisionSettings(d.teamIds.length),
-            seeding: 'rating',
-        }));
-        const nameToId = new Map(divisions.map((d) => [d.name, d.id]));
+        // Exactly two divisions. Anything else (an old sheet, a typo) goes to the closest one.
+        const fixedName = (name) => (/kid|teen|youth|junior|child|student/i.test(name) ? 'Kids/Teens' : 'Adults');
+        const divisions = BRAND.divisions.map((name) => {
+            const teamIds = res.divisions.filter((d) => fixedName(d.name) === name).flatMap((d) => d.teamIds);
+            return { id: uid('d'), name, teamIds, settings: defaultDivisionSettings(teamIds.length), seeding: 'rating' };
+        });
+        const moved = res.divisions.filter((d) => !BRAND.divisions.includes(d.name));
+        if (moved.length)
+            res.warnings.push(`Put “${moved.map((d) => d.name).join('”, “')}” sign-ups into ${[...new Set(moved.map((d) => fixedName(d.name)))].join(' / ')}. Move any team that’s in the wrong division.`);
+        const idOf = (name) => divisions.find((d) => d.name === fixedName(name)).id;
+        const nameToId = new Map(res.divisions.map((d) => [d.name, idOf(d.name)]));
         const teams = { ...res.teams };
         for (const d of divisions)
             for (const id of d.teamIds)
@@ -122,7 +125,7 @@ function skipImport(setDraft) {
         warnings: [],
         divisions: d.divisions.length
             ? d.divisions
-            : [{ id: uid('d'), name: 'Open', teamIds: [], settings: defaultDivisionSettings(0), seeding: 'registration' }],
+            : BRAND.divisions.map((name) => ({ id: uid('d'), name, teamIds: [], settings: defaultDivisionSettings(0), seeding: 'registration' })),
         step: 3,
     }));
 }
@@ -293,18 +296,11 @@ function TeamsStep({ draft, setDraft, back, next, }) {
         });
         setSelected([]);
     };
-    const addDivision = () => setDraft((d) => ({
-        ...d,
-        divisions: [
-            ...d.divisions,
-            { id: uid('d'), name: `Division ${d.divisions.length + 1}`, teamIds: [], settings: defaultDivisionSettings(0), seeding: 'rating' },
-        ],
-    }));
     return (_jsxs(_Fragment, { children: [draft.warnings.length > 0 && (_jsxs("details", { className: "alert alert-warn small", style: { marginBottom: 14 }, children: [_jsxs("summary", { className: "bold", children: [draft.warnings.length, " import note", draft.warnings.length === 1 ? '' : 's', " \u2014 tap to review"] }), _jsx("ul", { children: draft.warnings.map((w, i) => (_jsx("li", { children: w }, i))) })] })), draft.unmatched.length > 0 && (_jsxs("div", { className: "card", style: { marginBottom: 14 }, children: [_jsxs("div", { className: "card-head", children: [_jsx("h3", { children: "Still need a partner" }), _jsx("button", { className: "btn btn-sm btn-primary", disabled: selected.length !== 2, onClick: pairSelected, children: "Pair selected" })] }), _jsx("div", { className: "stack", style: { gap: 6 }, children: draft.unmatched.map((u) => {
                             const p = draft.players[u.playerId];
                             const div = draft.divisions.find((d) => d.id === u.divisionId);
                             return (_jsxs("label", { className: "check", children: [_jsx("input", { type: "checkbox", checked: selected.includes(u.playerId), onChange: (e) => setSelected((s) => (e.target.checked ? [...s, u.playerId].slice(-2) : s.filter((x) => x !== u.playerId))) }), _jsxs("span", { children: [_jsx("b", { children: p?.name }), " ", _jsxs("span", { className: "muted small", children: ["\u00B7 ", div?.name, " ", p?.skillLabel ? `· ${p.skillLabel}` : ''] })] })] }, u.playerId));
-                        }) }), _jsx("p", { className: "tiny muted", style: { margin: '8px 0 0' }, children: "Tick two players to make them a team, or add their partner below with \u201CAdd team\u201D." })] })), _jsx("p", { className: "muted small", style: { marginTop: 0 }, children: "Rename teams, fix partners, move teams between divisions or add walk-ins. Seeding is chosen on the next step (by skill rating unless you reorder here with \u2191\u2193)." }), _jsx("div", { className: "stack", style: { gap: 14 }, children: draft.divisions.map((div) => (_jsxs("div", { className: "card", children: [_jsxs("div", { className: "card-head", children: [_jsx("input", { className: "inline-input", style: { fontSize: '1.1rem', fontWeight: 750 }, value: div.name, onChange: (e) => updateDivision(div.id, (x) => ({ ...x, name: e.target.value })), "aria-label": "Division name" }), _jsxs("span", { className: "muted small nowrap", children: [div.teamIds.length, " ", doubles ? 'teams' : 'players'] })] }), div.teamIds.length === 0 && _jsx("div", { className: "muted small", children: "No teams yet." }), div.teamIds.map((id, i) => {
+                        }) }), _jsx("p", { className: "tiny muted", style: { margin: '8px 0 0' }, children: "Tick two players to make them a team, or add their partner below with \u201CAdd team\u201D." })] })), _jsx("p", { className: "muted small", style: { marginTop: 0 }, children: "Rename teams, fix partners, move teams between divisions or add walk-ins. Seeding is chosen on the next step (by skill rating unless you reorder here with \u2191\u2193)." }), _jsx("div", { className: "stack", style: { gap: 14 }, children: draft.divisions.map((div) => (_jsxs("div", { className: "card", children: [_jsxs("div", { className: "card-head", children: [_jsx("h3", { style: { margin: 0 }, children: div.name }), _jsxs("span", { className: "muted small nowrap", children: [div.teamIds.length, " ", doubles ? 'teams' : 'players'] })] }), div.teamIds.length === 0 && _jsx("div", { className: "muted small", children: "No teams yet." }), div.teamIds.map((id, i) => {
                             const team = draft.teams[id];
                             if (!team)
                                 return null;
@@ -316,7 +312,7 @@ function TeamsStep({ draft, setDraft, back, next, }) {
                                                                 .join(' / ')] })] }), _jsxs("div", { className: "row", style: { gap: 2, flexWrap: 'nowrap' }, children: [_jsx("button", { className: "btn btn-ghost btn-sm", onClick: () => shift(div.id, i, -1), "aria-label": "Move up", disabled: i === 0, children: "\u2191" }), _jsx("button", { className: "btn btn-ghost btn-sm", onClick: () => shift(div.id, i, 1), "aria-label": "Move down", disabled: i === div.teamIds.length - 1, children: "\u2193" })] }), _jsxs("div", { className: "row", style: { gap: 2, flexWrap: 'nowrap' }, children: [draft.divisions.length > 1 && (_jsxs("select", { className: "input", style: { width: 90, padding: '3px 4px', fontSize: '0.78rem' }, value: "", onChange: (e) => e.target.value && moveTeam(id, div.id, e.target.value), "aria-label": "Move to division", children: [_jsx("option", { value: "", children: "Move\u2026" }), draft.divisions
                                                         .filter((x) => x.id !== div.id)
                                                         .map((x) => (_jsx("option", { value: x.id, children: x.name }, x.id)))] })), _jsx("button", { className: "btn btn-ghost btn-sm btn-danger", onClick: () => removeTeam(id, div.id), "aria-label": "Remove team", children: "\u2715" })] })] }, id));
-                        }), _jsxs("div", { className: "row", style: { marginTop: 10 }, children: [_jsx("input", { className: "input", style: { flex: '1 1 140px' }, placeholder: doubles ? 'Player 1' : 'Player name', value: newTeam[div.id]?.p1 ?? '', onChange: (e) => setNewTeam((s) => ({ ...s, [div.id]: { p1: e.target.value, p2: s[div.id]?.p2 ?? '' } })) }), doubles && (_jsx("input", { className: "input", style: { flex: '1 1 140px' }, placeholder: "Player 2", value: newTeam[div.id]?.p2 ?? '', onChange: (e) => setNewTeam((s) => ({ ...s, [div.id]: { p1: s[div.id]?.p1 ?? '', p2: e.target.value } })), onKeyDown: (e) => e.key === 'Enter' && addTeam(div.id) })), _jsxs("button", { className: "btn btn-sm", onClick: () => addTeam(div.id), children: ["+ Add ", doubles ? 'team' : 'player'] }), div.teamIds.length === 0 && draft.divisions.length > 1 && (_jsx("button", { className: "btn btn-sm btn-ghost btn-danger", onClick: () => setDraft((d) => ({ ...d, divisions: d.divisions.filter((x) => x.id !== div.id) })), children: "Delete division" }))] })] }, div.id))) }), _jsx("div", { style: { marginTop: 12 }, children: _jsx("button", { className: "btn btn-sm", onClick: addDivision, children: "+ Add division" }) }), _jsx(Foot, { back: back, next: next, nextLabel: "Choose formats", disabled: !draft.divisions.some((d) => d.teamIds.length >= 2) })] }));
+                        }), _jsxs("div", { className: "row", style: { marginTop: 10 }, children: [_jsx("input", { className: "input", style: { flex: '1 1 140px' }, placeholder: doubles ? 'Player 1' : 'Player name', value: newTeam[div.id]?.p1 ?? '', onChange: (e) => setNewTeam((s) => ({ ...s, [div.id]: { p1: e.target.value, p2: s[div.id]?.p2 ?? '' } })) }), doubles && (_jsx("input", { className: "input", style: { flex: '1 1 140px' }, placeholder: "Player 2", value: newTeam[div.id]?.p2 ?? '', onChange: (e) => setNewTeam((s) => ({ ...s, [div.id]: { p1: s[div.id]?.p1 ?? '', p2: e.target.value } })), onKeyDown: (e) => e.key === 'Enter' && addTeam(div.id) })), _jsxs("button", { className: "btn btn-sm", onClick: () => addTeam(div.id), children: ["+ Add ", doubles ? 'team' : 'player'] }), div.teamIds.length === 0 && draft.divisions.length > 1 && (_jsx("button", { className: "btn btn-sm btn-ghost btn-danger", onClick: () => setDraft((d) => ({ ...d, divisions: d.divisions.filter((x) => x.id !== div.id) })), children: "Delete division" }))] })] }, div.id))) }), _jsx(Foot, { back: back, next: next, nextLabel: "Choose formats", disabled: !draft.divisions.some((d) => d.teamIds.length >= 2) })] }));
 }
 /* ------------------------------------------------------------------ */
 function ScoringEditor({ value, onChange }) {

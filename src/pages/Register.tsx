@@ -102,7 +102,7 @@ export function Register() {
 
   // Closed / not ready states
   let closed: ReactNode = null;
-  if (t && t.published !== false) {
+  if (t && t.published === true) {
     closed = (
       <>
         <h2>The draw is out!</h2>

@@ -48,7 +48,7 @@ export function Register() {
     const intro = (_jsxs(_Fragment, { children: ["Doubles, Adults & Kids/Teens. Sign up as a pair or on your own (we\u2019ll match you), with a $", BRAND.payment.feeAmount, " donation per person. ", BRAND.charity.pledge] }));
     // Closed / not ready states
     let closed = null;
-    if (t && t.published !== false) {
+    if (t && t.published === true) {
         closed = (_jsxs(_Fragment, { children: [_jsx("h2", { children: "The draw is out!" }), _jsx("p", { className: "muted", children: "Registration is closed. Find your team to see your court and when you play." }), _jsxs("a", { className: "btn btn-primary", href: "#/teams", children: [_jsx(Users, { size: 16 }), " Find my team"] })] }));
     }
     else if (!sync) {

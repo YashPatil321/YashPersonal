@@ -17,6 +17,8 @@ export const BRAND = {
   when: 'November 29, starting at 11am',
   /** ISO date the setup wizard starts with. */
   date: '2026-11-29',
+  /** The only divisions. */
+  divisions: ['Adults', 'Kids/Teens'] as const,
   /** Every team plays at least this many games (the default draw guarantees it). */
   minGames: 3,
   /**
@@ -36,7 +38,7 @@ export const BRAND = {
   },
   charity: {
     name: 'Akshaya Patra Foundation',
-    url: 'https://www.akshayapatrausa.org/',
+    url: 'https://apusa.org/',
     /** One-line description of the cause. */
     blurb: 'Akshaya Patra serves free, nutritious school lunches to children across India, so they can stay in class and learn.',
     pledge: 'A portion of every donation goes to the Akshaya Patra Foundation.',
