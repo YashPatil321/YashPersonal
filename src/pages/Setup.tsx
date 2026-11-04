@@ -162,7 +162,7 @@ export function Setup() {
       draft.teams,
       divisions,
     );
-    replace(tournament);
+    replace({ ...tournament, published: false });
     save(LS_DRAFT, null);
     navigate('/');
   };
@@ -1316,6 +1316,10 @@ function ReviewStep({
             the draw.
           </div>
         )}
+        <div className="alert alert-ok small" style={{ marginTop: 12 }}>
+          This creates a <b>draft</b>. Players can’t see it yet: check the courts, matchups and teams, change anything you
+          like, then press <b>Publish to players</b> when you’re ready.
+        </div>
         {replacing && (
           <div className="alert alert-warn small" style={{ marginTop: 12 }}>
             This replaces the current tournament{synced ? ' for everyone connected to the Google Sheet' : ' on this device'}.
@@ -1323,7 +1327,7 @@ function ReviewStep({
           </div>
         )}
       </div>
-      <Foot back={back} next={create} nextLabel="Create tournament 🎉" disabled={!divisions.length} />
+      <Foot back={back} next={create} nextLabel="Create draft" disabled={!divisions.length} />
     </>
   );
 }

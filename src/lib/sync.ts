@@ -20,7 +20,6 @@ export interface RegistrationEntry {
   name: string;
   email: string;
   phone?: string;
-  school?: string;
   division: 'Adults' | 'Kids/Teens' | '';
   partnerName?: string;
   partnerEmail?: string;

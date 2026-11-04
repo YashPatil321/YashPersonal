@@ -26,10 +26,20 @@ export function App() {
     const [more, setMore] = useState(false);
     if (page === 'tv' && t)
         return _jsx(TV, {});
-    return (_jsxs(_Fragment, { children: [_jsx(Header, {}), _jsx("main", { children: _jsx(Page, { onLogin: () => setLogin(true) }) }, route.path), _jsx(Footer, {}), _jsx(BottomNav, { onMore: () => setMore(true) }), login && _jsx(LoginModal, { onClose: () => setLogin(false) }), more && (_jsx(MoreSheet, { onClose: () => setMore(false), onLogin: () => {
+    return (_jsxs(_Fragment, { children: [_jsx(Header, {}), _jsx(DraftBar, {}), _jsx("main", { children: _jsx(Page, { onLogin: () => setLogin(true) }) }, route.path), _jsx(Footer, {}), _jsx(BottomNav, { onMore: () => setMore(true) }), login && _jsx(LoginModal, { onClose: () => setLogin(false) }), more && (_jsx(MoreSheet, { onClose: () => setMore(false), onLogin: () => {
                     setMore(false);
                     setLogin(true);
                 } }))] }));
+}
+/** Organizers only: the draw is a draft until they publish it. */
+function DraftBar() {
+    const { t, isAdmin, update } = useStore();
+    if (!t || !isAdmin || t.published !== false)
+        return null;
+    return (_jsxs("div", { className: "draft-bar", role: "status", children: [_jsxs("span", { children: [_jsx("b", { children: "Draft." }), " Only organizers can see this draw. Edit courts, matchups and teams as much as you like."] }), _jsx("button", { className: "btn btn-primary btn-sm", onClick: () => {
+                    if (window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.'))
+                        update((tt) => ({ ...tt, published: true, updatedAt: Date.now() }));
+                }, children: "Publish to players" })] }));
 }
 function Page({ onLogin }) {
     const route = useRoute();
@@ -105,8 +115,8 @@ function Header() {
             .filter(Boolean)
             .join(' · ') || BRAND.organizer
         : `${BRAND.organizer} · ${BRAND.tagline}`;
-    return (_jsx("header", { className: "app-header", children: _jsxs("div", { className: "header-inner", children: [_jsxs("a", { className: "brand", href: "#/", children: [_jsx(BallIcon, { size: 34, className: "ball-spin" }), _jsxs("div", { style: { minWidth: 0 }, children: [_jsx("div", { className: "brand-title truncate", children: _jsx(BrandName, { name: t?.name ?? BRAND.eventName }) }), _jsx("div", { className: "brand-sub truncate", children: sub })] })] }), items.length > 0 && (_jsx("nav", { className: "nav", children: items.map((item) => (_jsx("a", { href: `#/${item.path}`, className: isActive(item, current) ? 'active' : '', children: item.label }, item.path))) })), _jsxs("div", { className: "header-actions", children: [sync && t && (_jsxs("span", { className: `sync-pill ${syncState.status}`, title: syncState.message ?? 'Live scores', children: [_jsx("span", { className: "dot" }), syncState.status === 'synced'
-                                    ? 'Live'
+    return (_jsx("header", { className: "app-header", children: _jsxs("div", { className: "header-inner", children: [_jsxs("a", { className: "brand", href: "#/", children: [_jsx(BallIcon, { size: 34, className: "ball-spin" }), _jsxs("div", { style: { minWidth: 0 }, children: [_jsx("div", { className: "brand-title truncate", children: _jsx(BrandName, { name: t?.name ?? BRAND.eventName }) }), _jsx("div", { className: "brand-sub truncate", children: sub })] })] }), items.length > 0 && (_jsx("nav", { className: "nav", children: items.map((item) => (_jsx("a", { href: `#/${item.path}`, className: isActive(item, current) ? 'active' : '', children: item.label }, item.path))) })), _jsxs("div", { className: "header-actions", children: [sync && t && (_jsxs("span", { className: `sync-pill ${syncState.status}`, title: syncState.message ?? 'Saved to the Google Sheet', children: [_jsx("span", { className: "dot" }), syncState.status === 'synced'
+                                    ? 'Synced'
                                     : syncState.status === 'saving'
                                         ? 'Saving'
                                         : syncState.status === 'connecting'

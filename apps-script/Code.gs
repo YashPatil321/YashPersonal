@@ -50,7 +50,6 @@ var REG_HEADERS = [
   'Full name',
   'Email',
   'Phone number',
-  'School',
   'Division',
   "Partner's full name",
   "Partner's email",
@@ -61,7 +60,7 @@ var REG_HEADERS = [
   'Anonymous',
 ];
 /** Matching keys sent by the website's form. */
-var REG_FIELDS = ['name', 'email', 'phone', 'school', 'division', 'partnerName', 'partnerEmail', 'notes', 'payment', 'paid', 'donation', 'anonymous'];
+var REG_FIELDS = ['name', 'email', 'phone', 'division', 'partnerName', 'partnerEmail', 'notes', 'payment', 'paid', 'donation', 'anonymous'];
 var DIVISIONS = ['Adults', 'Kids/Teens'];
 var PAYMENT_METHODS = ['Zelle', 'Venmo', 'Cash at check-in'];
 var MAX_REGISTRATIONS = 1000;
@@ -206,6 +205,7 @@ function json(obj) {
 
 /** What competitors see: everything except players' contact details. */
 function publicState(state) {
+  if (state && state.published === false) return null; // draft: organizers only
   if (!state || !state.players) return state;
   var copy = JSON.parse(JSON.stringify(state));
   Object.keys(copy.players).forEach(function (id) {
@@ -449,11 +449,12 @@ function registrationCount() {
   }
 }
 
-/** Open unless the organizer closed it, and always closed once a draw is published. */
+/** Open unless the organizer closed it, and always closed once a draw is published (drafts don't count). */
 function registrationOpen() {
   if (props().getProperty('REG_OPEN') === 'false') return false;
   try {
-    return !readState().state;
+    var st = readState().state;
+    return !st || st.published === false; // a draft doesn't close sign-ups
   } catch (err) {
     return true;
   }

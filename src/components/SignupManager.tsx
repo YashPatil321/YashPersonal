@@ -12,7 +12,6 @@ const BLANK: RegistrationEntry = {
   name: '',
   email: '',
   phone: '',
-  school: '',
   division: '',
   partnerName: '',
   partnerEmail: '',
@@ -32,7 +31,6 @@ export function rowToEntry(header: string[], row: string[]): RegistrationEntry {
     name: get('Full name'),
     email: get('Email'),
     phone: get('Phone number'),
-    school: get('School'),
     division: (DIVISIONS.includes(get('Division') as RegistrationEntry['division']) ? get('Division') : '') as RegistrationEntry['division'],
     partnerName: get("Partner's full name"),
     partnerEmail: get("Partner's email"),
@@ -105,10 +103,6 @@ export function SignupDialog({
           <label className="field">
             Phone
             <input className="input" value={form.phone} onChange={(e) => set({ phone: e.target.value })} />
-          </label>
-          <label className="field">
-            School
-            <input className="input" value={form.school} onChange={(e) => set({ school: e.target.value })} />
           </label>
           <label className="field">
             Division *

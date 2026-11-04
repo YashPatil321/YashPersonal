@@ -49,7 +49,7 @@ The dashboard then gives you:
 | Field | Notes |
 |---|---|
 | Full name, Email | Required |
-| Phone number, School | Optional |
+| Phone number | Optional |
 | Skill level | Beginner / Intermediate (2.5 - 3.5) / Advanced (4.0+), required. Used for seeding and pairing. |
 | Division | Adults / Kids/Teens, required. Each becomes its own division in the draw. |
 | Partner's full name, email | Optional. Leave blank to get paired with someone. Only one person per team needs to register. |

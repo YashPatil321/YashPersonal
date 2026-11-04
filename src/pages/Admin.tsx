@@ -236,7 +236,7 @@ function LoginCard() {
 }
 
 function Dashboard() {
-  const { t, sync, connect, resolved } = useStore();
+  const { t, sync, connect, resolved, update } = useStore();
   const { info, refresh } = useEventInfo();
   if (!sync) return null;
   const isAdmin = sync.role === 'admin';
@@ -255,8 +255,39 @@ function Dashboard() {
         <div className="card">
           <div className="card-head">
             <h2>Tournament</h2>
-            {t && <span className="badge badge-final">{played} matches played</span>}
+            {t && t.published === false ? (
+              <span className="badge badge-warn">Draft · players can’t see it</span>
+            ) : (
+              t && <span className="badge badge-final">Published · {played} matches played</span>
+            )}
           </div>
+          {t && isAdmin && t.published === false && (
+            <div className="row" style={{ marginBottom: 10 }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.'))
+                    update((tt) => ({ ...tt, published: true, updatedAt: Date.now() }));
+                }}
+              >
+                Publish to players
+              </button>
+              <span className="small muted">Check courts and matchups first. You can still edit everything after publishing.</span>
+            </div>
+          )}
+          {t && isAdmin && t.published !== false && (
+            <div className="row" style={{ marginBottom: 10 }}>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => {
+                  if (window.confirm('Hide the draw from players? They’ll see the home page again until you publish.'))
+                    update((tt) => ({ ...tt, published: false, updatedAt: Date.now() }));
+                }}
+              >
+                Hide from players (back to draft)
+              </button>
+            </div>
+          )}
           {!t ? (
             <>
               <p className="muted small">
@@ -274,7 +305,7 @@ function Dashboard() {
                 <LayoutGrid size={16} /> Court desk
               </a>
               <a className="btn" href="#/">
-                Live home page
+                Home page
               </a>
               {isAdmin && (
                 <a className="btn" href="#/settings">
@@ -385,6 +416,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
     }
   };
 
+  const drawOut = !!t && t.published !== false;
   const header = rows?.[0] ?? [];
   const col = (title: string) => header.indexOf(title);
   const body = rows?.slice(1) ?? [];
@@ -397,7 +429,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
           <ClipboardList size={20} style={{ verticalAlign: '-3px', marginRight: 6 }} />
           Registration
         </h2>
-        <span className={`badge ${t ? '' : open ? 'badge-final' : 'badge-warn'}`}>{t ? 'Closed (draw is out)' : open ? 'Open' : 'Closed'}</span>
+        <span className={`badge ${drawOut ? '' : open ? 'badge-final' : 'badge-warn'}`}>{drawOut ? 'Closed (draw is out)' : open ? 'Open' : 'Closed'}</span>
       </div>
       <div className="row-between" style={{ flexWrap: 'wrap', gap: 10 }}>
         <div>
@@ -411,7 +443,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
           <a className="btn btn-sm" href="#/register">
             View form
           </a>
-          {!t && (
+          {!drawOut && (
             <button className="btn btn-sm" disabled={busy} onClick={toggle}>
               {open ? 'Close registration' : 'Reopen registration'}
             </button>
