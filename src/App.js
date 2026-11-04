@@ -1,6 +1,6 @@
 import { Fragment as _Fragment, jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from 'react';
-import { Activity, HandHeart, CalendarClock, ClipboardList, Ellipsis, House, LayoutGrid, ListOrdered, LogIn, LogOut, Network, Settings as SettingsIcon, ShieldCheck, Trophy, UserRound, } from 'lucide-react';
+import { Activity, HandHeart, CalendarClock, ClipboardList, Ellipsis, House, LayoutGrid, LogIn, LogOut, Settings as SettingsIcon, ShieldCheck, Trophy, UserRound, } from 'lucide-react';
 import { BRAND } from './brand';
 import { FundraiserCard } from './components/Fundraiser';
 import { BallIcon, BrandName, CauseCard, Mandala, Modal, Toran } from './components/ui';
@@ -29,7 +29,8 @@ export function App() {
 /** Organizers only: the draw is a draft until they publish it. */
 function DraftBar() {
     const { t, isAdmin, update } = useStore();
-    if (!t || !isAdmin || t.published === true)
+    const route = useRoute();
+    if (!t || !isAdmin || t.published === true || route.parts[0] === 'admin')
         return null;
     return (_jsxs("div", { className: "draft-bar", role: "status", children: [_jsxs("span", { children: [_jsx("b", { children: "Draft." }), " Only organizers can see this draw. Edit courts, matchups and teams as much as you like."] }), _jsx("button", { className: "btn btn-primary btn-sm", onClick: () => {
                     if (window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.'))
@@ -77,23 +78,14 @@ function useNavItems() {
             { path: '', label: 'Home', icon: _jsx(House, { size: 18 }) },
             { path: 'register', label: 'Register', icon: _jsx(ClipboardList, { size: 18 }) },
         ];
-    const hasBrackets = t.divisions.some((d) => d.settings.format !== 'round_robin');
     const all = [
         { path: '', label: 'Home', icon: _jsx(House, { size: 18 }) },
-        { path: 'teams', label: t.settings.doubles ? 'My team' : 'Me', icon: _jsx(UserRound, { size: 18 }) },
-        { path: 'courts', label: 'Courts', icon: _jsx(LayoutGrid, { size: 18 }), match: ['courts', 'score'] },
-        { path: 'matches', label: 'Matches', icon: _jsx(ListOrdered, { size: 18 }) },
-        {
-            path: 'standings',
-            label: 'Standings',
-            icon: _jsx(Trophy, { size: 18 }),
-            match: hasBrackets ? ['standings'] : ['standings', 'brackets'],
-        },
+        { path: 'teams', label: 'My team', icon: _jsx(UserRound, { size: 18 }) },
+        { path: 'courts', label: 'Courts', icon: _jsx(LayoutGrid, { size: 18 }), match: ['courts', 'score', 'matches'] },
+        { path: 'standings', label: 'Standings', icon: _jsx(Trophy, { size: 18 }), match: ['standings', 'brackets'] },
     ];
-    if (hasBrackets)
-        all.push({ path: 'brackets', label: 'Brackets', icon: _jsx(Network, { size: 18 }) });
     if (isAdmin)
-        all.push({ path: 'settings', label: 'Settings', icon: _jsx(SettingsIcon, { size: 18 }) });
+        all.push({ path: 'admin', label: 'Organizer', icon: _jsx(SettingsIcon, { size: 18 }) });
     return all;
 }
 function isActive(item, current) {
@@ -109,7 +101,7 @@ function Header() {
             .filter(Boolean)
             .join(' · ') || BRAND.organizer
         : `${BRAND.organizer} · ${BRAND.tagline}`;
-    return (_jsx("header", { className: "app-header", children: _jsxs("div", { className: "header-inner", children: [_jsxs("a", { className: "brand", href: "#/", children: [_jsx(BallIcon, { size: 34, className: "ball-spin" }), _jsxs("div", { style: { minWidth: 0 }, children: [_jsx("div", { className: "brand-title truncate", children: _jsx(BrandName, { name: t?.name ?? BRAND.eventName }) }), _jsx("div", { className: "brand-sub truncate", children: sub })] })] }), items.length > 0 && (_jsx("nav", { className: "nav", children: items.map((item) => (_jsx("a", { href: `#/${item.path}`, className: isActive(item, current) ? 'active' : '', children: item.label }, item.path))) })), _jsxs("div", { className: "header-actions", children: [sync && t && (_jsxs("span", { className: `sync-pill ${syncState.status}`, title: syncState.message ?? 'Saved to the Google Sheet', children: [_jsx("span", { className: "dot" }), syncState.status === 'synced'
+    return (_jsx("header", { className: "app-header", children: _jsxs("div", { className: "header-inner", children: [_jsxs("a", { className: "brand", href: "#/", children: [_jsx(BallIcon, { size: 34, className: "ball-spin" }), _jsxs("div", { style: { minWidth: 0 }, children: [_jsx("div", { className: "brand-title truncate", children: _jsx(BrandName, { name: t?.name ?? BRAND.eventName }) }), _jsx("div", { className: "brand-sub truncate", children: sub })] })] }), items.length > 0 && (_jsx("nav", { className: "nav", children: items.map((item) => (_jsx("a", { href: `#/${item.path}`, className: isActive(item, current) ? 'active' : '', children: item.label }, item.path))) })), _jsxs("div", { className: "header-actions", children: [sync && t && sync.role !== 'viewer' && (_jsxs("span", { className: `sync-pill ${syncState.status}`, title: syncState.message ?? 'Saved to the Google Sheet', children: [_jsx("span", { className: "dot" }), syncState.status === 'synced'
                                     ? 'Synced'
                                     : syncState.status === 'saving'
                                         ? 'Saving'
@@ -192,5 +184,5 @@ const DAY_OF = [
 ];
 function Landing() {
     const { info } = useEventInfo();
-    return (_jsxs(_Fragment, { children: [_jsxs("section", { className: "hero", children: [_jsx(Toran, {}), _jsx(Mandala, {}), _jsxs("div", { className: "eyebrow", children: [BRAND.organizer, " presents"] }), _jsxs("h1", { children: [_jsx("span", { className: "wordmark hero-wordmark", children: BRAND.short }), "Pickleball ", _jsx("span", { className: "hl", children: "Tournament" })] }), _jsxs("p", { children: ["Grab a partner and play for a cause. ", BRAND.charity.pledge] }), _jsxs("div", { className: "row", style: { marginBottom: 22 }, children: [_jsxs("span", { className: "chip", children: [_jsx(UserRound, { size: 14 }), " Adults & Kids/Teens divisions"] }), _jsxs("span", { className: "chip", children: [_jsx(HandHeart, { size: 14 }), " $", BRAND.payment.feeAmount, " per person"] }), _jsxs("span", { className: "chip", children: [_jsx(LayoutGrid, { size: 14 }), " ", BRAND.courts, " courts"] }), _jsxs("span", { className: "chip", children: [_jsx(CalendarClock, { size: 14 }), " ", BRAND.when] }), _jsxs("span", { className: "chip", children: [_jsx(Activity, { size: 14 }), " At least ", BRAND.minGames, " games per team"] })] }), _jsxs("div", { className: "row", style: { gap: 14, alignItems: 'center' }, children: [_jsxs("a", { className: "btn btn-primary btn-lg", href: "#/register", children: [_jsx(ClipboardList, { size: 18 }), " Register your team"] }), info && info.registrations > 0 && (_jsxs("span", { className: "chip", children: [_jsx(UserRound, { size: 14 }), " ", info.registrations, " signed up"] }))] }), _jsxs("div", { className: "draw-soon", style: { marginTop: 16 }, children: [_jsx("span", { className: "dot" }), " The draw comes out when sign-ups close. Keep this page handy: on tournament day it shows your court, your matches and the brackets."] })] }), _jsx("div", { style: { marginTop: 16 }, children: _jsx(FundraiserCard, { info: info, cta: true }) }), _jsx("div", { style: { marginTop: 16 }, children: _jsx(CauseCard, {}) }), _jsx("div", { className: "section-title", children: _jsx("h2", { children: "Who we are" }) }), _jsxs("div", { className: "about-sacs card", children: [_jsxs("p", { style: { margin: 0 }, children: ["The ", _jsx("b", { children: BRAND.organizer }), " is a student-run dance production: over 100 high schoolers from five San Diego schools, putting on one big show every year. This tournament helps fund the show and gives back to the", ' ', BRAND.charity.name, "."] }), _jsxs("div", { className: "photo-grid", children: [_jsx("figure", { children: _jsx("img", { src: "./photos/sacs-bhangra.webp", alt: "SACS dancers in matching white and colored costumes", loading: "lazy" }) }), _jsx("figure", { children: _jsx("img", { src: "./photos/sacs-guys.webp", alt: "SACS dancers posing together on the steps after the show", loading: "lazy" }) })] })] }), _jsx("div", { className: "section-title", children: _jsx("h2", { children: "On tournament day" }) }), _jsx("div", { className: "feature-list", style: { marginTop: 0 }, children: DAY_OF.map(([icon, title, text]) => (_jsxs("div", { className: "card", children: [_jsx("span", { className: "feature-icon", children: icon }), _jsx("h3", { children: title }), _jsx("div", { className: "muted small", children: text })] }, title))) })] }));
+    return (_jsxs(_Fragment, { children: [_jsxs("section", { className: "hero", children: [_jsx(Toran, {}), _jsx(Mandala, {}), _jsxs("div", { className: "eyebrow", children: [BRAND.organizer, " presents"] }), _jsxs("h1", { children: [_jsx("span", { className: "wordmark hero-wordmark", children: BRAND.short }), "Pickleball ", _jsx("span", { className: "hl", children: "Tournament" })] }), _jsxs("p", { children: ["Grab a partner and play for a cause. ", BRAND.charity.pledge] }), _jsxs("div", { className: "row", style: { marginBottom: 22 }, children: [_jsxs("span", { className: "chip", children: [_jsx(CalendarClock, { size: 14 }), " ", BRAND.when] }), _jsxs("span", { className: "chip", children: [_jsx(HandHeart, { size: 14 }), " $", BRAND.payment.feeAmount, " per person"] }), _jsxs("span", { className: "chip", children: [_jsx(UserRound, { size: 14 }), " Adults & Kids/Teens"] }), _jsxs("span", { className: "chip", children: [_jsx(Activity, { size: 14 }), " ", BRAND.minGames, "+ games per team"] })] }), _jsxs("div", { className: "row", style: { gap: 14, alignItems: 'center' }, children: [_jsxs("a", { className: "btn btn-primary btn-lg", href: "#/register", children: [_jsx(ClipboardList, { size: 18 }), " Register your team"] }), info && info.registrations > 0 && (_jsxs("span", { className: "chip", children: [_jsx(UserRound, { size: 14 }), " ", info.registrations, " signed up"] }))] }), _jsxs("div", { className: "draw-soon", style: { marginTop: 16 }, children: [_jsx("span", { className: "dot" }), " The draw comes out when sign-ups close. Keep this page handy: on tournament day it shows your court, your matches and the brackets."] })] }), _jsx("div", { style: { marginTop: 16 }, children: _jsx(FundraiserCard, { info: info, cta: true }) }), _jsx("div", { style: { marginTop: 16 }, children: _jsx(CauseCard, {}) }), _jsx("div", { className: "section-title", children: _jsx("h2", { children: "Who we are" }) }), _jsxs("div", { className: "about-sacs card", children: [_jsxs("p", { style: { margin: 0 }, children: ["The ", _jsx("b", { children: BRAND.organizer }), " is a student-run dance production: over 100 high schoolers from five San Diego schools, putting on one big show every year. This tournament helps fund the show and gives back to the", ' ', BRAND.charity.name, "."] }), _jsxs("div", { className: "photo-grid", children: [_jsx("figure", { children: _jsx("img", { src: "./photos/sacs-bhangra.webp", alt: "SACS dancers in matching white and colored costumes", loading: "lazy" }) }), _jsx("figure", { children: _jsx("img", { src: "./photos/sacs-guys.webp", alt: "SACS dancers posing together on the steps after the show", loading: "lazy" }) })] })] }), _jsx("div", { className: "section-title", children: _jsx("h2", { children: "On tournament day" }) }), _jsx("div", { className: "feature-list", style: { marginTop: 0 }, children: DAY_OF.map(([icon, title, text]) => (_jsxs("div", { className: "card", children: [_jsx("span", { className: "feature-icon", children: icon }), _jsx("h3", { children: title }), _jsx("div", { className: "muted small", children: text })] }, title))) })] }));
 }

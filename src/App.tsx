@@ -8,10 +8,8 @@ import {
   Ellipsis,
   House,
   LayoutGrid,
-  ListOrdered,
   LogIn,
   LogOut,
-  Network,
   Settings as SettingsIcon,
   ShieldCheck,
   Trophy,
@@ -66,7 +64,8 @@ export function App() {
 /** Organizers only: the draw is a draft until they publish it. */
 function DraftBar() {
   const { t, isAdmin, update } = useStore();
-  if (!t || !isAdmin || t.published === true) return null;
+  const route = useRoute();
+  if (!t || !isAdmin || t.published === true || route.parts[0] === 'admin') return null;
   return (
     <div className="draft-bar" role="status">
       <span>
@@ -134,21 +133,13 @@ function useNavItems() {
       { path: '', label: 'Home', icon: <House size={18} /> },
       { path: 'register', label: 'Register', icon: <ClipboardList size={18} /> },
     ] as NavItem[];
-  const hasBrackets = t.divisions.some((d) => d.settings.format !== 'round_robin');
   const all: NavItem[] = [
     { path: '', label: 'Home', icon: <House size={18} /> },
-    { path: 'teams', label: t.settings.doubles ? 'My team' : 'Me', icon: <UserRound size={18} /> },
-    { path: 'courts', label: 'Courts', icon: <LayoutGrid size={18} />, match: ['courts', 'score'] },
-    { path: 'matches', label: 'Matches', icon: <ListOrdered size={18} /> },
-    {
-      path: 'standings',
-      label: 'Standings',
-      icon: <Trophy size={18} />,
-      match: hasBrackets ? ['standings'] : ['standings', 'brackets'],
-    },
+    { path: 'teams', label: 'My team', icon: <UserRound size={18} /> },
+    { path: 'courts', label: 'Courts', icon: <LayoutGrid size={18} />, match: ['courts', 'score', 'matches'] },
+    { path: 'standings', label: 'Standings', icon: <Trophy size={18} />, match: ['standings', 'brackets'] },
   ];
-  if (hasBrackets) all.push({ path: 'brackets', label: 'Brackets', icon: <Network size={18} /> });
-  if (isAdmin) all.push({ path: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> });
+  if (isAdmin) all.push({ path: 'admin', label: 'Organizer', icon: <SettingsIcon size={18} /> });
   return all;
 }
 
@@ -189,7 +180,7 @@ function Header() {
           </nav>
         )}
         <div className="header-actions">
-          {sync && t && (
+          {sync && t && sync.role !== 'viewer' && (
             <span className={`sync-pill ${syncState.status}`} title={syncState.message ?? 'Saved to the Google Sheet'}>
               <span className="dot" />
               {syncState.status === 'synced'
@@ -410,19 +401,16 @@ function Landing() {
         </p>
         <div className="row" style={{ marginBottom: 22 }}>
           <span className="chip">
-            <UserRound size={14} /> Adults &amp; Kids/Teens divisions
+            <CalendarClock size={14} /> {BRAND.when}
           </span>
           <span className="chip">
             <HandHeart size={14} /> ${BRAND.payment.feeAmount} per person
           </span>
           <span className="chip">
-            <LayoutGrid size={14} /> {BRAND.courts} courts
+            <UserRound size={14} /> Adults &amp; Kids/Teens
           </span>
           <span className="chip">
-            <CalendarClock size={14} /> {BRAND.when}
-          </span>
-          <span className="chip">
-            <Activity size={14} /> At least {BRAND.minGames} games per team
+            <Activity size={14} /> {BRAND.minGames}+ games per team
           </span>
         </div>
         <div className="row" style={{ gap: 14, alignItems: 'center' }}>

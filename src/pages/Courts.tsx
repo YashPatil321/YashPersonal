@@ -26,7 +26,8 @@ export function Courts() {
           <div className="eyebrow">Court desk</div>
           <h1>Courts</h1>
           <div className="muted small">
-            {courts.length - openCourts.length} of {courts.length} in play · {queue.length} match{queue.length === 1 ? '' : 'es'} waiting
+            {courts.length - openCourts.length} of {courts.length} in play · {queue.length} match{queue.length === 1 ? '' : 'es'} waiting ·{' '}
+            <a href="#/matches">All matches</a>
           </div>
         </div>
         {canScore && (
@@ -42,7 +43,7 @@ export function Courts() {
               Auto-call next match
             </label>
             {isAdmin && (
-              <a className="btn" href="#/settings">
+              <a className="btn" href="#/admin">
                 Edit courts
               </a>
             )}

@@ -106,7 +106,7 @@ export function Setup() {
         }, draft.players, distinctTeamNames(draft.teams, draft.players), divisions);
         replace({ ...tournament, published: false });
         save(LS_DRAFT, null);
-        navigate('/');
+        navigate('/admin');
     };
     const step = draft.step;
     return (_jsxs(_Fragment, { children: [_jsxs("div", { className: "page-head", children: [_jsxs("div", { children: [_jsx("div", { className: "eyebrow", children: "Organizer tools" }), _jsx("h1", { children: "Build the draw" }), _jsxs("div", { className: "muted small", children: ["Build the ", BRAND.short, " draw from your sign-up form."] })] }), _jsx("button", { className: "btn btn-sm btn-ghost", onClick: () => {

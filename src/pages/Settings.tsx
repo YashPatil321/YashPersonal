@@ -191,19 +191,11 @@ export function EventCard() {
   const setCourts = (courts: string[]) => set({ courts });
   return (
     <div className="card">
-      <h2>Event</h2>
+      <h2>Courts &amp; time</h2>
       <div className="form-grid">
-        <label className="field">
-          Name
-          <input className="input" defaultValue={t.name} onBlur={(e) => e.target.value.trim() && set({ name: e.target.value.trim() })} />
-        </label>
         <label className="field">
           Date
           <input className="input" type="date" defaultValue={t.date} onBlur={(e) => set({ date: e.target.value || undefined })} />
-        </label>
-        <label className="field">
-          Location
-          <input className="input" defaultValue={t.location} onBlur={(e) => set({ location: e.target.value.trim() || undefined })} />
         </label>
         <label className="field">
           Minutes for one game to 11
@@ -230,7 +222,6 @@ export function EventCard() {
           />
         </label>
       </div>
-      <h3 style={{ marginTop: 16 }}>Courts</h3>
       <label className="field" style={{ maxWidth: 220, marginBottom: 10 }}>
         Number of courts
         <input
