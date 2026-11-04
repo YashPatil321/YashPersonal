@@ -380,11 +380,17 @@ function registrationSheet() {
 function fundraising() {
   var donations = 0;
   var donors = 0;
+  var players = 0;
   try {
     var sheet = book().getSheetByName(REGISTRATION_SHEET);
     if (sheet && sheet.getLastRow() > 1) {
       var values = sheet.getDataRange().getDisplayValues();
       var col = values[0].indexOf('Extra donation');
+      var partnerCol = values[0].indexOf("Partner's full name");
+      for (var r = 1; r < values.length; r++) {
+        if (!String(values[r][1] || '').trim()) continue;
+        players += partnerCol >= 0 && String(values[r][partnerCol] || '').trim() ? 2 : 1;
+      }
       if (col >= 0) {
         for (var i = 1; i < values.length; i++) {
           var amount = Number(String(values[i][col] || '').replace(/[^0-9.]/g, '')) || 0;
@@ -401,6 +407,7 @@ function fundraising() {
   return {
     donations: Math.round(donations * 100) / 100,
     donors: donors,
+    players: players,
     goal: Number(props().getProperty('FUND_GOAL') || 0),
     extra: Number(props().getProperty('FUND_EXTRA') || 0),
   };

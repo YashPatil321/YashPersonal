@@ -35,7 +35,7 @@ export function useEventInfo(): { info: EventInfo | null; loading: boolean; refr
           scorerEnabled: d.scorerEnabled,
           registrationOpen: d.registrationOpen !== false,
           registrations: d.registrations ?? 0,
-          fundraising: d.fundraising ?? { donations: 0, donors: 0, goal: 0, extra: 0 },
+          fundraising: d.fundraising ?? { donations: 0, donors: 0, players: 0, goal: 0, extra: 0 },
         });
       })
       .catch(() => alive && setInfo(null))

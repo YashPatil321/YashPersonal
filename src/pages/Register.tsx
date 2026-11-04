@@ -180,6 +180,11 @@ export function Register() {
     );
   }
 
+  const players = form.partnerName?.trim() ? 2 : 1;
+  const amountDue = BRAND.payment.feeAmount * players + (form.donation ?? 0);
+  const names = [form.name.trim(), form.partnerName?.trim()].filter(Boolean).join(' & ');
+  const noteText = `${names || 'your name'} – SACS Pickleball`;
+
   const submit = async () => {
     setError(null);
     if (!form.name.trim()) return setError('Please enter your full name.');
@@ -317,12 +322,12 @@ export function Register() {
         <div className="card">
           <h2>Entry fee</h2>
           <p className="muted small" style={{ marginTop: -4 }}>
-            {BRAND.payment.fee ? `${BRAND.payment.fee}. ` : ''}
+            {BRAND.payment.fee ? `${BRAND.payment.fee} (a pair pays $${BRAND.payment.feeAmount * 2}). ` : ''}
             {BRAND.charity.pledge}
           </p>
           <div className="field" style={{ marginBottom: 14 }}>
             Add a donation? (optional)
-            <span className="hint">Every extra dollar goes to the cause. Send it together with your entry fee.</span>
+            <span className="hint">Send it together with your entry fee as one payment.</span>
             <Choices
               name="Extra donation"
               value={donationChoice}
@@ -350,20 +355,18 @@ export function Register() {
               />
             )}
           </div>
-          {(form.donation ?? 0) > 0 && (
-            <div className="alert alert-ok small" style={{ marginBottom: 12 }}>
-              {BRAND.payment.feeAmount ? (
-                <>
-                  Total to send: <b>${BRAND.payment.feeAmount + (form.donation ?? 0)}</b> (${BRAND.payment.feeAmount} entry + $
-                  {form.donation} donation). Thank you!
-                </>
-              ) : (
-                <>
-                  Please send your entry fee <b>plus ${form.donation}</b> as one payment. Thank you!
-                </>
-              )}
+          <div className="alert alert-ok small" style={{ marginBottom: 12 }}>
+            Total to send: <b>${amountDue}</b>
+            <span className="muted">
+              {' '}
+              (${BRAND.payment.feeAmount} × {players} {players === 1 ? 'player' : 'players'}
+              {form.donation ? ` + $${form.donation} donation` : ''})
+            </span>
+            <div style={{ marginTop: 4 }}>
+              In the Zelle/Venmo note, write{' '}
+              <b>{noteText}</b>.
             </div>
-          )}
+          </div>
           <ul className="small pay-list">
             <li>
               <b>Zelle</b>
@@ -389,8 +392,8 @@ export function Register() {
           <label className="check" style={{ marginTop: 14, fontWeight: 600 }}>
             <input type="checkbox" checked={form.paid} onChange={(e) => set({ paid: e.target.checked })} />
             {form.payment === 'Cash at check-in'
-              ? `I’ll bring the entry fee${form.donation ? ' and my donation' : ''} in cash to check-in. *`
-              : `I’ve sent the entry fee${form.donation ? ' and my donation' : ''}${form.payment ? ` by ${form.payment}` : ''}. *`}
+              ? `I’ll bring $${amountDue} in cash to check-in. *`
+              : `I’ve sent $${amountDue}${form.payment ? ` by ${form.payment}` : ''} with my name in the note. *`}
           </label>
         </div>
 

@@ -21,8 +21,8 @@ export const BRAND = {
   donateUrl: '',
   /** Entry fee and where to send it. Shown on the Register tab; leave '' to hide a line. */
   payment: {
-    fee: '$20 entry fee',
-    /** Entry fee in dollars, used to show the total with a donation. 0 = don't show a total. */
+    fee: '$20 per player',
+    /** Entry fee in dollars PER PLAYER (a pair pays twice this). */
     feeAmount: 20,
     zelle: '', // e.g. 'sacsexec@gmail.com' or a phone number
     venmo: '', // e.g. '@SACS-Pickleball'

@@ -464,7 +464,8 @@ function FundraisingCard({ info, onChange }: { info: EventInfo; onChange: () => 
       <h2>Fundraising</h2>
       <FundraiserCard info={info} />
       <p className="small muted" style={{ margin: '12px 0' }}>
-        Raised = {info.registrations} sign-ups × ${BRAND.payment.feeAmount || 0} entry fee + ${info.fundraising.donations} in
+        Raised = {info.fundraising.players || info.registrations} players × ${BRAND.payment.feeAmount || 0} entry fee + $
+        {info.fundraising.donations} in
         extra donations + money raised elsewhere. Currently ${raisedTotal(info)}.
         {!BRAND.payment.feeAmount && ' The entry fee amount isn’t set yet, so fees aren’t counted.'}
       </p>
