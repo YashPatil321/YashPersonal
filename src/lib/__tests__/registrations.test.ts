@@ -12,6 +12,7 @@ import {
   seedTeams,
 } from '../registrations';
 import { classifyGoogleUrl } from '../sheets';
+import { quickDraw } from '../quickDraw';
 
 describe('detectColumns', () => {
   it('maps a typical Google Form doubles sign-up', () => {
@@ -161,5 +162,32 @@ describe('team names', () => {
     expect(out.t1.name).toBe('Arjun S. & Priya K.');
     expect(out.t2.name).toBe('Arjun M. & Priya R.');
     expect(out.t3.name).toBe('Yash & Rhea');
+  });
+});
+
+describe('quickDraw', () => {
+  it('turns website sign-ups into a draft draw with first-name teams in the two divisions', () => {
+    const header = ['Timestamp', 'Full name', 'Email', 'Phone number', 'Division', "Partner's full name", "Partner's email", 'Anything else we should know?', 'Payment method', 'Payment confirmed', 'Extra donation', 'Anonymous'];
+    const row = (name: string, division: string, partner = '') => ['11/3/2026', name, `${name.split(' ')[0].toLowerCase()}@x.com`, '', division, partner, '', '', 'Zelle', 'Yes, sent', '', ''];
+    const rows = [
+      header,
+      row('Yash Patil', 'Kids/Teens', 'Rhea Jain'),
+      row('Arjun Shah', 'Adults', 'Priya Kumar'),
+      row('Dev Rao', 'Adults'),
+      row('Maya Iyer', 'Adults'),
+      row('Sam Lee', 'Adults'),
+      row('Neel Das', 'Kids/Teens', 'Anya Roy'),
+    ];
+    const d = quickDraw(rows);
+    expect(d.t.published).toBe(false);
+    expect(d.t.divisions.map((x) => x.name)).toEqual(['Adults', 'Kids/Teens']);
+    expect(d.t.courts.length).toBe(10);
+    const names = Object.values(d.t.teams).map((x) => x.name);
+    expect(names).toEqual(expect.arrayContaining(['Yash & Rhea', 'Arjun & Priya', 'Neel & Anya']));
+    expect(d.needPartner.length).toBe(1); // 3 solo adults: one pair + one left over
+    expect(d.teams).toBe(5);
+    const kids = d.t.divisions[1];
+    expect(kids.teamIds.map((id) => d.t.teams[id].name).sort()).toEqual(['Neel & Anya', 'Yash & Rhea']);
+    expect(Object.values(d.t.matches).length).toBeGreaterThan(0);
   });
 });

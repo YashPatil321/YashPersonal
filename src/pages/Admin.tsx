@@ -5,6 +5,7 @@ import setupScript from '../../apps-script/Code.gs?raw';
 import { BRAND } from '../brand';
 import { download } from '../lib/exporters';
 import { Mandala, Toran } from '../components/ui';
+import { quickDraw } from '../lib/quickDraw';
 import { remote } from '../lib/sync';
 import { FundraiserCard, raisedTotal } from '../components/Fundraiser';
 import type { EventInfo } from '../state/useEventInfo';
@@ -235,142 +236,232 @@ function LoginCard() {
   );
 }
 
+type Tab = 'signups' | 'draw' | 'money' | 'share';
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'signups', label: 'Sign-ups' },
+  { id: 'draw', label: 'Draw' },
+  { id: 'money', label: 'Money' },
+  { id: 'share', label: 'Share' },
+];
+
 function Dashboard() {
-  const { t, sync, connect, resolved, update } = useStore();
+  const { t, sync, connect, resolved } = useStore();
   const { info, refresh } = useEventInfo();
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      return (localStorage.getItem('pbt.adminTab') as Tab) || 'signups';
+    } catch {
+      return 'signups';
+    }
+  });
+  const pick = (next: Tab) => {
+    setTab(next);
+    try {
+      localStorage.setItem('pbt.adminTab', next);
+    } catch {
+      /* private mode */
+    }
+  };
   if (!sync) return null;
   const isAdmin = sync.role === 'admin';
-  const publicLink = `${siteBase()}?live=${encodeURIComponent(sync.url)}#/`;
-  const adminLink = `${siteBase()}?live=${encodeURIComponent(sync.url)}#/admin`;
+  const published = t?.published === true;
   const played = resolved ? resolved.ordered.filter((r) => r.done && !r.notNeeded).length : 0;
+
+  if (!isAdmin) {
+    return (
+      <>
+        <AdminHero title="Court volunteer">Thanks for helping! Open the courts to call matches and enter scores.</AdminHero>
+        <div className="row">
+          <a className="btn btn-primary btn-lg" href="#/courts">
+            <LayoutGrid size={18} /> Open the courts
+          </a>
+          <button className="btn btn-ghost" onClick={() => void connect({ url: sync.url, role: 'viewer' })}>
+            <LogOut size={16} /> Sign out
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  const count = info?.registrations ?? 0;
+  const steps = [
+    { title: 'Sign-ups', done: count > 0, text: `${count} signed up`, tab: 'signups' as Tab },
+    { title: 'Create the draw', done: !!t, text: t ? 'Draft ready' : 'When sign-ups close', tab: 'draw' as Tab },
+    { title: 'Publish', done: published, text: published ? `Published · ${played} played` : 'Players see nothing yet', tab: 'draw' as Tab },
+  ];
 
   return (
     <>
-      <AdminHero title={isAdmin ? 'Organizer dashboard' : 'Court volunteer'}>
-        Signed in as <b style={{ color: 'var(--ball)' }}>{sync.role}</b>
-        {info ? ` · connected to “${info.spreadsheet}”` : ''}.
-      </AdminHero>
-
-      <div className="grid grid-2">
-        <div className="card">
-          <div className="card-head">
-            <h2>Tournament</h2>
-            {t && t.published !== true ? (
-              <span className="badge badge-warn">Draft · players can’t see it</span>
-            ) : (
-              t && <span className="badge badge-final">Published · {played} matches played</span>
-            )}
-          </div>
-          {t && isAdmin && t.published !== true && (
-            <div className="row" style={{ marginBottom: 10 }}>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  if (window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.'))
-                    update((tt) => ({ ...tt, published: true, updatedAt: Date.now() }));
-                }}
-              >
-                Publish to players
-              </button>
-              <span className="small muted">Check courts and matchups first. You can still edit everything after publishing.</span>
-            </div>
-          )}
-          {t && isAdmin && t.published === true && (
-            <div className="row" style={{ marginBottom: 10 }}>
-              <button
-                className="btn btn-sm btn-ghost"
-                onClick={() => {
-                  if (window.confirm('Hide the draw from players? They’ll see the home page again until you publish.'))
-                    update((tt) => ({ ...tt, published: false, updatedAt: Date.now() }));
-                }}
-              >
-                Hide from players (back to draft)
-              </button>
-            </div>
-          )}
-          {!t ? (
-            <>
-              <p className="muted small">
-                When sign-ups close, build the draw from the registrations. Competitors see it the moment you create it.
-              </p>
-              {isAdmin && (
-                <a className="btn btn-primary btn-lg" href="#/setup">
-                  <Wand2 size={18} /> Build the draw
-                </a>
-              )}
-            </>
-          ) : (
-            <div className="row">
-              <a className="btn btn-primary" href="#/courts">
-                <LayoutGrid size={16} /> Court desk
-              </a>
-              <a className="btn" href="#/">
-                Home page
-              </a>
-              {isAdmin && (
-                <a className="btn" href="#/settings">
-                  <SettingsIcon size={16} /> Settings
-                </a>
-              )}
-            </div>
-          )}
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">{BRAND.eventName}</div>
+          <h1>Organizer</h1>
         </div>
-
-        {isAdmin && <RegistrationCard open={info?.registrationOpen ?? true} count={info?.registrations ?? 0} onChange={refresh} />}
-        {isAdmin && info && <FundraisingCard info={info} onChange={refresh} />}
       </div>
 
-      {isAdmin && (
-        <>
-          <div className="section-title">
-            <h2>Courts, time &amp; teams</h2>
-          </div>
-          {t ? (
-            <div className="stack" style={{ gap: 14 }}>
-              <EventCard />
-              <DivisionsCard />
-              <PlayersCard />
-            </div>
-          ) : (
-            <div className="card">
-              <p className="muted small" style={{ marginTop: 0 }}>
-                You set the number of courts, the game length and how long you have the courts in step 1 of building the draw,
-                and you can rename teams, swap partners and add walk-ins in step 4. After the draw is out, you can change all of
-                it right here: add or rename courts, change the timing, add late teams, fix names, and add divisions.
-              </p>
-              <a className="btn btn-primary" href="#/setup">
-                <Wand2 size={16} /> Build the draw
-              </a>
-            </div>
-          )}
-        </>
-      )}
+      <ol className="steps">
+        {steps.map((s, i) => (
+          <li key={s.title} className={s.done ? 'done' : steps.findIndex((x) => !x.done) === i ? 'now' : ''}>
+            <button onClick={() => pick(s.tab)}>
+              <span className="steps-num">{s.done ? <Check size={16} /> : i + 1}</span>
+              <span>
+                <b>{s.title}</b>
+                <span className="small muted">{s.text}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
 
-      {isAdmin && (
-        <div className="card section">
-          <h2>Links</h2>
-          <div className="stack" style={{ gap: 14 }}>
-            <LinkRow
-              label="Registration link"
-              url={`${siteBase()}?live=${encodeURIComponent(sync.url)}#/register`}
-              hint="Send this to players so they can sign up."
-            />
-            <LinkRow label="Players’ link" url={publicLink} hint="Live courts, brackets and scores. Read-only, no login." />
-            <LinkRow
-              label="Admin link"
-              url={adminLink}
-              hint="Bookmark this. It opens straight to this page on any device (you’ll still need the passcode)."
-            />
-          </div>
+      <div className="admin-tabs" role="tablist">
+        {TABS.map((x) => (
+          <button key={x.id} role="tab" aria-selected={tab === x.id} className={tab === x.id ? 'on' : ''} onClick={() => pick(x.id)}>
+            {x.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'signups' && (
+        <div className="grid">
+          <RegistrationCard open={info?.registrationOpen ?? true} count={count} onChange={refresh} />
         </div>
       )}
+      {tab === 'draw' && <DrawTab onSignups={() => pick('signups')} />}
+      {tab === 'money' && <div className="grid">{info && <FundraisingCard info={info} onChange={refresh} />}</div>}
+      {tab === 'share' && <ShareTab />}
 
       <div className="row section">
         <button className="btn btn-ghost" onClick={() => void connect({ url: sync.url, role: 'viewer' })}>
           <LogOut size={16} /> Sign out on this device
         </button>
+        <a className="btn btn-ghost" href="#/settings">
+          <SettingsIcon size={16} /> Advanced
+        </a>
       </div>
     </>
+  );
+}
+
+/** Create the draw in one click, then review, edit and publish it. */
+function DrawTab({ onSignups }: { onSignups: () => void }) {
+  const { t, sync, replace, update } = useStore();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (!sync?.passcode) return null;
+
+  const create = async () => {
+    if (t && !window.confirm('Start over? This replaces the current draw (and any scores) with a new one from the sign-ups.')) return;
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const rows = await remote.registrations(sync.url, sync.passcode!);
+      if (rows.length < 2) throw new Error('No sign-ups yet.');
+      const d = quickDraw(rows);
+      replace(d.t);
+      setNote(
+        `Draft created: ${d.teams} teams across ${BRAND.courts} courts.` +
+          (d.needPartner.length
+            ? ` ${d.needPartner.join(', ')} still ${d.needPartner.length === 1 ? 'needs' : 'need'} a partner: add one under Teams & players below.`
+            : ''),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!t) {
+    return (
+      <div className="card draw-empty">
+        <Wand2 size={34} color="var(--brand)" />
+        <h2>Create the draw</h2>
+        <p className="muted">
+          When sign-ups close, one click turns them into teams and a schedule: partners stay together, solo players get paired,
+          everyone lands in Adults or Kids/Teens, and every team plays at least {BRAND.minGames} games. It stays a private draft
+          until you publish.
+        </p>
+        {error && <div className="alert alert-error small">{error}</div>}
+        <div className="row" style={{ justifyContent: 'center' }}>
+          <button className="btn btn-primary btn-lg" disabled={busy} onClick={() => void create()}>
+            <Wand2 size={18} /> {busy ? 'Creating…' : 'Create the draw'}
+          </button>
+          <button className="btn btn-ghost" onClick={onSignups}>
+            Check sign-ups first
+          </button>
+        </div>
+        <a className="small muted" href="#/setup" style={{ marginTop: 10 }}>
+          Or customize it step by step
+        </a>
+      </div>
+    );
+  }
+
+  const published = t.published === true;
+  return (
+    <div className="stack" style={{ gap: 14 }}>
+      <div className={`card publish-card ${published ? 'is-live' : ''}`}>
+        <div style={{ minWidth: 0 }}>
+          <div className="eyebrow">{published ? 'Published' : 'Draft'}</div>
+          <h2 style={{ margin: '2px 0 4px' }}>{published ? 'Players can see the draw' : 'Only you can see this draw'}</h2>
+          <div className="small muted">
+            {published
+              ? 'Edits below show up for everyone right away.'
+              : 'Check the courts, teams and matchups below, then publish. Registration closes when you do.'}
+          </div>
+        </div>
+        <div className="row">
+          {published ? (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => window.confirm('Hide the draw from players until you publish again?') && update((tt) => ({ ...tt, published: false, updatedAt: Date.now() }))}
+            >
+              Hide from players
+            </button>
+          ) : (
+            <button
+              className="btn btn-primary btn-lg"
+              onClick={() =>
+                window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.') &&
+                update((tt) => ({ ...tt, published: true, updatedAt: Date.now() }))
+              }
+            >
+              Publish to players
+            </button>
+          )}
+          <a className="btn" href="#/courts">
+            <LayoutGrid size={16} /> Courts
+          </a>
+        </div>
+      </div>
+      {note && <div className="alert alert-ok small">{note}</div>}
+      {error && <div className="alert alert-error small">{error}</div>}
+      <EventCard />
+      <PlayersCard />
+      <DivisionsCard />
+      <div className="row">
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void create()}>
+          Start over from the sign-ups
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ShareTab() {
+  const { sync } = useStore();
+  if (!sync) return null;
+  const base = `${siteBase()}?live=${encodeURIComponent(sync.url)}`;
+  return (
+    <div className="card">
+      <div className="stack" style={{ gap: 14 }}>
+        <LinkRow label="Registration link" url={`${base}#/register`} hint="Send this to players so they can sign up." />
+        <LinkRow label="Players’ link" url={`${base}#/`} hint="Courts, schedule and standings once you publish. Read-only." />
+        <LinkRow label="Your organizer link" url={`${base}#/admin`} hint="Bookmark it. Opens this page on any device (passcode needed)." />
+      </div>
+    </div>
   );
 }
 

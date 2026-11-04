@@ -1,6 +1,6 @@
-import { CalendarDays, ChevronRight, Clock, MapPin, Search, Trophy, Zap } from 'lucide-react';
+import { CalendarDays, ChevronRight, MapPin, Search, Trophy, Zap } from 'lucide-react';
 import { courtStatus, fillCourts, matchQueue, waitEstimates } from '../lib/actions';
-import { clockAfter, formatDuration, projectSchedule } from '../lib/schedule';
+import { formatDuration, projectSchedule } from '../lib/schedule';
 import { FORMAT_LABELS, teamName } from '../lib/tournament';
 import { divisionName, MatchCard, stageLabel } from '../components/match';
 import { MiniCourt } from '../components/MiniCourt';
@@ -11,7 +11,7 @@ import { useMatchDialog } from '../components/useMatchDialog';
 import { useTournament } from '../state/store';
 
 export function Overview() {
-  const { t, resolved, canScore, update, sync } = useTournament();
+  const { t, resolved, canScore, update } = useTournament();
   const { open, dialog } = useMatchDialog();
 
   const total = resolved.ordered.filter((r) => !r.notNeeded).length;
@@ -62,19 +62,6 @@ export function Overview() {
                   <MapPin size={14} /> {t.location}
                 </span>
               )}
-              {sync && (
-                <span className="chip">
-                  <span className="serve-ball" style={{ margin: 0, width: 8, height: 8 }} /> Live scores
-                </span>
-              )}
-              {!finished && projection.matches > 0 && (
-                <span className="chip" title="Estimated from courts, match length and the bracket order">
-                  <Clock size={14} />
-                  {started
-                    ? `Wraps up ~${clockAfter(projection.minutes)}`
-                    : `~${formatDuration(projection.minutes)} of play${budget ? ` · ${formatDuration(budget)} booked` : ''}`}
-                </span>
-              )}
             </div>
           </div>
           <ProgressRing value={done} total={total} label="played" />
@@ -92,12 +79,12 @@ export function Overview() {
               {live.length}
               <small>/{t.courts.length}</small>
             </div>
-            <div className="label">Courts live</div>
+            <div className="label">Courts in play</div>
           </div>
           <div className="stat">
             <div className="value">{Object.keys(t.teams).length}</div>
             <div className="label">
-              {t.settings.doubles ? 'Teams' : 'Players'} · {t.divisions.length} div
+              Teams
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import setupScript from '../../apps-script/Code.gs?raw';
 import { BRAND } from '../brand';
 import { download } from '../lib/exporters';
 import { Mandala, Toran } from '../components/ui';
+import { quickDraw } from '../lib/quickDraw';
 import { remote } from '../lib/sync';
 import { FundraiserCard, raisedTotal } from '../components/Fundraiser';
 import { SignupTable } from '../components/SignupManager';
@@ -89,22 +90,95 @@ function LoginCard() {
                         void submit();
                     }, children: [_jsxs("label", { className: "field", children: ["Passcode", _jsx("input", { className: "input", type: "password", autoFocus: true, value: passcode, onChange: (e) => setPasscode(e.target.value) })] }), error && _jsx("div", { className: "alert alert-error small", children: error }), _jsx("div", { children: _jsx("button", { className: "btn btn-primary", disabled: !passcode.trim() || busy, type: "submit", children: busy ? 'Checking…' : 'Sign in' }) })] }) })] }));
 }
+const TABS = [
+    { id: 'signups', label: 'Sign-ups' },
+    { id: 'draw', label: 'Draw' },
+    { id: 'money', label: 'Money' },
+    { id: 'share', label: 'Share' },
+];
 function Dashboard() {
-    const { t, sync, connect, resolved, update } = useStore();
+    const { t, sync, connect, resolved } = useStore();
     const { info, refresh } = useEventInfo();
+    const [tab, setTab] = useState(() => {
+        try {
+            return localStorage.getItem('pbt.adminTab') || 'signups';
+        }
+        catch {
+            return 'signups';
+        }
+    });
+    const pick = (next) => {
+        setTab(next);
+        try {
+            localStorage.setItem('pbt.adminTab', next);
+        }
+        catch {
+            /* private mode */
+        }
+    };
     if (!sync)
         return null;
     const isAdmin = sync.role === 'admin';
-    const publicLink = `${siteBase()}?live=${encodeURIComponent(sync.url)}#/`;
-    const adminLink = `${siteBase()}?live=${encodeURIComponent(sync.url)}#/admin`;
+    const published = t?.published === true;
     const played = resolved ? resolved.ordered.filter((r) => r.done && !r.notNeeded).length : 0;
-    return (_jsxs(_Fragment, { children: [_jsxs(AdminHero, { title: isAdmin ? 'Organizer dashboard' : 'Court volunteer', children: ["Signed in as ", _jsx("b", { style: { color: 'var(--ball)' }, children: sync.role }), info ? ` · connected to “${info.spreadsheet}”` : '', "."] }), _jsxs("div", { className: "grid grid-2", children: [_jsxs("div", { className: "card", children: [_jsxs("div", { className: "card-head", children: [_jsx("h2", { children: "Tournament" }), t && t.published !== true ? (_jsx("span", { className: "badge badge-warn", children: "Draft \u00B7 players can\u2019t see it" })) : (t && _jsxs("span", { className: "badge badge-final", children: ["Published \u00B7 ", played, " matches played"] }))] }), t && isAdmin && t.published !== true && (_jsxs("div", { className: "row", style: { marginBottom: 10 }, children: [_jsx("button", { className: "btn btn-primary", onClick: () => {
-                                            if (window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.'))
-                                                update((tt) => ({ ...tt, published: true, updatedAt: Date.now() }));
-                                        }, children: "Publish to players" }), _jsx("span", { className: "small muted", children: "Check courts and matchups first. You can still edit everything after publishing." })] })), t && isAdmin && t.published === true && (_jsx("div", { className: "row", style: { marginBottom: 10 }, children: _jsx("button", { className: "btn btn-sm btn-ghost", onClick: () => {
-                                        if (window.confirm('Hide the draw from players? They’ll see the home page again until you publish.'))
-                                            update((tt) => ({ ...tt, published: false, updatedAt: Date.now() }));
-                                    }, children: "Hide from players (back to draft)" }) })), !t ? (_jsxs(_Fragment, { children: [_jsx("p", { className: "muted small", children: "When sign-ups close, build the draw from the registrations. Competitors see it the moment you create it." }), isAdmin && (_jsxs("a", { className: "btn btn-primary btn-lg", href: "#/setup", children: [_jsx(Wand2, { size: 18 }), " Build the draw"] }))] })) : (_jsxs("div", { className: "row", children: [_jsxs("a", { className: "btn btn-primary", href: "#/courts", children: [_jsx(LayoutGrid, { size: 16 }), " Court desk"] }), _jsx("a", { className: "btn", href: "#/", children: "Home page" }), isAdmin && (_jsxs("a", { className: "btn", href: "#/settings", children: [_jsx(SettingsIcon, { size: 16 }), " Settings"] }))] }))] }), isAdmin && _jsx(RegistrationCard, { open: info?.registrationOpen ?? true, count: info?.registrations ?? 0, onChange: refresh }), isAdmin && info && _jsx(FundraisingCard, { info: info, onChange: refresh })] }), isAdmin && (_jsxs(_Fragment, { children: [_jsx("div", { className: "section-title", children: _jsx("h2", { children: "Courts, time & teams" }) }), t ? (_jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsx(EventCard, {}), _jsx(DivisionsCard, {}), _jsx(PlayersCard, {})] })) : (_jsxs("div", { className: "card", children: [_jsx("p", { className: "muted small", style: { marginTop: 0 }, children: "You set the number of courts, the game length and how long you have the courts in step 1 of building the draw, and you can rename teams, swap partners and add walk-ins in step 4. After the draw is out, you can change all of it right here: add or rename courts, change the timing, add late teams, fix names, and add divisions." }), _jsxs("a", { className: "btn btn-primary", href: "#/setup", children: [_jsx(Wand2, { size: 16 }), " Build the draw"] })] }))] })), isAdmin && (_jsxs("div", { className: "card section", children: [_jsx("h2", { children: "Links" }), _jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsx(LinkRow, { label: "Registration link", url: `${siteBase()}?live=${encodeURIComponent(sync.url)}#/register`, hint: "Send this to players so they can sign up." }), _jsx(LinkRow, { label: "Players\u2019 link", url: publicLink, hint: "Live courts, brackets and scores. Read-only, no login." }), _jsx(LinkRow, { label: "Admin link", url: adminLink, hint: "Bookmark this. It opens straight to this page on any device (you\u2019ll still need the passcode)." })] })] })), _jsx("div", { className: "row section", children: _jsxs("button", { className: "btn btn-ghost", onClick: () => void connect({ url: sync.url, role: 'viewer' }), children: [_jsx(LogOut, { size: 16 }), " Sign out on this device"] }) })] }));
+    if (!isAdmin) {
+        return (_jsxs(_Fragment, { children: [_jsx(AdminHero, { title: "Court volunteer", children: "Thanks for helping! Open the courts to call matches and enter scores." }), _jsxs("div", { className: "row", children: [_jsxs("a", { className: "btn btn-primary btn-lg", href: "#/courts", children: [_jsx(LayoutGrid, { size: 18 }), " Open the courts"] }), _jsxs("button", { className: "btn btn-ghost", onClick: () => void connect({ url: sync.url, role: 'viewer' }), children: [_jsx(LogOut, { size: 16 }), " Sign out"] })] })] }));
+    }
+    const count = info?.registrations ?? 0;
+    const steps = [
+        { title: 'Sign-ups', done: count > 0, text: `${count} signed up`, tab: 'signups' },
+        { title: 'Create the draw', done: !!t, text: t ? 'Draft ready' : 'When sign-ups close', tab: 'draw' },
+        { title: 'Publish', done: published, text: published ? `Published · ${played} played` : 'Players see nothing yet', tab: 'draw' },
+    ];
+    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "page-head", children: _jsxs("div", { children: [_jsx("div", { className: "eyebrow", children: BRAND.eventName }), _jsx("h1", { children: "Organizer" })] }) }), _jsx("ol", { className: "steps", children: steps.map((s, i) => (_jsx("li", { className: s.done ? 'done' : steps.findIndex((x) => !x.done) === i ? 'now' : '', children: _jsxs("button", { onClick: () => pick(s.tab), children: [_jsx("span", { className: "steps-num", children: s.done ? _jsx(Check, { size: 16 }) : i + 1 }), _jsxs("span", { children: [_jsx("b", { children: s.title }), _jsx("span", { className: "small muted", children: s.text })] })] }) }, s.title))) }), _jsx("div", { className: "admin-tabs", role: "tablist", children: TABS.map((x) => (_jsx("button", { role: "tab", "aria-selected": tab === x.id, className: tab === x.id ? 'on' : '', onClick: () => pick(x.id), children: x.label }, x.id))) }), tab === 'signups' && (_jsx("div", { className: "grid", children: _jsx(RegistrationCard, { open: info?.registrationOpen ?? true, count: count, onChange: refresh }) })), tab === 'draw' && _jsx(DrawTab, { onSignups: () => pick('signups') }), tab === 'money' && _jsx("div", { className: "grid", children: info && _jsx(FundraisingCard, { info: info, onChange: refresh }) }), tab === 'share' && _jsx(ShareTab, {}), _jsxs("div", { className: "row section", children: [_jsxs("button", { className: "btn btn-ghost", onClick: () => void connect({ url: sync.url, role: 'viewer' }), children: [_jsx(LogOut, { size: 16 }), " Sign out on this device"] }), _jsxs("a", { className: "btn btn-ghost", href: "#/settings", children: [_jsx(SettingsIcon, { size: 16 }), " Advanced"] })] })] }));
+}
+/** Create the draw in one click, then review, edit and publish it. */
+function DrawTab({ onSignups }) {
+    const { t, sync, replace, update } = useStore();
+    const [busy, setBusy] = useState(false);
+    const [note, setNote] = useState(null);
+    const [error, setError] = useState(null);
+    if (!sync?.passcode)
+        return null;
+    const create = async () => {
+        if (t && !window.confirm('Start over? This replaces the current draw (and any scores) with a new one from the sign-ups.'))
+            return;
+        setBusy(true);
+        setError(null);
+        setNote(null);
+        try {
+            const rows = await remote.registrations(sync.url, sync.passcode);
+            if (rows.length < 2)
+                throw new Error('No sign-ups yet.');
+            const d = quickDraw(rows);
+            replace(d.t);
+            setNote(`Draft created: ${d.teams} teams across ${BRAND.courts} courts.` +
+                (d.needPartner.length
+                    ? ` ${d.needPartner.join(', ')} still ${d.needPartner.length === 1 ? 'needs' : 'need'} a partner: add one under Teams & players below.`
+                    : ''));
+        }
+        catch (e) {
+            setError(e.message);
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    if (!t) {
+        return (_jsxs("div", { className: "card draw-empty", children: [_jsx(Wand2, { size: 34, color: "var(--brand)" }), _jsx("h2", { children: "Create the draw" }), _jsxs("p", { className: "muted", children: ["When sign-ups close, one click turns them into teams and a schedule: partners stay together, solo players get paired, everyone lands in Adults or Kids/Teens, and every team plays at least ", BRAND.minGames, " games. It stays a private draft until you publish."] }), error && _jsx("div", { className: "alert alert-error small", children: error }), _jsxs("div", { className: "row", style: { justifyContent: 'center' }, children: [_jsxs("button", { className: "btn btn-primary btn-lg", disabled: busy, onClick: () => void create(), children: [_jsx(Wand2, { size: 18 }), " ", busy ? 'Creating…' : 'Create the draw'] }), _jsx("button", { className: "btn btn-ghost", onClick: onSignups, children: "Check sign-ups first" })] }), _jsx("a", { className: "small muted", href: "#/setup", style: { marginTop: 10 }, children: "Or customize it step by step" })] }));
+    }
+    const published = t.published === true;
+    return (_jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsxs("div", { className: `card publish-card ${published ? 'is-live' : ''}`, children: [_jsxs("div", { style: { minWidth: 0 }, children: [_jsx("div", { className: "eyebrow", children: published ? 'Published' : 'Draft' }), _jsx("h2", { style: { margin: '2px 0 4px' }, children: published ? 'Players can see the draw' : 'Only you can see this draw' }), _jsx("div", { className: "small muted", children: published
+                                    ? 'Edits below show up for everyone right away.'
+                                    : 'Check the courts, teams and matchups below, then publish. Registration closes when you do.' })] }), _jsxs("div", { className: "row", children: [published ? (_jsx("button", { className: "btn btn-ghost btn-sm", onClick: () => window.confirm('Hide the draw from players until you publish again?') && update((tt) => ({ ...tt, published: false, updatedAt: Date.now() })), children: "Hide from players" })) : (_jsx("button", { className: "btn btn-primary btn-lg", onClick: () => window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.') &&
+                                    update((tt) => ({ ...tt, published: true, updatedAt: Date.now() })), children: "Publish to players" })), _jsxs("a", { className: "btn", href: "#/courts", children: [_jsx(LayoutGrid, { size: 16 }), " Courts"] })] })] }), note && _jsx("div", { className: "alert alert-ok small", children: note }), error && _jsx("div", { className: "alert alert-error small", children: error }), _jsx(EventCard, {}), _jsx(PlayersCard, {}), _jsx(DivisionsCard, {}), _jsx("div", { className: "row", children: _jsx("button", { className: "btn btn-ghost btn-sm", disabled: busy, onClick: () => void create(), children: "Start over from the sign-ups" }) })] }));
+}
+function ShareTab() {
+    const { sync } = useStore();
+    if (!sync)
+        return null;
+    const base = `${siteBase()}?live=${encodeURIComponent(sync.url)}`;
+    return (_jsx("div", { className: "card", children: _jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsx(LinkRow, { label: "Registration link", url: `${base}#/register`, hint: "Send this to players so they can sign up." }), _jsx(LinkRow, { label: "Players\u2019 link", url: `${base}#/`, hint: "Courts, schedule and standings once you publish. Read-only." }), _jsx(LinkRow, { label: "Your organizer link", url: `${base}#/admin`, hint: "Bookmark it. Opens this page on any device (passcode needed)." })] }) }));
 }
 export function Admin() {
     const { sync } = useStore();

@@ -3039,3 +3039,112 @@ h1 .wordmark,
   background: var(--ball-soft);
   color: var(--ink);
 }
+
+/* Organizer: three steps + tabs */
+.steps {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.steps button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.steps button > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+.steps-num {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.steps li.now button {
+  border-color: var(--ball);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ball) 30%, transparent);
+}
+.steps li.now .steps-num {
+  background: var(--ball);
+  color: var(--ball-ink);
+}
+.steps li.done .steps-num {
+  background: var(--win, #1f9d55);
+  color: #fff;
+}
+@media (max-width: 640px) {
+  .steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .steps button {
+    padding: 10px 12px;
+  }
+}
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  overflow-x: auto;
+}
+.admin-tabs button {
+  flex: 1 0 auto;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.admin-tabs button.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.draw-empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 32px 20px;
+}
+.draw-empty p {
+  max-width: 560px;
+  margin: 0 0 8px;
+}
+.publish-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 2px solid var(--ball);
+  background: var(--ball-soft);
+}
+.publish-card.is-live {
+  border-color: var(--win, #1f9d55);
+  background: color-mix(in srgb, var(--win, #1f9d55) 10%, var(--surface));
+}

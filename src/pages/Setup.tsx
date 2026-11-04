@@ -168,7 +168,7 @@ export function Setup() {
     );
     replace({ ...tournament, published: false });
     save(LS_DRAFT, null);
-    navigate('/');
+    navigate('/admin');
   };
 
   const step = draft.step;
