@@ -12,6 +12,13 @@ export const BRAND = {
   /** Shown on the landing page before the draw is published. */
   courts: 10,
   hours: 4,
+  /**
+   * Optional GoFundMe (or other donation page) for extra donations from people who
+   * aren't playing. Shows a "Donate" button next to the cause when set.
+   * Keep entry fees on Zelle/Venmo/cash: GoFundMe's terms don't allow giving event
+   * entry in exchange for donations.
+   */
+  donateUrl: '',
   /** Entry fee and where to send it. Shown on the Register tab; leave '' to hide a line. */
   payment: {
     fee: '', // e.g. '$20 per team'
