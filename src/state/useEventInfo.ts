@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { remote } from '../lib/sync';
+import type { Fundraising } from '../lib/sync';
 import { useStore } from './store';
 
 export interface EventInfo {
@@ -7,6 +8,7 @@ export interface EventInfo {
   scorerEnabled: boolean;
   registrationOpen: boolean;
   registrations: number;
+  fundraising: Fundraising;
 }
 
 /** Public details from the connected Apps Script: whether sign-ups are open and how many there are. */
@@ -33,6 +35,7 @@ export function useEventInfo(): { info: EventInfo | null; loading: boolean; refr
           scorerEnabled: d.scorerEnabled,
           registrationOpen: d.registrationOpen !== false,
           registrations: d.registrations ?? 0,
+          fundraising: d.fundraising ?? { donations: 0, donors: 0, goal: 0, extra: 0 },
         });
       })
       .catch(() => alive && setInfo(null))

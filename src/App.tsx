@@ -18,6 +18,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { BRAND } from './brand';
+import { FundraiserCard } from './components/Fundraiser';
 import { BallIcon, BrandName, CauseCard, Mandala, Modal, Toran } from './components/ui';
 import { Admin } from './pages/Admin';
 import { Courts } from './pages/Courts';
@@ -419,6 +420,9 @@ function Landing() {
         </div>
       </section>
 
+      <div style={{ marginTop: 16 }}>
+        <FundraiserCard info={info} cta />
+      </div>
       <div style={{ marginTop: 16 }}>
         <CauseCard />
       </div>

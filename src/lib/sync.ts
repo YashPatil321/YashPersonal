@@ -2,6 +2,15 @@ import type { Match, Tournament } from './types';
 
 export type Role = 'admin' | 'scorer' | 'viewer';
 
+/** Fundraising numbers from the sign-up sheet plus organizer-entered goal/extra. */
+export interface Fundraising {
+  donations: number;
+  donors: number;
+  goal: number;
+  /** Money raised outside the form (cash, GoFundMe…), entered by the organizer. */
+  extra: number;
+}
+
 /** One sign-up from the website's Register tab (keys match the Apps Script REG_FIELDS). */
 export interface RegistrationEntry {
   name: string;
@@ -18,6 +27,8 @@ export interface RegistrationEntry {
   payment: 'Zelle' | 'Venmo' | 'Cash at check-in' | '';
   /** The registrant ticked "I've paid" (or will bring cash). */
   paid: boolean;
+  /** Optional extra donation in dollars on top of the entry fee. */
+  donation?: number;
 }
 
 export interface SyncConfig {
@@ -66,12 +77,15 @@ export const remote = {
       scorerEnabled: boolean;
       registrationOpen?: boolean;
       registrations?: number;
+      fundraising?: Fundraising;
     }>,
   /** Public: save one sign-up from the Register tab. `website` is a honeypot that must stay empty. */
   register: (url: string, entry: RegistrationEntry, website = ''): Promise<{ count?: number }> =>
     postJSON(url, { action: 'register', entry, website }),
   setRegistration: (url: string, passcode: string, open: boolean): Promise<{ registrationOpen: boolean }> =>
     postJSON(url, { action: 'setRegistration', passcode, open }),
+  setFundraising: (url: string, passcode: string, goal: number, extra: number): Promise<{ fundraising: Fundraising }> =>
+    postJSON(url, { action: 'setFundraising', passcode, goal, extra }),
   registrations: async (url: string, passcode: string): Promise<string[][]> =>
     (await postJSON(url, { action: 'registrations', passcode })).rows,
   version: async (url: string) => (await getJSON(url, 'version')).version as number,

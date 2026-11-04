@@ -60,9 +60,10 @@ var REG_HEADERS = [
   'Anything else we should know?',
   'Payment method',
   'Payment confirmed',
+  'Extra donation',
 ];
 /** Matching keys sent by the website's form. */
-var REG_FIELDS = ['name', 'email', 'phone', 'school', 'skill', 'division', 'partnerName', 'partnerEmail', 'partnerSkill', 'teamName', 'notes', 'payment', 'paid'];
+var REG_FIELDS = ['name', 'email', 'phone', 'school', 'skill', 'division', 'partnerName', 'partnerEmail', 'partnerSkill', 'teamName', 'notes', 'payment', 'paid', 'donation'];
 var DIVISIONS = ['Adult', 'Kids'];
 var PAYMENT_METHODS = ['Zelle', 'Venmo', 'Cash at check-in'];
 var MAX_REGISTRATIONS = 1000;
@@ -91,6 +92,7 @@ function doGet(e) {
         version: getVersion(),
         scorerEnabled: !!getScorerPasscode(),
         registrationOpen: registrationOpen(),
+        fundraising: fundraising(),
         registrations: registrationCount(),
       });
     }
@@ -130,6 +132,14 @@ function doPost(e) {
   if (body.action === 'registrations') {
     if (role !== 'admin') return json({ ok: false, error: 'Admin passcode required', auth: false });
     return json({ ok: true, rows: registrationRows(body.sheet) });
+  }
+  if (body.action === 'setFundraising') {
+    if (role !== 'admin') return json({ ok: false, error: 'Admin passcode required', auth: false });
+    var goal = Math.max(0, Math.round(Number(body.goal) || 0));
+    var extra = Math.max(0, Math.round(Number(body.extra) || 0));
+    props().setProperty('FUND_GOAL', String(goal));
+    props().setProperty('FUND_EXTRA', String(extra));
+    return json({ ok: true, fundraising: fundraising() });
   }
   if (body.action === 'setRegistration') {
     if (role !== 'admin') return json({ ok: false, error: 'Admin passcode required', auth: false });
@@ -368,6 +378,36 @@ function registrationSheet() {
   return sheet;
 }
 
+/** Public fundraising numbers for the progress bar. */
+function fundraising() {
+  var donations = 0;
+  var donors = 0;
+  try {
+    var sheet = book().getSheetByName(REGISTRATION_SHEET);
+    if (sheet && sheet.getLastRow() > 1) {
+      var values = sheet.getDataRange().getDisplayValues();
+      var col = values[0].indexOf('Extra donation');
+      if (col >= 0) {
+        for (var i = 1; i < values.length; i++) {
+          var amount = Number(String(values[i][col] || '').replace(/[^0-9.]/g, '')) || 0;
+          if (amount > 0) {
+            donations += amount;
+            donors++;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // no sheet yet
+  }
+  return {
+    donations: Math.round(donations * 100) / 100,
+    donors: donors,
+    goal: Number(props().getProperty('FUND_GOAL') || 0),
+    extra: Number(props().getProperty('FUND_EXTRA') || 0),
+  };
+}
+
 function registrationCount() {
   try {
     var sheet = book().getSheetByName(REGISTRATION_SHEET);
@@ -412,6 +452,9 @@ function register(entry, honeypot) {
   if (PAYMENT_METHODS.indexOf(values.payment) < 0) return { ok: false, error: 'Please choose how you are paying.' };
   if (entry.paid !== true && entry.paid !== 'yes') return { ok: false, error: 'Please confirm your entry fee payment.' };
   values.paid = values.payment === 'Cash at check-in' ? 'Will pay cash at check-in' : 'Yes, sent';
+  var donation = Math.round(Number(String(entry.donation || '0').replace(/[^0-9.\-]/g, '')) * 100) / 100;
+  if (!isFinite(donation) || donation < 0 || donation > 10000) return { ok: false, error: 'Please check the donation amount.' };
+  values.donation = donation ? '$' + donation.toFixed(2).replace(/\.00$/, '') : '';
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { ok: false, error: 'Busy, please try again.' };
