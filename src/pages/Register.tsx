@@ -239,8 +239,9 @@ export function Register() {
         </div>
         <div className="gf-story">
           <p>
-            Grab a partner (or come solo and we’ll pair you) and play in the {BRAND.eventName}: {BRAND.courts} courts, about{' '}
-            {BRAND.hours} hours of doubles, with an Adults division and a Kids/Teens division.
+            Grab a partner (or come solo and we’ll pair you) and play in the {BRAND.eventName} on {BRAND.when}: doubles on{' '}
+            {BRAND.courts} courts, with an Adults division and a Kids/Teens division. Every team is guaranteed at least{' '}
+            {BRAND.minGames} games.
           </p>
           <p>
             Every player gives a required ${BRAND.payment.feeAmount} donation, and you can add more if you’d like. {BRAND.charity.pledge}{' '}

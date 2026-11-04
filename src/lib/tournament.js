@@ -14,9 +14,13 @@ export function defaultDivisionSettings(teamCount) {
         grandFinalReset: false,
         roundRobinCycles: 1,
     };
-    if (teamCount <= 6)
-        return base;
-    const poolCount = Math.max(2, Math.round(teamCount / 5));
+    // Every team gets at least BRAND.minGames (3) games before any playoffs.
+    if (teamCount <= 6) {
+        const perCycle = Math.max(1, teamCount - 1);
+        return { ...base, roundRobinCycles: Math.max(1, Math.ceil(BRAND.minGames / perCycle)) };
+    }
+    // Pools of 4+ teams, so each team plays 3+ pool games.
+    const poolCount = Math.max(1, Math.min(Math.max(2, Math.round(teamCount / 5)), Math.floor(teamCount / (BRAND.minGames + 1))));
     return { ...base, format: 'pools_playoff', poolCount: clampPoolCount(teamCount, poolCount) };
 }
 export function courtNames(count) {

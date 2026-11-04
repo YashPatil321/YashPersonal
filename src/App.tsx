@@ -371,7 +371,7 @@ function AdminOnly({ onLogin }: { onLogin: () => void }) {
 
 const DAY_OF: Array<[ReactNode, string, string]> = [
   [<UserRound size={20} />, 'Find your team', 'Type your name to see your court, when you play next and how you’re doing.'],
-  [<LayoutGrid size={20} />, 'Live courts', 'All courts update point by point, so you know exactly when you’re up.'],
+  [<LayoutGrid size={20} />, 'Courts & schedule', `${BRAND.minGames}+ games for every team, across ${BRAND.courts} courts. See which court you’re on and when you’re up.`],
   [<Trophy size={20} />, 'Standings & brackets', 'Follow every pool and the playoff race all the way to the final.'],
 ];
 
@@ -398,10 +398,10 @@ function Landing() {
             <LayoutGrid size={14} /> {BRAND.courts} courts
           </span>
           <span className="chip">
-            <CalendarClock size={14} /> About {BRAND.hours} hours of play
+            <CalendarClock size={14} /> {BRAND.when}
           </span>
           <span className="chip">
-            <Activity size={14} /> Live scores on your phone
+            <Activity size={14} /> At least {BRAND.minGames} games per team
           </span>
         </div>
         <div className="row" style={{ gap: 14, alignItems: 'center' }}>
@@ -415,8 +415,8 @@ function Landing() {
           )}
         </div>
         <div className="draw-soon" style={{ marginTop: 16 }}>
-          <span className="dot" /> The draw comes out when sign-ups close. Keep this page handy: it turns into the live
-          scoreboard on tournament day.
+          <span className="dot" /> The draw comes out when sign-ups close. Keep this page handy: on tournament day it shows
+          your court, your matches and the brackets.
         </div>
       </section>
 

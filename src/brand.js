@@ -11,7 +11,14 @@ export const BRAND = {
     tagline: 'Play for a cause',
     /** Shown on the landing page before the draw is published. */
     courts: 10,
+    /** Used to plan the schedule only; not shown to players. */
     hours: 4,
+    /** When the event is, as shown to players. */
+    when: 'November 29, starting at 11am',
+    /** ISO date the setup wizard starts with. */
+    date: '2026-11-29',
+    /** Every team plays at least this many games (the default draw guarantees it). */
+    minGames: 3,
     /**
      * Optional GoFundMe (or other donation page) for extra donations from people who
      * aren't playing. Shows a "Donate" button next to the cause when set.
@@ -24,8 +31,8 @@ export const BRAND = {
         fee: '$20 per player (required)',
         /** Required donation in dollars PER PLAYER (a pair gives twice this). */
         feeAmount: 20,
-        zelle: '', // e.g. 'sacsexec@gmail.com' or a phone number
-        venmo: '', // e.g. '@SACS-Pickleball'
+        zelle: 'sacsexec@gmail.com',
+        venmo: '@SACS-2k27',
     },
     charity: {
         name: 'Akshaya Patra Foundation',

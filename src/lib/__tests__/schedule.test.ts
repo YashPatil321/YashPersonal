@@ -72,3 +72,18 @@ describe('projectSchedule', () => {
     expect(p.minutes).toBeLessThanOrEqual(240);
   });
 });
+
+describe('default draw', () => {
+  it('guarantees every team at least 3 games before playoffs', () => {
+    for (let n = 2; n <= 60; n++) {
+      const t = make([{ n, settings: {} }], 10);
+      const games: Record<string, number> = {};
+      for (const m of Object.values(t.matches)) {
+        if (m.bye || (m.stage !== 'rr' && m.stage !== 'pool')) continue;
+        for (const s of [m.a, m.b]) if (s.kind === 'team') games[s.teamId] = (games[s.teamId] ?? 0) + 1;
+      }
+      const fewest = Math.min(...Object.keys(t.teams).map((id) => games[id] ?? 0));
+      expect(fewest, `${n} teams`).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
