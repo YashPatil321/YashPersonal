@@ -309,9 +309,16 @@ export function CauseCard({ compact = false }: { compact?: boolean }) {
           {!compact && ` ${BRAND.charity.blurb}`}
         </div>
       </div>
-      <a className="btn btn-sm" href={BRAND.charity.url} target="_blank" rel="noreferrer">
-        Learn more <ExternalLink size={13} />
-      </a>
+      <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+        {BRAND.donateUrl && (
+          <a className="btn btn-sm btn-primary" href={BRAND.donateUrl} target="_blank" rel="noreferrer">
+            Donate <ExternalLink size={13} />
+          </a>
+        )}
+        <a className="btn btn-sm" href={BRAND.charity.url} target="_blank" rel="noreferrer">
+          Learn more <ExternalLink size={13} />
+        </a>
+      </div>
     </div>
   );
 }

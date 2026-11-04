@@ -2361,7 +2361,8 @@ h1 .wordmark,
   .cause {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .cause > a {
+  .cause > a,
+  .cause > .row {
     grid-column: 1 / -1;
     justify-self: start;
   }
