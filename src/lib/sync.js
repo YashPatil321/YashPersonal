@@ -1,4 +1,26 @@
+import { SUPABASE_KEY } from '../config';
+const isSupabase = (url) => /\.supabase\.co\/?$/.test(url);
+/** Supabase: every action goes to the one `pb` database function. */
+async function rpc(url, body) {
+    const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/pb`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: body.action, body }),
+    });
+    if (!res.ok)
+        throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.ok) {
+        const err = new Error(data.error || 'Request failed');
+        if (data.auth === false)
+            err.auth = true;
+        throw err;
+    }
+    return data;
+}
 async function getJSON(url, action) {
+    if (isSupabase(url))
+        return rpc(url, { action });
     const res = await fetch(`${url}?action=${action}&t=${Date.now()}`, { redirect: 'follow' });
     if (!res.ok)
         throw new Error(`HTTP ${res.status}`);
@@ -8,6 +30,8 @@ async function getJSON(url, action) {
     return data;
 }
 async function postJSON(url, body) {
+    if (isSupabase(url))
+        return rpc(url, body);
     // text/plain keeps this a "simple" CORS request (Apps Script can't answer preflights)
     const res = await fetch(url, {
         method: 'POST',

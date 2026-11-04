@@ -191,3 +191,16 @@ describe('quickDraw', () => {
     expect(Object.values(d.t.matches).length).toBeGreaterThan(0);
   });
 });
+
+describe('people who share an email', () => {
+  it('keeps siblings who signed up with a parent’s email as separate teams', () => {
+    const header = ['Timestamp', 'Full name', 'Email', 'Phone number', 'Division', "Partner's full name", "Partner's email", 'Anything else we should know?', 'Payment method', 'Payment confirmed', 'Extra donation', 'Anonymous'];
+    const rows = [
+      header,
+      ['1', 'Arjun Shah', 'mom@x.com', '', 'Kids/Teens', 'Priya Kumar', 'mom@x.com', '', 'Zelle', 'Yes, sent', '', ''],
+      ['2', 'Sam Shah', 'mom@x.com', '', 'Kids/Teens', 'Tara Lee', '', '', 'Zelle', 'Yes, sent', '', ''],
+    ];
+    const d = quickDraw(rows);
+    expect(Object.values(d.t.teams).map((x) => x.name).sort()).toEqual(['Arjun & Priya', 'Sam & Tara']);
+  });
+});

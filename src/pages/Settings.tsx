@@ -20,7 +20,7 @@ export function Settings() {
         <h1>Settings</h1>
       </div>
       <div className="stack" style={{ gap: 14 }}>
-        <SyncCard />
+        {/* Connection is automatic (Supabase); no setup box needed. */}
         {t && <ShareCard />}
         {t && isAdmin && <EventCard />}
         {t && isAdmin && <DivisionsCard />}
@@ -33,7 +33,7 @@ export function Settings() {
 
 /* ------------------------------------------------------------------ */
 
-function SyncCard() {
+export function SyncCard() {
   const { sync, syncState, connect, t, refresh } = useStore();
   const [url, setUrl] = useState(sync?.url ?? '');
   const [passcode, setPasscode] = useState(sync?.passcode ?? '');
