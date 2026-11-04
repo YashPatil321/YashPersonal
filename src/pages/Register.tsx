@@ -31,6 +31,13 @@ const EMPTY: RegistrationEntry = {
   anonymous: false,
 };
 
+type PartnerMode = 'join' | 'named' | 'solo';
+const PARTNER_MODES: Array<{ mode: PartnerMode; value: string; hint: string }> = [
+  { mode: 'join', value: 'Join my partner', hint: 'They already signed up' },
+  { mode: 'named', value: 'My partner is signing up too', hint: 'They’ll join you' },
+  { mode: 'solo', value: 'I need a partner', hint: 'We’ll pair you' },
+];
+
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 function Choices({
@@ -87,6 +94,7 @@ export function Register() {
   const [form, setForm] = useState<RegistrationEntry>(EMPTY);
   const [honeypot, setHoneypot] = useState('');
   const [donationChoice, setDonationChoice] = useState('No thanks');
+  const [partnerMode, setPartnerMode] = useState<PartnerMode>('named');
   const [customDonation, setCustomDonation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,6 +174,7 @@ export function Register() {
               onClick={() => {
                 setDone(null);
                 setForm(EMPTY);
+                setPartnerMode('named');
                 setDonationChoice('No thanks');
                 setCustomDonation('');
               }}
@@ -181,9 +190,10 @@ export function Register() {
     );
   }
 
-  const players = form.partnerName?.trim() ? 2 : 1;
+  const players = 1;
+  const waiting = info?.waiting ?? [];
   const amountDue = BRAND.payment.feeAmount * players + (form.donation ?? 0);
-  const names = [form.name.trim(), form.partnerName?.trim()].filter(Boolean).join(' & ');
+  const names = form.name.trim();
   const noteText = `${names || 'your name'} – SACS Pickleball`;
 
   const submit = async () => {
@@ -191,6 +201,8 @@ export function Register() {
     if (!form.name.trim()) return setError('Please enter your full name.');
     if (!emailOk(form.email)) return setError('Please enter a valid email.');
     if (!form.division) return setError('Please choose Adults or Kids/Teens.');
+    if (partnerMode === 'named' && !form.partnerName?.trim()) return setError('Please enter your partner’s name, or pick “I need a partner”.');
+    if (partnerMode === 'join' && !form.joinId) return setError('Tap the partner you’re joining.');
     if (!form.payment) return setError('Please choose how you’re sending your donation.');
     if (!form.paid) return setError('Please confirm your donation.');
     if (donationChoice === 'Other' && !(form.donation && form.donation > 0))
@@ -243,7 +255,7 @@ export function Register() {
             {BRAND.minGames} games.
           </p>
           <p>
-            It’s a <b>${BRAND.payment.feeAmount} donation per person</b> to play (${BRAND.payment.feeAmount * 2} for a team of two), and you can add more if you’d like. {BRAND.charity.pledge}{' '}
+            Everyone signs up for themselves with a <b>${BRAND.payment.feeAmount} donation</b>, then partners link up. You can add more if you’d like. {BRAND.charity.pledge}{' '}
             {BRAND.charity.blurb}
           </p>
         </div>
@@ -296,18 +308,54 @@ export function Register() {
         <div className="card">
           <h2>Your partner</h2>
           <p className="muted small" style={{ marginTop: -4 }}>
-            Optional. Leave this blank and we’ll pair you with someone. Only one of you needs to register.
+            Everyone signs up for themselves, partners too. Each person gives ${BRAND.payment.feeAmount}.
           </p>
-          <div className="form-grid">
-            <label className="field">
-              Partner’s full name
-              <input className="input" value={form.partnerName} onChange={(e) => set({ partnerName: e.target.value })} />
-            </label>
-            <label className="field">
-              Partner’s email
-              <input className="input" type="email" value={form.partnerEmail} onChange={(e) => set({ partnerEmail: e.target.value })} />
-            </label>
-          </div>
+          <Choices
+            name="Partner"
+            value={PARTNER_MODES.find((m) => m.mode === partnerMode)!.value}
+            onChange={(v) => {
+              const mode = PARTNER_MODES.find((m) => m.value === v)!.mode;
+              setPartnerMode(mode);
+              set({ joinId: undefined, partnerName: mode === 'named' ? form.partnerName : '', partnerSeparate: mode !== 'solo', paid: false });
+            }}
+            options={PARTNER_MODES.filter((m) => m.mode !== 'join' || waiting.length > 0)}
+          />
+          {partnerMode === 'join' && (
+            <div className="join-list" role="radiogroup" aria-label="Who are you joining?">
+              {waiting.map((w) => (
+                <label key={w.id} className={`join-item ${form.joinId === w.id ? 'on' : ''}`}>
+                  <input
+                    type="radio"
+                    name="join"
+                    checked={form.joinId === w.id}
+                    onChange={() => set({ joinId: w.id, division: w.division, partnerSeparate: true, paid: false })}
+                  />
+                  <span>
+                    <b>{w.name}</b> is waiting for {w.partner || 'their partner'}
+                    <span className="small muted"> · {w.division}</span>
+                  </span>
+                </label>
+              ))}
+              <p className="small muted" style={{ margin: '6px 0 0' }}>
+                Not listed? Pick “My partner is signing up too” and type their name.
+              </p>
+            </div>
+          )}
+          {partnerMode === 'named' && (
+            <>
+              <label className="field" style={{ marginTop: 12 }}>
+                Partner’s full name *
+                <input className="input" value={form.partnerName} onChange={(e) => set({ partnerName: e.target.value })} />
+              </label>
+              <p className="small muted" style={{ margin: '8px 0 0' }}>
+                Send {form.partnerName?.trim().split(' ')[0] || 'your partner'} this page. When they sign up, they tap your name under
+                “Join my partner” and you’re one team.
+              </p>
+            </>
+          )}
+          {partnerMode === 'solo' && (
+            <p className="small muted" style={{ margin: '10px 0 0' }}>We’ll pair you with another player who signed up solo.</p>
+          )}
         </div>
 
         <div className="card">
@@ -340,7 +388,7 @@ export function Register() {
               ${BRAND.payment.feeAmount} <span>per person</span>
             </div>
             <div className="small">
-              Required to play. Signing up with a partner? That’s <b>${BRAND.payment.feeAmount * 2}</b> for the two of you.
+              Required to play. Your partner signs up and gives their own.
             </div>
           </div>
           <p className="muted small">{BRAND.charity.pledge}</p>
@@ -377,7 +425,7 @@ export function Register() {
           <div className="total-box" aria-live="polite">
             <div className="total-line">
               <span>
-                Required: ${BRAND.payment.feeAmount} per person × {players} {players === 1 ? 'person' : 'people'}
+                Your required donation
               </span>
               <b>${BRAND.payment.feeAmount * players}</b>
             </div>

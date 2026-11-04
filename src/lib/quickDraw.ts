@@ -14,6 +14,8 @@ export interface QuickDraw {
   teams: number;
   /** Players who signed up alone and had no one left to pair with. */
   needPartner: string[];
+  /** Partners who were supposed to sign up on their own but haven't ("Rhea Jain (with Yash Patil)"). */
+  notSignedUp: string[];
   warnings: string[];
 }
 
@@ -62,7 +64,19 @@ export function quickDraw(rows: string[][]): QuickDraw {
     distinctTeamNames(teams, players),
     divisions,
   );
+  // "My partner will sign up on their own" — but did they?
+  const header = rows[0] ?? [];
+  const col = (title: string) => header.indexOf(title);
+  const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, ' ');
+  const signedUp = new Set(rows.slice(1).map((r) => norm(r[col('Full name')] ?? '')));
+  const notSignedUp = rows
+    .slice(1)
+    .filter((r) => col('Partner pays separately') >= 0 && /^yes/i.test(r[col('Partner pays separately')] ?? ''))
+    .filter((r) => !signedUp.has(norm(r[col("Partner's full name")] ?? '')))
+    .map((r) => `${(r[col("Partner's full name")] ?? '').trim()} (with ${(r[col('Full name')] ?? '').trim()})`);
+
   return {
+    notSignedUp,
     t: { ...t, published: false },
     teams: divisions.reduce((n, d) => n + d.teamIds.length, 0),
     needPartner,

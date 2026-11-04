@@ -27,6 +27,7 @@ export function useEventInfo() {
                 registrationOpen: d.registrationOpen !== false,
                 registrations: d.registrations ?? 0,
                 fundraising: d.fundraising ?? { donations: 0, donors: 0, players: 0, goal: 0, extra: 0 },
+                waiting: d.waiting ?? [],
             });
         })
             .catch(() => alive && setInfo(null))

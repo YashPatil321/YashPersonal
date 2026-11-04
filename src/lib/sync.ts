@@ -17,6 +17,14 @@ export interface Fundraising {
 }
 
 /** One sign-up from the website's Register tab (keys match the Apps Script REG_FIELDS). */
+/** Someone who signed up and is waiting for their partner to join (short name only). */
+export interface Waiting {
+  id: number;
+  name: string;
+  partner: string;
+  division: 'Adults' | 'Kids/Teens';
+}
+
 export interface RegistrationEntry {
   name: string;
   email: string;
@@ -24,6 +32,10 @@ export interface RegistrationEntry {
   division: 'Adults' | 'Kids/Teens' | '';
   partnerName?: string;
   partnerEmail?: string;
+  /** Partner signs up (and pays) on their own; they'll join this sign-up. */
+  partnerSeparate?: boolean;
+  /** Joining someone who's waiting for a partner (their sign-up id). */
+  joinId?: number;
   notes?: string;
   payment: 'Zelle' | 'Venmo' | 'Cash at check-in' | '';
   /** The registrant ticked "I've paid" (or will bring cash). */
@@ -102,6 +114,7 @@ export const remote = {
       registrationOpen?: boolean;
       registrations?: number;
       fundraising?: Fundraising;
+      waiting?: Waiting[];
     }>,
   /** Public: save one sign-up from the Register tab. `website` is a honeypot that must stay empty. */
   register: (url: string, entry: RegistrationEntry, website = ''): Promise<{ count?: number }> =>

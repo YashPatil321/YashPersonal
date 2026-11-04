@@ -184,3 +184,20 @@ describe('people who share an email', () => {
         expect(Object.values(d.t.teams).map((x) => x.name).sort()).toEqual(['Arjun & Priya', 'Sam & Tara']);
     });
 });
+describe('partners who sign up on their own', () => {
+    const header = ['Timestamp', 'Full name', 'Email', 'Phone number', 'Division', "Partner's full name", "Partner's email", 'Anything else we should know?', 'Payment method', 'Payment confirmed', 'Extra donation', 'Anonymous', 'Partner pays separately'];
+    it('puts two separate sign-ups on one team', () => {
+        const d = quickDraw([
+            header,
+            ['1', 'Yash Patil', 'y@x.com', '', 'Kids/Teens', 'Rhea Jain', '', '', 'Zelle', 'Yes, sent', '', '', 'Yes'],
+            ['2', 'Rhea Jain', 'r@x.com', '', 'Kids/Teens', 'Yash Patil', '', '', 'Venmo', 'Yes, sent', '', '', 'Yes'],
+        ]);
+        expect(Object.values(d.t.teams).map((x) => x.name)).toEqual(['Yash & Rhea']);
+        expect(d.notSignedUp).toEqual([]);
+    });
+    it('flags a partner who never signed up', () => {
+        const d = quickDraw([header, ['1', 'Yash Patil', 'y@x.com', '', 'Kids/Teens', 'Rhea Jain', '', '', 'Zelle', 'Yes, sent', '', '', 'Yes']]);
+        expect(Object.values(d.t.teams).map((x) => x.name)).toEqual(['Yash & Rhea']);
+        expect(d.notSignedUp).toEqual(['Rhea Jain (with Yash Patil)']);
+    });
+});

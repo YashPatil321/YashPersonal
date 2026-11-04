@@ -250,7 +250,7 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
         )}
       </div>
       <div className="gf-price">
-        <b>${BRAND.payment.feeAmount} per person</b> to play · ${BRAND.payment.feeAmount * 2} for a team of two
+        <b>${BRAND.payment.feeAmount} per person</b> to play · partners sign up separately
       </div>
       {lastDay > 0 && (
         <div className="gf-trend">
