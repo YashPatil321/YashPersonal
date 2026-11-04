@@ -6,6 +6,8 @@ export type Role = 'admin' | 'scorer' | 'viewer';
 export interface Fundraising {
   donations: number;
   donors: number;
+  /** Players signed up: 1 per registration, 2 when a partner is listed. */
+  players: number;
   goal: number;
   /** Money raised outside the form (cash, GoFundMe…), entered by the organizer. */
   extra: number;

@@ -2,10 +2,10 @@ import { HandHeart } from 'lucide-react';
 import { BRAND } from '../brand';
 import type { EventInfo } from '../state/useEventInfo';
 
-/** Total raised = entry fees (per registration) + extra donations + money raised elsewhere. */
+/** Total raised = entry fees (per player) + extra donations + money raised elsewhere. */
 export function raisedTotal(info: EventInfo): number {
   const f = info.fundraising;
-  return Math.round(info.registrations * BRAND.payment.feeAmount + f.donations + f.extra);
+  return Math.round((f.players || info.registrations) * BRAND.payment.feeAmount + f.donations + f.extra);
 }
 
 const money = (n: number) => `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
@@ -17,7 +17,7 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
   const goal = info.fundraising.goal;
   if (!raised && !goal) return null;
   const pct = goal ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
-  const supporters = info.registrations;
+  const supporters = info.fundraising.players || info.registrations;
   return (
     <div className="fund-card">
       <div className="fund-top">
@@ -36,7 +36,7 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
       )}
       <div className="fund-stats">
         <span>
-          <b>{supporters}</b> {supporters === 1 ? 'sign-up' : 'sign-ups'}
+          <b>{supporters}</b> {supporters === 1 ? 'player' : 'players'}
         </span>
         {info.fundraising.donors > 0 && (
           <span>

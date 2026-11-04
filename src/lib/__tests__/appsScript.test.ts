@@ -151,7 +151,7 @@ describe('Apps Script backend (Code.gs)', () => {
     expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 2 });
     expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 3 });
     expect(api.get({ action: 'ping' }).registrations).toBe(3);
-    expect(api.get({ action: 'ping' }).fundraising).toEqual({ donations: 25, donors: 1, goal: 0, extra: 0 });
+    expect(api.get({ action: 'ping' }).fundraising).toEqual({ donations: 25, donors: 1, players: 4, goal: 0, extra: 0 });
     expect(api.post({ action: 'setFundraising', passcode: api.props.get('SCORER_PASSCODE'), goal: 1 }).ok).toBe(false);
     expect(api.post({ action: 'setFundraising', passcode: admin, goal: 3000, extra: 150 }).fundraising).toMatchObject({ goal: 3000, extra: 150 });
 
