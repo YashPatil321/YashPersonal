@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { parseCSV } from '../lib/csv';
 import { clampPoolCount } from '../lib/generate';
 import { uid } from '../lib/ids';
-import { averageRating, DEFAULT_IMPORT_OPTIONS, detectColumns, FIELD_LABELS, FIELD_ORDER, importRegistrations, seedTeams, teamDisplayName, } from '../lib/registrations';
+import { averageRating, DEFAULT_IMPORT_OPTIONS, detectColumns, FIELD_LABELS, FIELD_ORDER, importRegistrations, seedTeams, distinctTeamNames, teamDisplayName, } from '../lib/registrations';
 import { sampleRegistrations } from '../lib/sample';
 import { describeRules } from '../lib/scoring';
 import { formatDuration, projectSchedule } from '../lib/schedule';
@@ -100,7 +100,7 @@ export function Setup() {
             minutesPerMatch: info.minutesPerMatch,
             doubles: info.doubles,
             hoursAvailable: info.hours ?? 4,
-        }, draft.players, draft.teams, divisions);
+        }, draft.players, distinctTeamNames(draft.teams, draft.players), divisions);
         replace({ ...tournament, published: false });
         save(LS_DRAFT, null);
         navigate('/');

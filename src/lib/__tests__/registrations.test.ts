@@ -3,7 +3,9 @@ import { seededRandom } from '../ids';
 import {
   DEFAULT_IMPORT_OPTIONS,
   detectColumns,
+  distinctTeamNames,
   importRegistrations,
+  teamDisplayName,
   isNoPartner,
   pairFreeAgents,
   parseSkill,
@@ -77,13 +79,13 @@ describe('importRegistrations', () => {
   it('pairs mutual partners, creates unregistered partners, pairs free agents, dedupes', () => {
     const res = importRegistrations(rows, mapping, DEFAULT_IMPORT_OPTIONS, seededRandom(1));
     const mens = res.divisions.find((d) => d.name === "Men's Doubles")!;
-    const names = mens.teamIds.map((id) => res.teams[id].name.split(' / ').sort().join(' / '));
-    expect(names).toContain('Alex Kim / Jordan Lee');
-    expect(names).toContain('Chris Wu / Sam Park');
+    const names = mens.teamIds.map((id) => res.teams[id].name.split(' & ').sort().join(' & '));
+    expect(names).toContain('Alex & Jordan');
+    expect(names).toContain('Chris & Sam');
     // 3 free agents → one balanced pair + one leftover (most recent = Ray Ng)
     expect(mens.teamIds.length).toBe(3);
     expect(res.unmatched.map((u) => res.players[u.playerId].name)).toEqual(['Ray Ng']);
-    expect(names).toContain('Lou Dobbs / Pat Moe');
+    expect(names).toContain('Lou & Pat');
     expect(res.warnings.some((w) => w.includes('Duplicate registration for Alex Kim'))).toBe(true);
     // Checkbox answers split into two divisions; Dana's partner Alex isn't in those divisions → new teams
     expect(res.divisions.map((d) => d.name)).toEqual(["Men's Doubles", 'Mixed Doubles', 'Womens Doubles']);
@@ -91,7 +93,7 @@ describe('importRegistrations', () => {
     const alexIds = Object.values(res.players).filter((p) => p.name === 'Alex Kim');
     expect(alexIds.length).toBe(1);
     // Ratings averaged
-    const ak = Object.values(res.teams).find((t) => t.name.includes('Jordan Lee'))!;
+    const ak = Object.values(res.teams).find((t) => t.name.includes('Jordan'))!;
     expect(ak.rating).toBe(3.25);
   });
 
@@ -139,5 +141,25 @@ describe('classifyGoogleUrl', () => {
     expect((classifyGoogleUrl('https://docs.google.com/spreadsheets/d/e/2PACX-xyz/pubhtml') as { url: string }).url).toContain('output=csv');
     expect(classifyGoogleUrl('https://script.google.com/macros/s/AKfy/exec').kind).toBe('appsScript');
     expect(classifyGoogleUrl('https://docs.google.com/forms/d/e/1FAIp/viewform').kind).toBe('form');
+  });
+});
+
+describe('team names', () => {
+  const p = (id: string, name: string) => ({ id, name });
+  it('names a team by first names, like "Yash & Rhea"', () => {
+    expect(teamDisplayName([p('a', 'Yash Patil'), p('b', 'Rhea Jain')])).toBe('Yash & Rhea');
+    expect(teamDisplayName([p('a', 'Yash Patil')])).toBe('Yash Patil');
+  });
+  it('adds last initials, then full names, only when two teams would clash', () => {
+    const players = {
+      a: p('a', 'Arjun Shah'), b: p('b', 'Priya Kumar'),
+      c: p('c', 'Arjun Mehta'), d: p('d', 'Priya Rao'),
+      e: p('e', 'Yash Patil'), f: p('f', 'Rhea Jain'),
+    };
+    const team = (id: string, ids: string[]) => ({ id, name: teamDisplayName(ids.map((x) => players[x as keyof typeof players])), playerIds: ids, divisionId: 'x' });
+    const out = distinctTeamNames({ t1: team('t1', ['a', 'b']), t2: team('t2', ['c', 'd']), t3: team('t3', ['e', 'f']) }, players);
+    expect(out.t1.name).toBe('Arjun S. & Priya K.');
+    expect(out.t2.name).toBe('Arjun M. & Priya R.');
+    expect(out.t3.name).toBe('Yash & Rhea');
   });
 });

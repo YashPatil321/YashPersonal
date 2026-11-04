@@ -199,6 +199,7 @@ describe('Apps Script backend (Code.gs)', () => {
         expect(res.divisions.map((d) => d.name)).toEqual(['Adults', 'Kids/Teens']);
         const riyaTeam = Object.values(res.teams).find((t) => t.playerIds.some((id) => res.players[id].name === 'Arjun Rao'));
         expect(riyaTeam.playerIds.map((id) => res.players[id].name)).toEqual(['Riya Shah', 'Arjun Rao']);
+        expect(riyaTeam.name).toBe('Riya & Arjun'); // a pair who signed up together is one team, named by first names
         expect(res.divisions[1].teamIds.length).toBe(1); // two free agents paired
         // Organizer can close registration; publishing the draw also closes it
         expect(api.post({ action: 'setRegistration', passcode: admin, open: false })).toMatchObject({ ok: true, registrationOpen: false });

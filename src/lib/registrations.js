@@ -147,10 +147,56 @@ function joinName(first, last) {
         return titleCase(l);
     return titleCase(`${f} ${l}`);
 }
+const firstName = (name) => name.trim().split(/\s+/)[0] || name.trim();
+const withInitial = (name) => {
+    const parts = name.trim().split(/\s+/);
+    return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.` : parts[0];
+};
+/** Team name from its players: "Yash & Rhea" (a solo player keeps their full name). */
 export function teamDisplayName(players, teamName) {
     if (teamName?.trim())
         return teamName.trim();
-    return players.map((p) => p.name).join(' / ');
+    if (players.length === 1)
+        return players[0].name.trim();
+    return players.map((p) => firstName(p.name)).join(' & ');
+}
+/** Every automatic style of name a team of these players could have. */
+export function autoTeamNames(players) {
+    if (players.length === 1)
+        return [players[0].name.trim()];
+    return [
+        players.map((p) => firstName(p.name)).join(' & '),
+        players.map((p) => withInitial(p.name)).join(' & '),
+        players.map((p) => p.name.trim()).join(' & '),
+    ];
+}
+/**
+ * Make automatic team names unique: "Yash & Rhea" stays as is, but two teams
+ * that would both be "Arjun & Priya" become "Arjun S. & Priya K." (then full names).
+ * Teams with a custom name are left alone.
+ */
+export function distinctTeamNames(teams, players) {
+    const out = { ...teams };
+    const members = (t) => t.playerIds.map((id) => players[id]).filter(Boolean);
+    const isAuto = (t) => autoTeamNames(members(t)).includes(t.name);
+    for (let level = 0; level < 3; level++) {
+        const counts = new Map();
+        Object.values(out).forEach((t) => counts.set(t.name.toLowerCase(), (counts.get(t.name.toLowerCase()) ?? 0) + 1));
+        let changed = false;
+        for (const t of Object.values(out)) {
+            if ((counts.get(t.name.toLowerCase()) ?? 0) < 2 || !isAuto(t))
+                continue;
+            const options = autoTeamNames(members(t));
+            const next = options[Math.min(options.length - 1, options.indexOf(t.name) + 1)];
+            if (next && next !== t.name) {
+                out[t.id] = { ...t, name: next };
+                changed = true;
+            }
+        }
+        if (!changed)
+            break;
+    }
+    return out;
 }
 export function averageRating(players) {
     const r = players.map((p) => p.rating).filter((x) => typeof x === 'number');
@@ -349,7 +395,7 @@ export function importRegistrations(rows, mapping, options, random = Math.random
         }
         divisions.push({ name: divName, teamIds });
     }
-    return { players, teams, divisions, unmatched, warnings, rowCount: body.length };
+    return { players, teams: distinctTeamNames(teams, players), divisions, unmatched, warnings, rowCount: body.length };
 }
 /**
  * Pair free agents.
