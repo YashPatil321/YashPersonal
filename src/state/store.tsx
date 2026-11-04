@@ -56,7 +56,9 @@ export function save(key: string, value: unknown) {
 
 function initialSync(): SyncConfig | null {
   const stored = load<SyncConfig>(LS_SYNC);
-  const live = new URLSearchParams(window.location.search).get('live') || DEFAULT_LIVE_URL;
+  // Old links carried the retired Google Apps Script address; everyone uses the built-in backend now.
+  const param = new URLSearchParams(window.location.search).get('live');
+  const live = param && !/script\.google(usercontent)?\.com/.test(param) ? param : DEFAULT_LIVE_URL;
   if (live) {
     if (stored?.url === live) return stored;
     const viewer: SyncConfig = { url: live, role: 'viewer' };

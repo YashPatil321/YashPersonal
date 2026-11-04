@@ -5,6 +5,7 @@ import setupScript from '../../apps-script/Code.gs?raw';
 import { BRAND } from '../brand';
 import { download } from '../lib/exporters';
 import { Mandala, Toran } from '../components/ui';
+import { DEFAULT_LIVE_URL } from '../config';
 import { quickDraw } from '../lib/quickDraw';
 import { remote } from '../lib/sync';
 import { FundraiserCard, raisedTotal } from '../components/Fundraiser';
@@ -177,7 +178,7 @@ function ShareTab() {
     const { sync } = useStore();
     if (!sync)
         return null;
-    const base = `${siteBase()}?live=${encodeURIComponent(sync.url)}`;
+    const base = sync.url === DEFAULT_LIVE_URL ? siteBase() : `${siteBase()}?live=${encodeURIComponent(sync.url)}`;
     return (_jsx("div", { className: "card", children: _jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsx(LinkRow, { label: "Registration link", url: `${base}#/register`, hint: "Send this to players so they can sign up." }), _jsx(LinkRow, { label: "Players\u2019 link", url: `${base}#/`, hint: "Courts, schedule and standings once you publish. Read-only." }), _jsx(LinkRow, { label: "Your organizer link", url: `${base}#/admin`, hint: "Bookmark it. Opens this page on any device (passcode needed)." })] }) }));
 }
 export function Admin() {
