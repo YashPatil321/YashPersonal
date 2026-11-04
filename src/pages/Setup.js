@@ -19,7 +19,7 @@ function emptyDraft() {
         step: 0,
         info: {
             name: BRAND.eventName,
-            date: new Date().toISOString().slice(0, 10),
+            date: BRAND.date,
             location: '',
             courtCount: 10,
             minutesPerMatch: 20,
