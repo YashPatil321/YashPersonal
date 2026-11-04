@@ -15,9 +15,10 @@ function tournament(): Tournament {
     teams[`t${i}`] = { id: `t${i}`, name: `Team ${i}`, playerIds: [`p${i}`], divisionId: 'x' };
     ids.push(`t${i}`);
   }
-  return buildTournament({ name: 'T', courts: courtNames(2), minutesPerMatch: 20, doubles: false }, players, teams, [
+  const t = buildTournament({ name: 'T', courts: courtNames(2), minutesPerMatch: 20, doubles: false }, players, teams, [
     { name: 'Open', teamIds: ids, settings: defaultDivisionSettings(4) },
   ]);
+  return { ...t, published: true };
 }
 
 describe('Apps Script backend (Code.gs)', () => {
@@ -63,6 +64,42 @@ describe('Apps Script backend (Code.gs)', () => {
     const full = api.post({ action: 'state', passcode: 'secret' });
     expect(full.state.players.p0.email).toBe('p0@example.com');
     expect(api.get({ action: 'version' }).version).toBe(1);
+  });
+
+  it('never writes sign-ups under the wrong column titles', () => {
+    const api = createAppsScript({ standalone: true });
+    api.setup();
+    const admin = api.props.get('ADMIN_PASSCODE');
+    const book = api.books.get(api.props.get('SHEET_ID'));
+    // A tab made by an older version, with different columns and one sign-up
+    const old = book.getSheetByName('Registrations');
+    old.cells = [
+      ['Timestamp', 'Full name', 'Email', 'Phone number', 'School', 'Skill level', 'Bracket', "Partner's full name", "Partner's email", "Partner's skill level", 'Team name (optional)', 'Anything else we should know?'],
+      ['11/3/2026', 'Yash Patil', 'yash@example.com', '', '', 'Kids/Teens', 'Rhea Jain', 'yash@example.com', '', 'Zelle', 'Yes, sent', '$100', 'Yes'],
+    ];
+    expect(api.get({ action: 'ping' }).registrations).toBe(0); // old tab set aside
+    expect(book.getSheets().map((s: { name: string }) => s.name)).toEqual(expect.arrayContaining(['Registrations', 'Registrations (old)']));
+    expect(book.getSheetByName('Registrations (old)').cells[1][1]).toBe('Yash Patil'); // nothing lost
+    expect(
+      api.post({
+        action: 'register',
+        entry: { name: 'Yash Patil', email: 'yash@example.com', division: 'Kids/Teens', partnerName: 'Rhea Jain', payment: 'Zelle', paid: true, donation: '100' },
+      }),
+    ).toMatchObject({ ok: true, count: 1 });
+    const rows = api.post({ action: 'registrations', passcode: admin }).rows as string[][];
+    const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
+    const team = Object.values(res.teams)[0];
+    expect(team.name).toBe('Yash & Rhea');
+    expect(team.playerIds.map((id) => res.players[id].name)).toEqual(['Yash Patil', 'Rhea Jain']);
+    expect(res.divisions.map((d) => d.name)).toEqual(['Kids/Teens']);
+  });
+
+  it('keeps an old save with no publish flag hidden too', () => {
+    const api = createAppsScript({ adminPasscode: 'secret' });
+    const { published: _ignored, ...old } = tournament();
+    void _ignored;
+    api.post({ action: 'saveState', passcode: 'secret', state: old });
+    expect(api.get({ action: 'state' }).state).toBeNull();
   });
 
   it('keeps a draft draw hidden from players until the organizer publishes it', () => {

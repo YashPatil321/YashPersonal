@@ -51,6 +51,13 @@ class FakeSheet {
   getName() {
     return this.name;
   }
+  setName(n) {
+    this.name = n;
+    return this;
+  }
+  getLastColumn() {
+    return Math.max(0, ...this.cells.map((r) => r.length));
+  }
   hideSheet() {
     this.hidden = true;
   }

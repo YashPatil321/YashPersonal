@@ -1,6 +1,6 @@
 import { Fragment as _Fragment, jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from 'react';
-import { Activity, HandHeart, CalendarClock, ClipboardList, Ellipsis, House, LayoutGrid, ListOrdered, LogIn, LogOut, Network, Settings as SettingsIcon, ShieldCheck, Trophy, Tv, UserRound, } from 'lucide-react';
+import { Activity, HandHeart, CalendarClock, ClipboardList, Ellipsis, House, LayoutGrid, ListOrdered, LogIn, LogOut, Network, Settings as SettingsIcon, ShieldCheck, Trophy, UserRound, } from 'lucide-react';
 import { BRAND } from './brand';
 import { FundraiserCard } from './components/Fundraiser';
 import { BallIcon, BrandName, CauseCard, Mandala, Modal, Toran } from './components/ui';
@@ -14,18 +14,13 @@ import { Settings } from './pages/Settings';
 import { Setup } from './pages/Setup';
 import { Brackets, Standings } from './pages/Standings';
 import { TeamDetail, Teams } from './pages/Teams';
-import { TV } from './pages/TV';
 import { useRoute } from './state/router';
 import { useStore } from './state/store';
 import { useEventInfo } from './state/useEventInfo';
 export function App() {
     const route = useRoute();
-    const { t } = useStore();
-    const [page] = route.parts;
     const [login, setLogin] = useState(false);
     const [more, setMore] = useState(false);
-    if (page === 'tv' && t)
-        return _jsx(TV, {});
     return (_jsxs(_Fragment, { children: [_jsx(Header, {}), _jsx(DraftBar, {}), _jsx("main", { children: _jsx(Page, { onLogin: () => setLogin(true) }) }, route.path), _jsx(Footer, {}), _jsx(BottomNav, { onMore: () => setMore(true) }), login && _jsx(LoginModal, { onClose: () => setLogin(false) }), more && (_jsx(MoreSheet, { onClose: () => setMore(false), onLogin: () => {
                     setMore(false);
                     setLogin(true);
@@ -34,7 +29,7 @@ export function App() {
 /** Organizers only: the draw is a draft until they publish it. */
 function DraftBar() {
     const { t, isAdmin, update } = useStore();
-    if (!t || !isAdmin || t.published !== false)
+    if (!t || !isAdmin || t.published === true)
         return null;
     return (_jsxs("div", { className: "draft-bar", role: "status", children: [_jsxs("span", { children: [_jsx("b", { children: "Draft." }), " Only organizers can see this draw. Edit courts, matchups and teams as much as you like."] }), _jsx("button", { className: "btn btn-primary btn-sm", onClick: () => {
                     if (window.confirm('Publish the draw? Everyone will see the courts, teams and schedule, and registration closes.'))
@@ -97,7 +92,6 @@ function useNavItems() {
     ];
     if (hasBrackets)
         all.push({ path: 'brackets', label: 'Brackets', icon: _jsx(Network, { size: 18 }) });
-    all.push({ path: 'tv', label: 'TV', icon: _jsx(Tv, { size: 18 }) });
     if (isAdmin)
         all.push({ path: 'settings', label: 'Settings', icon: _jsx(SettingsIcon, { size: 18 }) });
     return all;

@@ -6,7 +6,7 @@ import { addLateTeam, canAddLateTeam, regenerateDivision } from '../lib/generate
 import { uid } from '../lib/ids';
 import { autoTeamNames, averageRating, distinctTeamNames, teamDisplayName } from '../lib/registrations';
 import { remote } from '../lib/sync';
-import { FORMAT_LABELS, defaultDivisionSettings } from '../lib/tournament';
+import { FORMAT_LABELS } from '../lib/tournament';
 import type { FormatType, Player, Team, Tournament } from '../lib/types';
 import { timeAgo } from '../components/ui';
 import { navigate } from '../state/router';
@@ -64,7 +64,7 @@ function SyncCard() {
         )}
       </div>
       <p className="muted small">
-        Optional. Connect the Apps Script that lives in your form’s Google Sheet and every phone, laptop and TV sees the same
+        Optional. Connect the Apps Script that lives in your form’s Google Sheet and every phone and laptop sees the same
         live scores. Without it, the tournament is saved on this device only. Setup takes about 3 minutes — see{' '}
         <b>apps-script/Code.gs</b> and the README.
       </p>
@@ -152,8 +152,7 @@ function ShareCard() {
       <h2>Share with players</h2>
       {!sync ? (
         <p className="muted small" style={{ margin: 0 }}>
-          Connect live sync above to get a link and QR code players can open on their phones. Without sync you can still put{' '}
-          <a href="#/tv">TV mode</a> on a screen connected to this device — it updates as you enter scores.
+          Connect the Google Sheet above to get a link and QR code players can open on their phones.
         </p>
       ) : (
         <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
@@ -172,9 +171,6 @@ function ShareCard() {
               >
                 {copied ? 'Copied!' : 'Copy link'}
               </button>
-              <a className="btn btn-sm" href="#/tv">
-                Open TV mode
-              </a>
             </div>
             <div className="tiny muted">
               Court volunteers: open the same link, then enter the scorer passcode under Settings to keep score.
@@ -369,16 +365,7 @@ export function DivisionsCard() {
           return (
             <div key={d.id} style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
               <div className="row-between" style={{ flexWrap: 'wrap' }}>
-                <input
-                  className="inline-input"
-                  style={{ fontWeight: 750, maxWidth: 260 }}
-                  defaultValue={d.name}
-                  onBlur={(e) => {
-                    const name = e.target.value.trim();
-                    if (name && name !== d.name)
-                      update((tt) => ({ ...tt, divisions: tt.divisions.map((x) => (x.id === d.id ? { ...x, name } : x)), updatedAt: Date.now() }));
-                  }}
-                />
+                <h3 style={{ margin: 0 }}>{d.name}</h3>
                 <span className="small muted">
                   {d.teamIds.length} {t.settings.doubles ? 'teams' : 'players'} · {played} matches started
                 </span>
@@ -468,20 +455,6 @@ export function DivisionsCard() {
         })}
       </div>
       <div className="row" style={{ marginTop: 14 }}>
-        <button
-          className="btn btn-sm"
-          onClick={() => {
-            const name = window.prompt('Name of the new division (e.g. Open, Mixed, Seniors)')?.trim();
-            if (!name) return;
-            update((tt) => ({
-              ...tt,
-              divisions: [...tt.divisions, { id: uid('d'), name, settings: defaultDivisionSettings(0), teamIds: [], pools: [] }],
-              updatedAt: Date.now(),
-            }));
-          }}
-        >
-          + Add a division
-        </button>
         <a className="btn btn-sm" href="#/setup">
           Start a new tournament from the sign-ups…
         </a>

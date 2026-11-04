@@ -7,7 +7,7 @@ import { addLateTeam, canAddLateTeam, regenerateDivision } from '../lib/generate
 import { uid } from '../lib/ids';
 import { autoTeamNames, averageRating, distinctTeamNames, teamDisplayName } from '../lib/registrations';
 import { remote } from '../lib/sync';
-import { FORMAT_LABELS, defaultDivisionSettings } from '../lib/tournament';
+import { FORMAT_LABELS } from '../lib/tournament';
 import { timeAgo } from '../components/ui';
 import { navigate } from '../state/router';
 import { useStore } from '../state/store';
@@ -36,7 +36,7 @@ function SyncCard() {
             setBusy(false);
         }
     };
-    return (_jsxs("div", { className: "card", children: [_jsxs("div", { className: "card-head", children: [_jsx("h2", { children: "Live sync with Google Sheets" }), sync && (_jsxs("span", { className: `badge ${syncState.status === 'synced' ? 'badge-final' : syncState.status === 'error' || syncState.status === 'offline' ? 'badge-warn' : ''}`, children: [syncState.status, " ", syncState.lastSync ? `· ${timeAgo(syncState.lastSync)}` : ''] }))] }), _jsxs("p", { className: "muted small", children: ["Optional. Connect the Apps Script that lives in your form\u2019s Google Sheet and every phone, laptop and TV sees the same live scores. Without it, the tournament is saved on this device only. Setup takes about 3 minutes \u2014 see", ' ', _jsx("b", { children: "apps-script/Code.gs" }), " and the README."] }), sync && (_jsxs("div", { className: "alert alert-ok small", style: { marginBottom: 12 }, children: ["Connected as ", _jsx("b", { children: sync.role }), sync.role === 'viewer' && ' (read-only — enter the passcode to keep score)', ".", syncState.message && _jsx("div", { children: syncState.message })] })), _jsxs("div", { className: "form-grid", children: [_jsxs("label", { className: "field", children: ["Apps Script web-app URL", _jsx("input", { className: "input", placeholder: "https://script.google.com/macros/s/\u2026/exec", value: url, onChange: (e) => setUrl(e.target.value) })] }), _jsxs("label", { className: "field", children: ["Passcode (admin or scorer)", _jsx("input", { className: "input", type: "password", placeholder: "Leave blank to just watch", value: passcode, onChange: (e) => setPasscode(e.target.value) })] })] }), _jsxs("div", { className: "row", style: { marginTop: 12 }, children: [_jsx("button", { className: "btn btn-primary", disabled: !url.trim() || busy, onClick: () => doConnect(false), children: busy ? 'Connecting…' : sync ? 'Reconnect' : 'Connect' }), t && !!passcode && (_jsx("button", { className: "btn", disabled: !url.trim() || busy, onClick: () => {
+    return (_jsxs("div", { className: "card", children: [_jsxs("div", { className: "card-head", children: [_jsx("h2", { children: "Live sync with Google Sheets" }), sync && (_jsxs("span", { className: `badge ${syncState.status === 'synced' ? 'badge-final' : syncState.status === 'error' || syncState.status === 'offline' ? 'badge-warn' : ''}`, children: [syncState.status, " ", syncState.lastSync ? `· ${timeAgo(syncState.lastSync)}` : ''] }))] }), _jsxs("p", { className: "muted small", children: ["Optional. Connect the Apps Script that lives in your form\u2019s Google Sheet and every phone and laptop sees the same live scores. Without it, the tournament is saved on this device only. Setup takes about 3 minutes \u2014 see", ' ', _jsx("b", { children: "apps-script/Code.gs" }), " and the README."] }), sync && (_jsxs("div", { className: "alert alert-ok small", style: { marginBottom: 12 }, children: ["Connected as ", _jsx("b", { children: sync.role }), sync.role === 'viewer' && ' (read-only — enter the passcode to keep score)', ".", syncState.message && _jsx("div", { children: syncState.message })] })), _jsxs("div", { className: "form-grid", children: [_jsxs("label", { className: "field", children: ["Apps Script web-app URL", _jsx("input", { className: "input", placeholder: "https://script.google.com/macros/s/\u2026/exec", value: url, onChange: (e) => setUrl(e.target.value) })] }), _jsxs("label", { className: "field", children: ["Passcode (admin or scorer)", _jsx("input", { className: "input", type: "password", placeholder: "Leave blank to just watch", value: passcode, onChange: (e) => setPasscode(e.target.value) })] })] }), _jsxs("div", { className: "row", style: { marginTop: 12 }, children: [_jsx("button", { className: "btn btn-primary", disabled: !url.trim() || busy, onClick: () => doConnect(false), children: busy ? 'Connecting…' : sync ? 'Reconnect' : 'Connect' }), t && !!passcode && (_jsx("button", { className: "btn", disabled: !url.trim() || busy, onClick: () => {
                             if (window.confirm('Upload this device’s tournament to the sheet, replacing whatever is there?'))
                                 void doConnect(true);
                         }, children: "Connect & publish this device\u2019s tournament" })), sync && (_jsxs(_Fragment, { children: [_jsx("button", { className: "btn btn-ghost", onClick: () => void refresh(), children: "Refresh now" }), _jsx("button", { className: "btn btn-ghost btn-danger", onClick: async () => setMessage({ ok: true, text: await connect(null) }), children: "Disconnect" })] }))] }), message && (_jsx("div", { className: `alert ${message.ok ? 'alert-ok' : 'alert-error'} small`, style: { marginTop: 12 }, children: message.text }))] }));
@@ -53,11 +53,11 @@ function ShareCard() {
             return;
         QRCode.toDataURL(link, { margin: 1, width: 360 }).then(setQr).catch(() => setQr(''));
     }, [link]);
-    return (_jsxs("div", { className: "card", children: [_jsx("h2", { children: "Share with players" }), !sync ? (_jsxs("p", { className: "muted small", style: { margin: 0 }, children: ["Connect live sync above to get a link and QR code players can open on their phones. Without sync you can still put", ' ', _jsx("a", { href: "#/tv", children: "TV mode" }), " on a screen connected to this device \u2014 it updates as you enter scores."] })) : (_jsxs("div", { className: "row", style: { alignItems: 'flex-start', gap: 16 }, children: [qr && _jsx("img", { className: "qr", src: qr, alt: "QR code for the live tournament page" }), _jsxs("div", { className: "stack", style: { flex: '1 1 240px', minWidth: 0 }, children: [_jsx("div", { className: "small muted", children: "Read-only live page \u2014 print the QR code or text the link:" }), _jsx("input", { className: "input", readOnly: true, value: link, onFocus: (e) => e.target.select() }), _jsxs("div", { className: "row", children: [_jsx("button", { className: "btn btn-sm", onClick: () => {
-                                            void navigator.clipboard?.writeText(link);
-                                            setCopied(true);
-                                            setTimeout(() => setCopied(false), 1500);
-                                        }, children: copied ? 'Copied!' : 'Copy link' }), _jsx("a", { className: "btn btn-sm", href: "#/tv", children: "Open TV mode" })] }), _jsx("div", { className: "tiny muted", children: "Court volunteers: open the same link, then enter the scorer passcode under Settings to keep score." })] })] }))] }));
+    return (_jsxs("div", { className: "card", children: [_jsx("h2", { children: "Share with players" }), !sync ? (_jsx("p", { className: "muted small", style: { margin: 0 }, children: "Connect the Google Sheet above to get a link and QR code players can open on their phones." })) : (_jsxs("div", { className: "row", style: { alignItems: 'flex-start', gap: 16 }, children: [qr && _jsx("img", { className: "qr", src: qr, alt: "QR code for the live tournament page" }), _jsxs("div", { className: "stack", style: { flex: '1 1 240px', minWidth: 0 }, children: [_jsx("div", { className: "small muted", children: "Read-only live page \u2014 print the QR code or text the link:" }), _jsx("input", { className: "input", readOnly: true, value: link, onFocus: (e) => e.target.select() }), _jsx("div", { className: "row", children: _jsx("button", { className: "btn btn-sm", onClick: () => {
+                                        void navigator.clipboard?.writeText(link);
+                                        setCopied(true);
+                                        setTimeout(() => setCopied(false), 1500);
+                                    }, children: copied ? 'Copied!' : 'Copy link' }) }), _jsx("div", { className: "tiny muted", children: "Court volunteers: open the same link, then enter the scorer passcode under Settings to keep score." })] })] }))] }));
 }
 /* ------------------------------------------------------------------ */
 export function EventCard() {
@@ -148,11 +148,7 @@ export function DivisionsCard() {
                     const outOfDate = d.settings.format !== 'pools_playoff'
                         ? d.teamIds.some((id) => !scheduled.has(id)) || [...scheduled].some((id) => !d.teamIds.includes(id))
                         : d.teamIds.length !== d.pools.reduce((n, p) => n + p.teamIds.length, 0);
-                    return (_jsxs("div", { style: { borderTop: '1px solid var(--line)', paddingTop: 12 }, children: [_jsxs("div", { className: "row-between", style: { flexWrap: 'wrap' }, children: [_jsx("input", { className: "inline-input", style: { fontWeight: 750, maxWidth: 260 }, defaultValue: d.name, onBlur: (e) => {
-                                            const name = e.target.value.trim();
-                                            if (name && name !== d.name)
-                                                update((tt) => ({ ...tt, divisions: tt.divisions.map((x) => (x.id === d.id ? { ...x, name } : x)), updatedAt: Date.now() }));
-                                        } }), _jsxs("span", { className: "small muted", children: [d.teamIds.length, " ", t.settings.doubles ? 'teams' : 'players', " \u00B7 ", played, " matches started"] })] }), _jsxs("div", { className: "form-grid", style: { marginTop: 8 }, children: [_jsxs("label", { className: "field", children: ["Format", _jsx("select", { className: "input", value: d.settings.format, onChange: (e) => update((tt) => ({
+                    return (_jsxs("div", { style: { borderTop: '1px solid var(--line)', paddingTop: 12 }, children: [_jsxs("div", { className: "row-between", style: { flexWrap: 'wrap' }, children: [_jsx("h3", { style: { margin: 0 }, children: d.name }), _jsxs("span", { className: "small muted", children: [d.teamIds.length, " ", t.settings.doubles ? 'teams' : 'players', " \u00B7 ", played, " matches started"] })] }), _jsxs("div", { className: "form-grid", style: { marginTop: 8 }, children: [_jsxs("label", { className: "field", children: ["Format", _jsx("select", { className: "input", value: d.settings.format, onChange: (e) => update((tt) => ({
                                                     ...tt,
                                                     divisions: tt.divisions.map((x) => x.id === d.id ? { ...x, settings: { ...x.settings, format: e.target.value } } : x),
                                                     updatedAt: Date.now(),
@@ -170,16 +166,7 @@ export function DivisionsCard() {
                                                 return;
                                             update((tt) => regenerateDivision(tt, d.id));
                                         }, children: "Rebuild schedule" })] })] }, d.id));
-                }) }), _jsxs("div", { className: "row", style: { marginTop: 14 }, children: [_jsx("button", { className: "btn btn-sm", onClick: () => {
-                            const name = window.prompt('Name of the new division (e.g. Open, Mixed, Seniors)')?.trim();
-                            if (!name)
-                                return;
-                            update((tt) => ({
-                                ...tt,
-                                divisions: [...tt.divisions, { id: uid('d'), name, settings: defaultDivisionSettings(0), teamIds: [], pools: [] }],
-                                updatedAt: Date.now(),
-                            }));
-                        }, children: "+ Add a division" }), _jsx("a", { className: "btn btn-sm", href: "#/setup", children: "Start a new tournament from the sign-ups\u2026" })] })] }));
+                }) }), _jsx("div", { className: "row", style: { marginTop: 14 }, children: _jsx("a", { className: "btn btn-sm", href: "#/setup", children: "Start a new tournament from the sign-ups\u2026" }) })] }));
 }
 /* ------------------------------------------------------------------ */
 function DataCard() {
