@@ -303,10 +303,10 @@ export function CauseCard({ compact = false }: { compact?: boolean }) {
         <HandHeart size={22} />
       </span>
       <div style={{ minWidth: 0 }}>
-        <div className="cause-title">Playing for {BRAND.charity.name}</div>
+        <div className="cause-title">{BRAND.charity.name}</div>
         <div className="cause-text">
-          {BRAND.charity.pledge}
-          {!compact && ` ${BRAND.charity.blurb}`}
+          {BRAND.charity.blurb}
+          {!compact && ` ${BRAND.charity.pledge}`}
         </div>
       </div>
       <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>

@@ -8,13 +8,13 @@ export const BRAND = {
     eventName: 'SACS Pickleball Tournament',
     /** Who is putting the event on. */
     organizer: 'South Asian Culture Show',
-    tagline: 'Play for a cause',
+    tagline: 'Benefiting the Akshaya Patra Foundation',
     /** Shown on the landing page before the draw is published. */
     courts: 10,
     /** Used to plan the schedule only; not shown to players. */
     hours: 4,
     /** When the event is, as shown to players. */
-    when: 'November 29, starting at 11am',
+    when: 'Sunday, November 29 · 11am',
     /** ISO date the setup wizard starts with. */
     date: '2026-11-29',
     /** The only divisions. */
@@ -40,7 +40,7 @@ export const BRAND = {
         name: 'Akshaya Patra Foundation',
         url: 'https://apusa.org/',
         /** One-line description of the cause. */
-        blurb: 'Akshaya Patra serves free, nutritious school lunches to children across India, so they can stay in class and learn.',
-        pledge: 'A portion of every donation goes to the Akshaya Patra Foundation.',
+        blurb: 'Akshaya Patra provides free school meals to children across India.',
+        pledge: 'A portion of proceeds supports the Akshaya Patra Foundation.',
     },
 };
