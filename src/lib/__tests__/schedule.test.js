@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { finishMatch } from '../actions';
 import { resolveTournament } from '../resolve';
 import { matchMinutes, projectSchedule } from '../schedule';
+import { addLateTeam, canAddLateTeam } from '../generate';
 import { buildTournament, courtNames, defaultDivisionSettings } from '../tournament';
 function make(divs, courts, minutes = 20) {
     const players = {};
@@ -77,5 +78,48 @@ describe('default draw', () => {
             const fewest = Math.min(...Object.keys(t.teams).map((id) => games[id] ?? 0));
             expect(fewest, `${n} teams`).toBeGreaterThanOrEqual(3);
         }
+    });
+});
+describe('addLateTeam', () => {
+    const addTeam = (t, divIndex = 0) => {
+        const id = `late${Object.keys(t.teams).length}`;
+        const div = t.divisions[divIndex];
+        return {
+            id,
+            t: {
+                ...t,
+                players: { ...t.players, [id]: { id, name: id } },
+                teams: { ...t.teams, [id]: { id, name: id, playerIds: [id], divisionId: div.id } },
+                divisions: t.divisions.map((d, i) => (i === divIndex ? { ...d, teamIds: [...d.teamIds, id] } : d)),
+            },
+        };
+    };
+    const gamesOf = (t, id) => Object.values(t.matches).filter((m) => [m.a, m.b].some((s) => s.kind === 'team' && s.teamId === id));
+    it('adds a late team to pool play without touching existing scores', () => {
+        let t = make([{ n: 12, settings: {} }], 10);
+        const first = resolveTournament(t).ordered.find((r) => !r.isBye);
+        t = finishMatch(t, first.m.id, [{ a: 11, b: 4 }]);
+        const before = JSON.stringify(t.matches[first.m.id]);
+        const { id, t: withTeam } = addTeam(t);
+        expect(canAddLateTeam(withTeam, withTeam.divisions[0].id)).toBe(true);
+        const after = addLateTeam(withTeam, id);
+        expect(JSON.stringify(after.matches[first.m.id])).toBe(before);
+        expect(gamesOf(after, id).length).toBeGreaterThanOrEqual(3);
+        expect(after.divisions[0].pools.some((p) => p.teamIds.includes(id))).toBe(true);
+        const numbers = Object.values(after.matches).filter((m) => !m.bye).map((m) => m.number);
+        expect(new Set(numbers).size).toBe(numbers.length);
+        expect(addLateTeam(after, id)).toBe(after); // no duplicates
+        expect(() => resolveTournament(after)).not.toThrow();
+    });
+    it('round robin: the late team plays everyone', () => {
+        const t = make([{ n: 5, settings: {} }], 4);
+        const { id, t: withTeam } = addTeam(t);
+        expect(gamesOf(addLateTeam(withTeam, id), id).length).toBe(5);
+    });
+    it('elimination brackets need a rebuild', () => {
+        const t = make([{ n: 8, settings: { format: 'single_elim' } }], 4);
+        const { id, t: withTeam } = addTeam(t);
+        expect(canAddLateTeam(withTeam, withTeam.divisions[0].id)).toBe(false);
+        expect(addLateTeam(withTeam, id)).toBe(withTeam);
     });
 });

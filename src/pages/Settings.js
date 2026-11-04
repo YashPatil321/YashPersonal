@@ -3,17 +3,17 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { toCSV } from '../lib/csv';
 import { download, matchesTable, placementsTable, slug, standingsTable, teamsTable } from '../lib/exporters';
-import { regenerateDivision } from '../lib/generate';
+import { addLateTeam, canAddLateTeam, regenerateDivision } from '../lib/generate';
 import { uid } from '../lib/ids';
 import { averageRating, teamDisplayName } from '../lib/registrations';
 import { remote } from '../lib/sync';
-import { FORMAT_LABELS } from '../lib/tournament';
+import { FORMAT_LABELS, defaultDivisionSettings } from '../lib/tournament';
 import { timeAgo } from '../components/ui';
 import { navigate } from '../state/router';
 import { useStore } from '../state/store';
 export function Settings() {
     const { t, isAdmin } = useStore();
-    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "page-head", children: _jsx("h1", { children: "Settings" }) }), _jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsx(SyncCard, {}), t && _jsx(ShareCard, {}), t && isAdmin && _jsx(EventCard, {}), t && isAdmin && _jsx(DivisionsCard, {}), _jsx(DataCard, {})] })] }));
+    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "page-head", children: _jsx("h1", { children: "Settings" }) }), _jsxs("div", { className: "stack", style: { gap: 14 }, children: [_jsx(SyncCard, {}), t && _jsx(ShareCard, {}), t && isAdmin && _jsx(EventCard, {}), t && isAdmin && _jsx(DivisionsCard, {}), t && isAdmin && _jsx(PlayersCard, {}), _jsx(DataCard, {})] })] }));
 }
 /* ------------------------------------------------------------------ */
 function SyncCard() {
@@ -60,13 +60,34 @@ function ShareCard() {
                                         }, children: copied ? 'Copied!' : 'Copy link' }), _jsx("a", { className: "btn btn-sm", href: "#/tv", children: "Open TV mode" })] }), _jsx("div", { className: "tiny muted", children: "Court volunteers: open the same link, then enter the scorer passcode under Settings to keep score." })] })] }))] }));
 }
 /* ------------------------------------------------------------------ */
-function EventCard() {
+export function EventCard() {
     const { t, update } = useStore();
     if (!t)
         return null;
     const set = (p) => update((tt) => ({ ...tt, ...p, updatedAt: Date.now() }));
     const setCourts = (courts) => set({ courts });
-    return (_jsxs("div", { className: "card", children: [_jsx("h2", { children: "Event" }), _jsxs("div", { className: "form-grid", children: [_jsxs("label", { className: "field", children: ["Name", _jsx("input", { className: "input", defaultValue: t.name, onBlur: (e) => e.target.value.trim() && set({ name: e.target.value.trim() }) })] }), _jsxs("label", { className: "field", children: ["Date", _jsx("input", { className: "input", type: "date", defaultValue: t.date, onBlur: (e) => set({ date: e.target.value || undefined }) })] }), _jsxs("label", { className: "field", children: ["Location", _jsx("input", { className: "input", defaultValue: t.location, onBlur: (e) => set({ location: e.target.value.trim() || undefined }) })] }), _jsxs("label", { className: "field", children: ["Minutes for one game to 11", _jsx("input", { className: "input", type: "number", min: 5, defaultValue: t.settings.minutesPerMatch, onBlur: (e) => set({ settings: { ...t.settings, minutesPerMatch: Math.max(5, Number(e.target.value) || 20) } }) })] }), _jsxs("label", { className: "field", children: ["Hours you have the courts", _jsx("input", { className: "input", type: "number", min: 0.5, step: 0.5, defaultValue: t.settings.hoursAvailable ?? '', placeholder: "e.g. 4", onBlur: (e) => set({ settings: { ...t.settings, hoursAvailable: Number(e.target.value) > 0 ? Number(e.target.value) : undefined } }) })] })] }), _jsx("h3", { style: { marginTop: 16 }, children: "Courts" }), _jsxs("div", { className: "row", children: [t.courts.map((c, i) => (_jsxs("div", { className: "row", style: { gap: 2, background: 'var(--surface-2)', borderRadius: 10, padding: '2px 4px 2px 2px' }, children: [_jsx("input", { className: "inline-input", style: { width: 110 }, defaultValue: c, onBlur: (e) => {
+    return (_jsxs("div", { className: "card", children: [_jsx("h2", { children: "Event" }), _jsxs("div", { className: "form-grid", children: [_jsxs("label", { className: "field", children: ["Name", _jsx("input", { className: "input", defaultValue: t.name, onBlur: (e) => e.target.value.trim() && set({ name: e.target.value.trim() }) })] }), _jsxs("label", { className: "field", children: ["Date", _jsx("input", { className: "input", type: "date", defaultValue: t.date, onBlur: (e) => set({ date: e.target.value || undefined }) })] }), _jsxs("label", { className: "field", children: ["Location", _jsx("input", { className: "input", defaultValue: t.location, onBlur: (e) => set({ location: e.target.value.trim() || undefined }) })] }), _jsxs("label", { className: "field", children: ["Minutes for one game to 11", _jsx("input", { className: "input", type: "number", min: 5, defaultValue: t.settings.minutesPerMatch, onBlur: (e) => set({ settings: { ...t.settings, minutesPerMatch: Math.max(5, Number(e.target.value) || 20) } }) })] }), _jsxs("label", { className: "field", children: ["Hours you have the courts", _jsx("input", { className: "input", type: "number", min: 0.5, step: 0.5, defaultValue: t.settings.hoursAvailable ?? '', placeholder: "e.g. 4", onBlur: (e) => set({ settings: { ...t.settings, hoursAvailable: Number(e.target.value) > 0 ? Number(e.target.value) : undefined } }) })] })] }), _jsx("h3", { style: { marginTop: 16 }, children: "Courts" }), _jsxs("label", { className: "field", style: { maxWidth: 220, marginBottom: 10 }, children: ["Number of courts", _jsx("input", { className: "input", type: "number", min: 1, max: 60, defaultValue: t.courts.length, onBlur: (e) => {
+                            const want = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || t.courts.length)));
+                            if (want === t.courts.length)
+                                return;
+                            if (want < t.courts.length) {
+                                const busy = new Set(Object.values(t.matches).filter((m) => m.status === 'live' && m.court).map((m) => m.court));
+                                const keep = t.courts.slice(0, want);
+                                const dropped = t.courts.slice(want);
+                                if (dropped.some((c) => busy.has(c)) && !window.confirm('A match is in progress on a court you’re removing. Remove it anyway?'))
+                                    return;
+                                setCourts(keep);
+                                return;
+                            }
+                            const courts = [...t.courts];
+                            let n = courts.length + 1;
+                            while (courts.length < want) {
+                                while (courts.includes(`Court ${n}`))
+                                    n++;
+                                courts.push(`Court ${n}`);
+                            }
+                            setCourts(courts);
+                        } }, t.courts.length), _jsx("span", { className: "hint", children: "Or add, rename and remove courts one by one below." })] }), _jsxs("div", { className: "row", children: [t.courts.map((c, i) => (_jsxs("div", { className: "row", style: { gap: 2, background: 'var(--surface-2)', borderRadius: 10, padding: '2px 4px 2px 2px' }, children: [_jsx("input", { className: "inline-input", style: { width: 110 }, defaultValue: c, onBlur: (e) => {
                                     const name = e.target.value.trim();
                                     if (!name || name === c || t.courts.includes(name))
                                         return;
@@ -84,7 +105,7 @@ function EventCard() {
                         }, children: "+ Add court" })] })] }));
 }
 /* ------------------------------------------------------------------ */
-function DivisionsCard() {
+export function DivisionsCard() {
     const { t, resolved, update } = useStore();
     const [adding, setAdding] = useState({});
     if (!t || !resolved)
@@ -108,17 +129,19 @@ function DivisionsCard() {
                 divisionId,
                 rating: averageRating(members),
             };
-            return {
+            const next = {
                 ...tt,
                 players,
                 teams: { ...tt.teams, [team.id]: team },
                 divisions: tt.divisions.map((d) => (d.id === divisionId ? { ...d, teamIds: [...d.teamIds, team.id] } : d)),
                 updatedAt: Date.now(),
             };
+            // Round robin and pool play: slot the team in without touching any scores.
+            return canAddLateTeam(next, divisionId) ? addLateTeam(next, team.id) : next;
         });
         setAdding((s) => ({ ...s, [divisionId]: { p1: '', p2: '' } }));
     };
-    return (_jsxs("div", { className: "card", children: [_jsx("h2", { children: "Divisions & schedule" }), _jsx("p", { className: "muted small", children: "Late sign-up or withdrawal? Add or remove teams here, then rebuild that division\u2019s schedule. Rebuilding clears that division\u2019s scores, so do it before play starts." }), _jsx("div", { className: "stack", style: { gap: 16 }, children: t.divisions.map((d) => {
+    return (_jsxs("div", { className: "card", children: [_jsx("h2", { children: "Divisions & schedule" }), _jsx("p", { className: "muted small", children: "Late sign-up? Add the team here. In round robin and pool play it\u2019s slotted straight into the schedule (into the smallest pool) and every score is kept. For brackets, or after removing a team, rebuild that division\u2019s schedule; rebuilding clears that division\u2019s scores, so do it before play starts there." }), _jsx("div", { className: "stack", style: { gap: 16 }, children: t.divisions.map((d) => {
                     const rd = resolved.divisions[d.id];
                     const played = rd.matches.filter((r) => r.m.status !== 'pending').length;
                     const scheduled = new Set(rd.matches.flatMap((r) => [r.m.a, r.m.b]).flatMap((s) => (s.kind === 'team' ? [s.teamId] : [])));
@@ -147,7 +170,16 @@ function DivisionsCard() {
                                                 return;
                                             update((tt) => regenerateDivision(tt, d.id));
                                         }, children: "Rebuild schedule" })] })] }, d.id));
-                }) }), _jsx("div", { className: "row", style: { marginTop: 14 }, children: _jsx("a", { className: "btn btn-sm", href: "#/setup", children: "Start a new tournament from the form\u2026" }) })] }));
+                }) }), _jsxs("div", { className: "row", style: { marginTop: 14 }, children: [_jsx("button", { className: "btn btn-sm", onClick: () => {
+                            const name = window.prompt('Name of the new division (e.g. Open, Mixed, Seniors)')?.trim();
+                            if (!name)
+                                return;
+                            update((tt) => ({
+                                ...tt,
+                                divisions: [...tt.divisions, { id: uid('d'), name, settings: defaultDivisionSettings(0), teamIds: [], pools: [] }],
+                                updatedAt: Date.now(),
+                            }));
+                        }, children: "+ Add a division" }), _jsx("a", { className: "btn btn-sm", href: "#/setup", children: "Start a new tournament from the sign-ups\u2026" })] })] }));
 }
 /* ------------------------------------------------------------------ */
 function DataCard() {
@@ -194,4 +226,62 @@ function DataCard() {
                         replace(null);
                         navigate('/');
                     }, children: "Delete tournament" }) })), msg && (_jsx("div", { className: "alert small", style: { marginTop: 12 }, children: msg }))] }));
+}
+/* ------------------------------------------------------------------ */
+/** Fix any player's name (or swap in a new partner); team names follow automatically. */
+export function PlayersCard() {
+    const { t, update } = useStore();
+    const [q, setQ] = useState('');
+    if (!t)
+        return null;
+    const needle = q.trim().toLowerCase();
+    const teams = Object.values(t.teams).filter((team) => !needle ||
+        team.name.toLowerCase().includes(needle) ||
+        team.playerIds.some((id) => t.players[id]?.name.toLowerCase().includes(needle)));
+    const renamePlayer = (teamId, playerId, name) => update((tt) => {
+        const team = tt.teams[teamId];
+        if (!team || !tt.players[playerId])
+            return tt;
+        const players = { ...tt.players, [playerId]: { ...tt.players[playerId], name } };
+        const oldName = tt.players[playerId].name;
+        const autoName = team.name === teamDisplayName(team.playerIds.map((id) => tt.players[id]).filter(Boolean));
+        const members = team.playerIds.map((id) => players[id]).filter(Boolean);
+        const teamName = autoName ? teamDisplayName(members) : team.name.includes(oldName) ? team.name.replace(oldName, name) : team.name;
+        return {
+            ...tt,
+            players,
+            teams: { ...tt.teams, [teamId]: { ...team, name: teamName } },
+            updatedAt: Date.now(),
+        };
+    });
+    const renameTeam = (teamId, name) => update((tt) => ({ ...tt, teams: { ...tt.teams, [teamId]: { ...tt.teams[teamId], name } }, updatedAt: Date.now() }));
+    const addPartner = (teamId, name) => update((tt) => {
+        const team = tt.teams[teamId];
+        if (!team)
+            return tt;
+        const p = { id: uid('pl'), name };
+        const players = { ...tt.players, [p.id]: p };
+        const members = [...team.playerIds, p.id].map((id) => players[id]).filter(Boolean);
+        return {
+            ...tt,
+            players,
+            teams: { ...tt.teams, [teamId]: { ...team, playerIds: [...team.playerIds, p.id], name: teamDisplayName(members) } },
+            updatedAt: Date.now(),
+        };
+    });
+    return (_jsxs("div", { className: "card", children: [_jsx("h2", { children: "Teams & players" }), _jsx("p", { className: "muted small", children: "Fix a misspelled name or swap in a new partner by typing over their name. Scores and the schedule stay the same." }), _jsx("input", { className: "input", placeholder: "Search names\u2026", value: q, onChange: (e) => setQ(e.target.value), style: { marginBottom: 10 } }), _jsxs("div", { className: "stack", style: { gap: 8, maxHeight: 520, overflowY: 'auto' }, children: [teams.map((team) => (_jsxs("div", { className: "row", style: { gap: 6, borderTop: '1px solid var(--line)', paddingTop: 8 }, children: [_jsx("input", { className: "inline-input bold", style: { flex: '1 1 180px' }, defaultValue: team.name, "aria-label": "Team name", onBlur: (e) => {
+                                    const name = e.target.value.trim();
+                                    if (name && name !== team.name)
+                                        renameTeam(team.id, name);
+                                } }, `${team.id}-${team.name}`), team.playerIds.map((pid, i) => (_jsx("input", { className: "input", style: { flex: '1 1 140px' }, defaultValue: t.players[pid]?.name, "aria-label": `Player ${i + 1}`, onBlur: (e) => {
+                                    const name = e.target.value.trim();
+                                    if (name && name !== t.players[pid]?.name)
+                                        renamePlayer(team.id, pid, name);
+                                } }, `${pid}-${t.players[pid]?.name}`))), t.settings.doubles && team.playerIds.length < 2 && (_jsx("input", { className: "input", style: { flex: '1 1 140px' }, placeholder: "Add partner", onKeyDown: (e) => e.key === 'Enter' && e.target.blur(), onBlur: (e) => {
+                                    const name = e.target.value.trim();
+                                    if (name) {
+                                        addPartner(team.id, name);
+                                        e.target.value = '';
+                                    }
+                                } }))] }, team.id))), !teams.length && _jsx("div", { className: "muted small", children: "No matches." })] })] }));
 }

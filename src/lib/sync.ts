@@ -85,6 +85,14 @@ export const remote = {
   /** Public: save one sign-up from the Register tab. `website` is a honeypot that must stay empty. */
   register: (url: string, entry: RegistrationEntry, website = ''): Promise<{ count?: number }> =>
     postJSON(url, { action: 'register', entry, website }),
+  /** Admin: add a sign-up by hand (walk-ups, phone sign-ups). Works while registration is closed. */
+  addRegistration: (url: string, passcode: string, entry: RegistrationEntry): Promise<{ count?: number }> =>
+    postJSON(url, { action: 'addRegistration', passcode, entry }),
+  /** Admin: change sign-up number `row` (1 = first). `stamp` is its timestamp as loaded. */
+  editRegistration: (url: string, passcode: string, row: number, stamp: string, entry: RegistrationEntry): Promise<{ count?: number }> =>
+    postJSON(url, { action: 'editRegistration', passcode, row, stamp, entry }),
+  deleteRegistration: (url: string, passcode: string, row: number, stamp: string): Promise<{ count?: number }> =>
+    postJSON(url, { action: 'deleteRegistration', passcode, row, stamp }),
   setRegistration: (url: string, passcode: string, open: boolean): Promise<{ registrationOpen: boolean }> =>
     postJSON(url, { action: 'setRegistration', passcode, open }),
   setFundraising: (url: string, passcode: string, goal: number, extra: number): Promise<{ fundraising: Fundraising }> =>

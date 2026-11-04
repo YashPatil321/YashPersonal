@@ -28,7 +28,7 @@ export const BRAND = {
     donateUrl: '',
     /** Required donation and where to send it. Shown on the Register tab; leave '' to hide a line. */
     payment: {
-        fee: '$20 per player (required)',
+        fee: '$20 per person (required)',
         /** Required donation in dollars PER PLAYER (a pair gives twice this). */
         feeAmount: 20,
         zelle: 'sacsexec@gmail.com',

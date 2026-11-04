@@ -8,6 +8,8 @@ import { Mandala, Toran } from '../components/ui';
 import { remote } from '../lib/sync';
 import { FundraiserCard, raisedTotal } from '../components/Fundraiser';
 import type { EventInfo } from '../state/useEventInfo';
+import { SignupTable } from '../components/SignupManager';
+import { DivisionsCard, EventCard, PlayersCard } from './Settings';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
@@ -288,6 +290,32 @@ function Dashboard() {
       </div>
 
       {isAdmin && (
+        <>
+          <div className="section-title">
+            <h2>Courts, time &amp; teams</h2>
+          </div>
+          {t ? (
+            <div className="stack" style={{ gap: 14 }}>
+              <EventCard />
+              <DivisionsCard />
+              <PlayersCard />
+            </div>
+          ) : (
+            <div className="card">
+              <p className="muted small" style={{ marginTop: 0 }}>
+                You set the number of courts, the game length and how long you have the courts in step 1 of building the draw,
+                and you can rename teams, swap partners and add walk-ins in step 4. After the draw is out, you can change all of
+                it right here: add or rename courts, change the timing, add late teams, fix names, and add divisions.
+              </p>
+              <a className="btn btn-primary" href="#/setup">
+                <Wand2 size={16} /> Build the draw
+              </a>
+            </div>
+          )}
+        </>
+      )}
+
+      {isAdmin && (
         <div className="card section">
           <h2>Links</h2>
           <div className="stack" style={{ gap: 14 }}>
@@ -329,6 +357,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [show, setShow] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!show || !sync?.passcode) return;
@@ -340,7 +369,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
     return () => {
       alive = false;
     };
-  }, [show, sync?.url, sync?.passcode, count]);
+  }, [show, sync?.url, sync?.passcode, count, tick]);
 
   if (!sync?.passcode) return null;
   const toggle = async () => {
@@ -362,7 +391,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
   const donationTotal = body.reduce((sum, r) => sum + (Number(String(r[col('Extra donation')] ?? '').replace(/[^0-9.]/g, '')) || 0), 0);
 
   return (
-    <div className="card">
+    <div className="card" style={{ gridColumn: '1 / -1' }}>
       <div className="card-head">
         <h2>
           <ClipboardList size={20} style={{ verticalAlign: '-3px', marginRight: 6 }} />
@@ -388,7 +417,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
             </button>
           )}
           <button className="btn btn-sm btn-ghost" onClick={() => setShow((v) => !v)}>
-            {show ? 'Hide list' : 'See who signed up'}
+            {show ? 'Hide sign-ups' : 'Manage sign-ups'}
           </button>
         </div>
       </div>
@@ -397,43 +426,18 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
           {error}
         </div>
       )}
-      {show && (
-        <div className="table-wrap" style={{ marginTop: 12 }}>
-          {!rows ? (
-            <div className="muted small">Loading…</div>
-          ) : body.length === 0 ? (
-            <div className="muted small">No sign-ups yet.</div>
-          ) : (
-            <table className="table signup-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Partner</th>
-                  <th>Division</th>
-                  <th>School</th>
-                  <th>Paid</th>
-                  <th>Donation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {body
-                  .slice()
-                  .reverse()
-                  .map((r, i) => (
-                    <tr key={i}>
-                      <td className="bold">{r[col('Full name')]}</td>
-                      <td>{r[col("Partner's full name")] || <span className="muted">Needs a partner</span>}</td>
-                      <td>{r[col('Division')]}</td>
-                      <td className="small">{r[col('School')]}</td>
-                      <td className="small">{r[col('Payment method')]}</td>
-                      <td className="small">{r[col('Extra donation')]}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+      {show && rows && sync.passcode && (
+        <SignupTable
+          url={sync.url}
+          passcode={sync.passcode}
+          rows={rows}
+          onChanged={() => {
+            setTick((n) => n + 1);
+            onChange();
+          }}
+        />
       )}
+      {show && !rows && !error && <div className="muted small" style={{ marginTop: 12 }}>Loading…</div>}
     </div>
   );
 }

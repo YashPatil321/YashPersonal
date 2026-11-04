@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { toCSV } from '../lib/csv';
 import { download, matchesTable, placementsTable, slug, standingsTable, teamsTable } from '../lib/exporters';
-import { regenerateDivision } from '../lib/generate';
+import { addLateTeam, canAddLateTeam, regenerateDivision } from '../lib/generate';
 import { uid } from '../lib/ids';
 import { averageRating, teamDisplayName } from '../lib/registrations';
 import { remote } from '../lib/sync';
-import { FORMAT_LABELS } from '../lib/tournament';
+import { FORMAT_LABELS, defaultDivisionSettings } from '../lib/tournament';
 import type { FormatType, Player, Team, Tournament } from '../lib/types';
 import { timeAgo } from '../components/ui';
 import { navigate } from '../state/router';
@@ -24,6 +24,7 @@ export function Settings() {
         {t && <ShareCard />}
         {t && isAdmin && <EventCard />}
         {t && isAdmin && <DivisionsCard />}
+        {t && isAdmin && <PlayersCard />}
         <DataCard />
       </div>
     </>
@@ -187,7 +188,7 @@ function ShareCard() {
 
 /* ------------------------------------------------------------------ */
 
-function EventCard() {
+export function EventCard() {
   const { t, update } = useStore();
   if (!t) return null;
   const set = (p: Partial<Tournament>) => update((tt) => ({ ...tt, ...p, updatedAt: Date.now() }));
@@ -234,6 +235,37 @@ function EventCard() {
         </label>
       </div>
       <h3 style={{ marginTop: 16 }}>Courts</h3>
+      <label className="field" style={{ maxWidth: 220, marginBottom: 10 }}>
+        Number of courts
+        <input
+          key={t.courts.length}
+          className="input"
+          type="number"
+          min={1}
+          max={60}
+          defaultValue={t.courts.length}
+          onBlur={(e) => {
+            const want = Math.max(1, Math.min(60, Math.round(Number(e.target.value) || t.courts.length)));
+            if (want === t.courts.length) return;
+            if (want < t.courts.length) {
+              const busy = new Set(Object.values(t.matches).filter((m) => m.status === 'live' && m.court).map((m) => m.court));
+              const keep = t.courts.slice(0, want);
+              const dropped = t.courts.slice(want);
+              if (dropped.some((c) => busy.has(c)) && !window.confirm('A match is in progress on a court you’re removing. Remove it anyway?')) return;
+              setCourts(keep);
+              return;
+            }
+            const courts = [...t.courts];
+            let n = courts.length + 1;
+            while (courts.length < want) {
+              while (courts.includes(`Court ${n}`)) n++;
+              courts.push(`Court ${n}`);
+            }
+            setCourts(courts);
+          }}
+        />
+        <span className="hint">Or add, rename and remove courts one by one below.</span>
+      </label>
       <div className="row">
         {t.courts.map((c, i) => (
           <div key={`${c}-${i}`} className="row" style={{ gap: 2, background: 'var(--surface-2)', borderRadius: 10, padding: '2px 4px 2px 2px' }}>
@@ -281,7 +313,7 @@ function EventCard() {
 
 /* ------------------------------------------------------------------ */
 
-function DivisionsCard() {
+export function DivisionsCard() {
   const { t, resolved, update } = useStore();
   const [adding, setAdding] = useState<Record<string, { p1: string; p2: string }>>({});
   if (!t || !resolved) return null;
@@ -304,13 +336,15 @@ function DivisionsCard() {
         divisionId,
         rating: averageRating(members),
       };
-      return {
+      const next: Tournament = {
         ...tt,
         players,
         teams: { ...tt.teams, [team.id]: team },
         divisions: tt.divisions.map((d) => (d.id === divisionId ? { ...d, teamIds: [...d.teamIds, team.id] } : d)),
         updatedAt: Date.now(),
       };
+      // Round robin and pool play: slot the team in without touching any scores.
+      return canAddLateTeam(next, divisionId) ? addLateTeam(next, team.id) : next;
     });
     setAdding((s) => ({ ...s, [divisionId]: { p1: '', p2: '' } }));
   };
@@ -319,8 +353,9 @@ function DivisionsCard() {
     <div className="card">
       <h2>Divisions & schedule</h2>
       <p className="muted small">
-        Late sign-up or withdrawal? Add or remove teams here, then rebuild that division’s schedule. Rebuilding clears that
-        division’s scores, so do it before play starts.
+        Late sign-up? Add the team here. In round robin and pool play it’s slotted straight into the schedule (into the
+        smallest pool) and every score is kept. For brackets, or after removing a team, rebuild that division’s schedule;
+        rebuilding clears that division’s scores, so do it before play starts there.
       </p>
       <div className="stack" style={{ gap: 16 }}>
         {t.divisions.map((d) => {
@@ -433,8 +468,22 @@ function DivisionsCard() {
         })}
       </div>
       <div className="row" style={{ marginTop: 14 }}>
+        <button
+          className="btn btn-sm"
+          onClick={() => {
+            const name = window.prompt('Name of the new division (e.g. Open, Mixed, Seniors)')?.trim();
+            if (!name) return;
+            update((tt) => ({
+              ...tt,
+              divisions: [...tt.divisions, { id: uid('d'), name, settings: defaultDivisionSettings(0), teamIds: [], pools: [] }],
+              updatedAt: Date.now(),
+            }));
+          }}
+        >
+          + Add a division
+        </button>
         <a className="btn btn-sm" href="#/setup">
-          Start a new tournament from the form…
+          Start a new tournament from the sign-ups…
         </a>
       </div>
     </div>
@@ -549,6 +598,110 @@ function DataCard() {
           {msg}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+/** Fix any player's name (or swap in a new partner); team names follow automatically. */
+export function PlayersCard() {
+  const { t, update } = useStore();
+  const [q, setQ] = useState('');
+  if (!t) return null;
+  const needle = q.trim().toLowerCase();
+  const teams = Object.values(t.teams).filter(
+    (team) =>
+      !needle ||
+      team.name.toLowerCase().includes(needle) ||
+      team.playerIds.some((id) => t.players[id]?.name.toLowerCase().includes(needle)),
+  );
+  const renamePlayer = (teamId: string, playerId: string, name: string) =>
+    update((tt) => {
+      const team = tt.teams[teamId];
+      if (!team || !tt.players[playerId]) return tt;
+      const players = { ...tt.players, [playerId]: { ...tt.players[playerId], name } };
+      const oldName = tt.players[playerId].name;
+      const autoName = team.name === teamDisplayName(team.playerIds.map((id) => tt.players[id]).filter(Boolean));
+      const members = team.playerIds.map((id) => players[id]).filter(Boolean);
+      const teamName = autoName ? teamDisplayName(members) : team.name.includes(oldName) ? team.name.replace(oldName, name) : team.name;
+      return {
+        ...tt,
+        players,
+        teams: { ...tt.teams, [teamId]: { ...team, name: teamName } },
+        updatedAt: Date.now(),
+      };
+    });
+  const renameTeam = (teamId: string, name: string) =>
+    update((tt) => ({ ...tt, teams: { ...tt.teams, [teamId]: { ...tt.teams[teamId], name } }, updatedAt: Date.now() }));
+  const addPartner = (teamId: string, name: string) =>
+    update((tt) => {
+      const team = tt.teams[teamId];
+      if (!team) return tt;
+      const p = { id: uid('pl'), name };
+      const players = { ...tt.players, [p.id]: p };
+      const members = [...team.playerIds, p.id].map((id) => players[id]).filter(Boolean);
+      return {
+        ...tt,
+        players,
+        teams: { ...tt.teams, [teamId]: { ...team, playerIds: [...team.playerIds, p.id], name: teamDisplayName(members) } },
+        updatedAt: Date.now(),
+      };
+    });
+
+  return (
+    <div className="card">
+      <h2>Teams &amp; players</h2>
+      <p className="muted small">
+        Fix a misspelled name or swap in a new partner by typing over their name. Scores and the schedule stay the same.
+      </p>
+      <input className="input" placeholder="Search names…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 10 }} />
+      <div className="stack" style={{ gap: 8, maxHeight: 520, overflowY: 'auto' }}>
+        {teams.map((team) => (
+          <div key={team.id} className="row" style={{ gap: 6, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+            <input
+              key={`${team.id}-${team.name}`}
+              className="inline-input bold"
+              style={{ flex: '1 1 180px' }}
+              defaultValue={team.name}
+              aria-label="Team name"
+              onBlur={(e) => {
+                const name = e.target.value.trim();
+                if (name && name !== team.name) renameTeam(team.id, name);
+              }}
+            />
+            {team.playerIds.map((pid, i) => (
+              <input
+                key={`${pid}-${t.players[pid]?.name}`}
+                className="input"
+                style={{ flex: '1 1 140px' }}
+                defaultValue={t.players[pid]?.name}
+                aria-label={`Player ${i + 1}`}
+                onBlur={(e) => {
+                  const name = e.target.value.trim();
+                  if (name && name !== t.players[pid]?.name) renamePlayer(team.id, pid, name);
+                }}
+              />
+            ))}
+            {t.settings.doubles && team.playerIds.length < 2 && (
+              <input
+                className="input"
+                style={{ flex: '1 1 140px' }}
+                placeholder="Add partner"
+                onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                onBlur={(e) => {
+                  const name = e.target.value.trim();
+                  if (name) {
+                    addPartner(team.id, name);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            )}
+          </div>
+        ))}
+        {!teams.length && <div className="muted small">No matches.</div>}
+      </div>
     </div>
   );
 }

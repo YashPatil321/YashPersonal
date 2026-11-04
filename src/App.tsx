@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Activity,
+  HandHeart,
   CalendarClock,
   ClipboardList,
   Ellipsis,
@@ -393,6 +394,9 @@ function Landing() {
         <div className="row" style={{ marginBottom: 22 }}>
           <span className="chip">
             <UserRound size={14} /> Adults &amp; Kids/Teens divisions
+          </span>
+          <span className="chip">
+            <HandHeart size={14} /> ${BRAND.payment.feeAmount} per person
           </span>
           <span className="chip">
             <LayoutGrid size={14} /> {BRAND.courts} courts
