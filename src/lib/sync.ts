@@ -21,7 +21,7 @@ export interface RegistrationEntry {
   email: string;
   phone?: string;
   school?: string;
-  division: 'Adult' | 'Kids' | '';
+  division: 'Adults' | 'Kids/Teens' | '';
   partnerName?: string;
   partnerEmail?: string;
   notes?: string;

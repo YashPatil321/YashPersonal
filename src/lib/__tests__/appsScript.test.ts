@@ -129,12 +129,12 @@ describe('Apps Script backend (Code.gs)', () => {
     expect(register({ name: 'Bot', email: 'bot@spam.com', skill: 'x' }, 'http://spam')).toEqual({ ok: true }); // honeypot
     const base = { name: 'Riya Shah', email: 'riya@example.com', skill: 'Advanced (4.0+)' };
     expect(register({ ...base, division: 'Seniors', payment: 'Zelle', paid: true })).toMatchObject({ ok: false });
-    expect(register({ ...base, division: 'Adult', payment: '', paid: true })).toMatchObject({ ok: false });
-    expect(register({ ...base, division: 'Adult', payment: 'Zelle', paid: true, donation: '-5' })).toMatchObject({
+    expect(register({ ...base, division: 'Adults', payment: '', paid: true })).toMatchObject({ ok: false });
+    expect(register({ ...base, division: 'Adults', payment: 'Zelle', paid: true, donation: '-5' })).toMatchObject({
       ok: false,
       error: 'Please check the donation amount.',
     });
-    expect(register({ ...base, division: 'Adult', payment: 'Zelle', paid: false })).toMatchObject({ ok: false, error: 'Please confirm your donation.' });
+    expect(register({ ...base, division: 'Adults', payment: 'Zelle', paid: false })).toMatchObject({ ok: false, error: 'Please confirm your donation.' });
 
     expect(
       register({
@@ -142,14 +142,14 @@ describe('Apps Script backend (Code.gs)', () => {
         email: 'riya@example.com',
         phone: '+1 858 555 0100',
         school: 'Del Norte',
-        division: 'Adult', payment: 'Zelle', paid: true,
+        division: 'Adults', payment: 'Zelle', paid: true,
         partnerName: 'Arjun Rao',
         notes: '=HYPERLINK("x")',
         donation: '25',
       }),
     ).toMatchObject({ ok: true, count: 1 });
-    expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 2 });
-    expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 3 });
+    expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', division: 'Kids/Teens', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 2 });
+    expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', division: 'Kids/Teens', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 3 });
     expect(api.get({ action: 'ping' }).registrations).toBe(3);
     const fund = api.get({ action: 'ping' }).fundraising;
     expect(fund).toMatchObject({ donations: 25, donors: 1, players: 4, goal: 0, extra: 0 });
@@ -173,14 +173,14 @@ describe('Apps Script backend (Code.gs)', () => {
       timestamp: 0, name: 1, email: 2, phone: 3, division: 5, partnerName: 6, partnerEmail: 7,
     });
     const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
-    expect(res.divisions.map((d) => d.name)).toEqual(['Adult', 'Kids']);
+    expect(res.divisions.map((d) => d.name)).toEqual(['Adults', 'Kids/Teens']);
     const riyaTeam = Object.values(res.teams).find((t) => t.playerIds.some((id) => res.players[id].name === 'Arjun Rao'))!;
     expect(riyaTeam.playerIds.map((id) => res.players[id].name)).toEqual(['Riya Shah', 'Arjun Rao']);
     expect(res.divisions[1].teamIds.length).toBe(1); // two free agents paired
 
     // Organizer can close registration; publishing the draw also closes it
     expect(api.post({ action: 'setRegistration', passcode: admin, open: false })).toMatchObject({ ok: true, registrationOpen: false });
-    expect(register({ name: 'Late', email: 'late@example.com', skill: 'Advanced (4.0+)', division: 'Adult', payment: 'Venmo', paid: true })).toMatchObject({ ok: false, error: 'Registration is closed.' });
+    expect(register({ name: 'Late', email: 'late@example.com', skill: 'Advanced (4.0+)', division: 'Adults', payment: 'Venmo', paid: true })).toMatchObject({ ok: false, error: 'Registration is closed.' });
     api.post({ action: 'setRegistration', passcode: admin, open: true });
     expect(api.post({ action: 'saveState', passcode: admin, state: tournament() }).ok).toBe(true);
     expect(api.get({ action: 'ping' }).registrationOpen).toBe(false);

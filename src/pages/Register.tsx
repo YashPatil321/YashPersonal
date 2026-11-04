@@ -9,7 +9,7 @@ import { CauseCard } from '../components/ui';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
-export const DIVISIONS: Array<{ value: 'Adult' | 'Kids' }> = [{ value: 'Adult' }, { value: 'Kids' }];
+export const DIVISIONS: Array<{ value: 'Adults' | 'Kids/Teens' }> = [{ value: 'Adults' }, { value: 'Kids/Teens' }];
 export const DONATION_CHOICES = ['No thanks', '$10', '$25', '$50', 'Other'];
 export const PAYMENT_METHODS: Array<{ value: 'Zelle' | 'Venmo' | 'Cash at check-in' }> = [
   { value: 'Zelle' },
@@ -96,7 +96,7 @@ export function Register() {
 
   const intro = (
     <>
-      Doubles, Adult &amp; Kids. Sign up as a pair or on your own (we’ll match you), with a ${BRAND.payment.feeAmount} donation per
+      Doubles, Adults &amp; Kids/Teens. Sign up as a pair or on your own (we’ll match you), with a ${BRAND.payment.feeAmount} donation per
       player. {BRAND.charity.pledge}
     </>
   );
@@ -191,7 +191,7 @@ export function Register() {
     setError(null);
     if (!form.name.trim()) return setError('Please enter your full name.');
     if (!emailOk(form.email)) return setError('Please enter a valid email.');
-    if (!form.division) return setError('Please choose Adult or Kids division.');
+    if (!form.division) return setError('Please choose Adults or Kids/Teens.');
     if (!form.payment) return setError('Please choose how you’re sending your donation.');
     if (!form.paid) return setError('Please confirm your donation.');
     if (donationChoice === 'Other' && !(form.donation && form.donation > 0))

@@ -62,7 +62,7 @@ var REG_HEADERS = [
 ];
 /** Matching keys sent by the website's form. */
 var REG_FIELDS = ['name', 'email', 'phone', 'school', 'division', 'partnerName', 'partnerEmail', 'notes', 'payment', 'paid', 'donation', 'anonymous'];
-var DIVISIONS = ['Adult', 'Kids'];
+var DIVISIONS = ['Adults', 'Kids/Teens'];
 var PAYMENT_METHODS = ['Zelle', 'Venmo', 'Cash at check-in'];
 var MAX_REGISTRATIONS = 1000;
 
@@ -471,7 +471,7 @@ function register(entry, honeypot) {
   var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRe.test(values.email)) return { ok: false, error: 'Please enter a valid email.' };
   if (values.partnerEmail && !emailRe.test(values.partnerEmail)) return { ok: false, error: "Please check your partner's email." };
-  if (DIVISIONS.indexOf(values.division) < 0) return { ok: false, error: 'Please choose Adult or Kids division.' };
+  if (DIVISIONS.indexOf(values.division) < 0) return { ok: false, error: 'Please choose Adults or Kids/Teens.' };
   if (PAYMENT_METHODS.indexOf(values.payment) < 0) return { ok: false, error: 'Please choose how you are paying.' };
   if (entry.paid !== true && entry.paid !== 'yes') return { ok: false, error: 'Please confirm your donation.' };
   values.paid = values.payment === 'Cash at check-in' ? 'Will pay cash at check-in' : 'Yes, sent';
