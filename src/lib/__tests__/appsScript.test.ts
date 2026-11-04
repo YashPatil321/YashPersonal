@@ -125,7 +125,7 @@ describe('Apps Script backend (Code.gs)', () => {
 
     expect(register({ name: '', email: 'x@y.com', skill: 'Advanced (4.0+)' })).toMatchObject({ ok: false });
     expect(register({ name: 'Riya Shah', email: 'not-an-email', skill: 'Advanced (4.0+)' })).toMatchObject({ ok: false });
-    expect(register({ name: 'Riya Shah', email: 'riya@example.com' })).toMatchObject({ ok: false }); // skill required
+    expect(register({ name: 'Riya Shah', email: 'riya@example.com' })).toMatchObject({ ok: false }); // division + payment required
     expect(register({ name: 'Bot', email: 'bot@spam.com', skill: 'x' }, 'http://spam')).toEqual({ ok: true }); // honeypot
     const base = { name: 'Riya Shah', email: 'riya@example.com', skill: 'Advanced (4.0+)' };
     expect(register({ ...base, division: 'Seniors', payment: 'Zelle', paid: true })).toMatchObject({ ok: false });
@@ -142,10 +142,8 @@ describe('Apps Script backend (Code.gs)', () => {
         email: 'riya@example.com',
         phone: '+1 858 555 0100',
         school: 'Del Norte',
-        skill: 'Intermediate (2.5 - 3.5)',
         division: 'Adult', payment: 'Zelle', paid: true,
         partnerName: 'Arjun Rao',
-        partnerSkill: 'Advanced (4.0+)',
         teamName: '=HYPERLINK("x")',
         donation: '25',
       }),
@@ -161,17 +159,17 @@ describe('Apps Script backend (Code.gs)', () => {
     expect(api.post({ action: 'registrations', passcode: api.props.get('SCORER_PASSCODE') }).ok).toBe(false);
     const rows = api.post({ action: 'registrations', passcode: admin }).rows as string[][];
     expect(rows.length).toBe(4);
-    expect(rows[1][10]).toBe('HYPERLINK("x")'); // formula prefix stripped
+    expect(rows[1][8]).toBe('HYPERLINK("x")'); // formula prefix stripped
     expect(rows[0].slice(-3)).toEqual(['Payment method', 'Payment confirmed', 'Extra donation']);
+    expect(rows[0]).not.toContain('Skill level');
     expect(rows[1].slice(-3)).toEqual(['Zelle', 'Yes, sent', '$25']);
     expect(rows[2].slice(-3)).toEqual(['Cash at check-in', 'Will pay cash at check-in', '']);
     expect(detectColumns(rows[0])).toMatchObject({
-      timestamp: 0, name: 1, email: 2, phone: 3, skill: 5, division: 6, partnerName: 7, partnerEmail: 8, partnerSkill: 9, teamName: 10,
+      timestamp: 0, name: 1, email: 2, phone: 3, division: 5, partnerName: 6, partnerEmail: 7, teamName: 8,
     });
     const res = importRegistrations(rows, detectColumns(rows[0]), DEFAULT_IMPORT_OPTIONS);
     expect(res.divisions.map((d) => d.name)).toEqual(['Adult', 'Kids']);
     const riyaTeam = Object.values(res.teams).find((t) => t.playerIds.some((id) => res.players[id].name === 'Arjun Rao'))!;
-    expect(riyaTeam.rating).toBe(3.5); // (3.0 + 4.0) / 2
     expect(riyaTeam.playerIds.map((id) => res.players[id].name)).toEqual(['Riya Shah', 'Arjun Rao']);
     expect(res.divisions[1].teamIds.length).toBe(1); // two free agents paired
 

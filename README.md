@@ -52,7 +52,7 @@ The dashboard then gives you:
 | Phone number, School | Optional |
 | Skill level | Beginner / Intermediate (2.5 - 3.5) / Advanced (4.0+), required. Used for seeding and pairing. |
 | Division | Adult / Kids, required. Each becomes its own division in the draw. |
-| Partner's full name, email, skill level | Optional. Leave blank to get paired with someone. Only one person per team needs to register. |
+| Partner's full name, email | Optional. Leave blank to get paired with someone. Only one person per team needs to register. |
 | Team name, Anything else we should know? | Optional |
 | Payment method | Zelle / Venmo / Cash at check-in, required |
 | Payment confirmation | Required checkbox: "I've sent the entry fee" (or "I'll bring cash to check-in") |
