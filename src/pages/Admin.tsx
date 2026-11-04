@@ -410,7 +410,6 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
                   <th>Name</th>
                   <th>Partner</th>
                   <th>Division</th>
-                  <th>Skill</th>
                   <th>School</th>
                   <th>Paid</th>
                   <th>Donation</th>
@@ -425,7 +424,6 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
                       <td className="bold">{r[col('Full name')]}</td>
                       <td>{r[col("Partner's full name")] || <span className="muted">Needs a partner</span>}</td>
                       <td>{r[col('Division')]}</td>
-                      <td className="small">{(r[col('Skill level')] || '').split(' (')[0]}</td>
                       <td className="small">{r[col('School')]}</td>
                       <td className="small">{r[col('Payment method')]}</td>
                       <td className="small">{r[col('Extra donation')]}</td>

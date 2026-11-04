@@ -17,11 +17,9 @@ export interface RegistrationEntry {
   email: string;
   phone?: string;
   school?: string;
-  skill: string;
   division: 'Adult' | 'Kids' | '';
   partnerName?: string;
   partnerEmail?: string;
-  partnerSkill?: string;
   teamName?: string;
   notes?: string;
   payment: 'Zelle' | 'Venmo' | 'Cash at check-in' | '';

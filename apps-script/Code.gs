@@ -51,11 +51,9 @@ var REG_HEADERS = [
   'Email',
   'Phone number',
   'School',
-  'Skill level',
   'Division',
   "Partner's full name",
   "Partner's email",
-  "Partner's skill level",
   'Team name (optional)',
   'Anything else we should know?',
   'Payment method',
@@ -63,7 +61,7 @@ var REG_HEADERS = [
   'Extra donation',
 ];
 /** Matching keys sent by the website's form. */
-var REG_FIELDS = ['name', 'email', 'phone', 'school', 'skill', 'division', 'partnerName', 'partnerEmail', 'partnerSkill', 'teamName', 'notes', 'payment', 'paid', 'donation'];
+var REG_FIELDS = ['name', 'email', 'phone', 'school', 'division', 'partnerName', 'partnerEmail', 'teamName', 'notes', 'payment', 'paid', 'donation'];
 var DIVISIONS = ['Adult', 'Kids'];
 var PAYMENT_METHODS = ['Zelle', 'Venmo', 'Cash at check-in'];
 var MAX_REGISTRATIONS = 1000;
@@ -447,7 +445,6 @@ function register(entry, honeypot) {
   var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRe.test(values.email)) return { ok: false, error: 'Please enter a valid email.' };
   if (values.partnerEmail && !emailRe.test(values.partnerEmail)) return { ok: false, error: "Please check your partner's email." };
-  if (!values.skill) return { ok: false, error: 'Please choose your skill level.' };
   if (DIVISIONS.indexOf(values.division) < 0) return { ok: false, error: 'Please choose Adult or Kids division.' };
   if (PAYMENT_METHODS.indexOf(values.payment) < 0) return { ok: false, error: 'Please choose how you are paying.' };
   if (entry.paid !== true && entry.paid !== 'yes') return { ok: false, error: 'Please confirm your entry fee payment.' };

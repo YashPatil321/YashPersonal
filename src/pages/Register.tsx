@@ -9,7 +9,6 @@ import { CauseCard, Mandala, Toran } from '../components/ui';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
-export const SKILL_LEVELS = ['Beginner (new to pickleball)', 'Intermediate (2.5 - 3.5)', 'Advanced (4.0+)'];
 export const DIVISIONS: Array<{ value: 'Adult' | 'Kids' }> = [{ value: 'Adult' }, { value: 'Kids' }];
 export const DONATION_CHOICES = ['No thanks', '$10', '$25', '$50', 'Other'];
 export const PAYMENT_METHODS: Array<{ value: 'Zelle' | 'Venmo' | 'Cash at check-in' }> = [
@@ -23,11 +22,9 @@ const EMPTY: RegistrationEntry = {
   email: '',
   phone: '',
   school: '',
-  skill: '',
   division: '',
   partnerName: '',
   partnerEmail: '',
-  partnerSkill: '',
   teamName: '',
   notes: '',
   payment: '',
@@ -187,7 +184,6 @@ export function Register() {
     setError(null);
     if (!form.name.trim()) return setError('Please enter your full name.');
     if (!emailOk(form.email)) return setError('Please enter a valid email.');
-    if (!form.skill) return setError('Please choose your skill level.');
     if (!form.division) return setError('Please choose Adult or Kids division.');
     if (!form.payment) return setError('Please choose how you’re paying the entry fee.');
     if (!form.paid) return setError('Please confirm your entry fee payment.');
@@ -262,10 +258,6 @@ export function Register() {
             </label>
           </div>
           <div className="field" style={{ marginTop: 14 }}>
-            Skill level *
-            <Choices name="Skill level" value={form.skill} onChange={(v) => set({ skill: v })} options={SKILL_LEVELS.map((v) => ({ value: v }))} />
-          </div>
-          <div className="field" style={{ marginTop: 14 }}>
             Division *
             <Choices
               name="Division"
@@ -290,16 +282,6 @@ export function Register() {
               Partner’s email
               <input className="input" type="email" value={form.partnerEmail} onChange={(e) => set({ partnerEmail: e.target.value })} />
             </label>
-          </div>
-          <div className="field" style={{ marginTop: 14 }}>
-            Partner’s skill level
-            <Choices
-              name="Partner's skill level"
-              value={form.partnerSkill ?? ''}
-              onChange={(v) => set({ partnerSkill: v })}
-              options={SKILL_LEVELS.map((v) => ({ value: v }))}
-              allowClear
-            />
           </div>
         </div>
 
