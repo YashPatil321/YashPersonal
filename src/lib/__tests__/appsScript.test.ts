@@ -130,6 +130,10 @@ describe('Apps Script backend (Code.gs)', () => {
     const base = { name: 'Riya Shah', email: 'riya@example.com', skill: 'Advanced (4.0+)' };
     expect(register({ ...base, division: 'Seniors', payment: 'Zelle', paid: true })).toMatchObject({ ok: false });
     expect(register({ ...base, division: 'Adult', payment: '', paid: true })).toMatchObject({ ok: false });
+    expect(register({ ...base, division: 'Adult', payment: 'Zelle', paid: true, donation: '-5' })).toMatchObject({
+      ok: false,
+      error: 'Please check the donation amount.',
+    });
     expect(register({ ...base, division: 'Adult', payment: 'Zelle', paid: false })).toMatchObject({ ok: false, error: 'Please confirm your entry fee payment.' });
 
     expect(
@@ -143,20 +147,24 @@ describe('Apps Script backend (Code.gs)', () => {
         partnerName: 'Arjun Rao',
         partnerSkill: 'Advanced (4.0+)',
         teamName: '=HYPERLINK("x")',
+        donation: '25',
       }),
     ).toMatchObject({ ok: true, count: 1 });
     expect(register({ name: 'Maya Iyer', email: 'maya@example.com', skill: 'Beginner (new to pickleball)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 2 });
     expect(register({ name: 'Dev Patel', email: 'dev@example.com', skill: 'Advanced (4.0+)', division: 'Kids', payment: 'Cash at check-in', paid: true })).toMatchObject({ ok: true, count: 3 });
     expect(api.get({ action: 'ping' }).registrations).toBe(3);
+    expect(api.get({ action: 'ping' }).fundraising).toEqual({ donations: 25, donors: 1, goal: 0, extra: 0 });
+    expect(api.post({ action: 'setFundraising', passcode: api.props.get('SCORER_PASSCODE'), goal: 1 }).ok).toBe(false);
+    expect(api.post({ action: 'setFundraising', passcode: admin, goal: 3000, extra: 150 }).fundraising).toMatchObject({ goal: 3000, extra: 150 });
 
     // Only the admin can read them; headers import cleanly
     expect(api.post({ action: 'registrations', passcode: api.props.get('SCORER_PASSCODE') }).ok).toBe(false);
     const rows = api.post({ action: 'registrations', passcode: admin }).rows as string[][];
     expect(rows.length).toBe(4);
     expect(rows[1][10]).toBe('HYPERLINK("x")'); // formula prefix stripped
-    expect(rows[0].slice(-2)).toEqual(['Payment method', 'Payment confirmed']);
-    expect(rows[1].slice(-2)).toEqual(['Zelle', 'Yes, sent']);
-    expect(rows[2].slice(-2)).toEqual(['Cash at check-in', 'Will pay cash at check-in']);
+    expect(rows[0].slice(-3)).toEqual(['Payment method', 'Payment confirmed', 'Extra donation']);
+    expect(rows[1].slice(-3)).toEqual(['Zelle', 'Yes, sent', '$25']);
+    expect(rows[2].slice(-3)).toEqual(['Cash at check-in', 'Will pay cash at check-in', '']);
     expect(detectColumns(rows[0])).toMatchObject({
       timestamp: 0, name: 1, email: 2, phone: 3, skill: 5, division: 6, partnerName: 7, partnerEmail: 8, partnerSkill: 9, teamName: 10,
     });

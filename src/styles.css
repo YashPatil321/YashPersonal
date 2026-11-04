@@ -2546,3 +2546,63 @@ h1 .wordmark,
   display: grid;
   gap: 3px;
 }
+
+/* Fundraiser progress (GoFundMe-style) */
+.fund-card {
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--ball) 45%, var(--line));
+  box-shadow: var(--shadow);
+}
+.fund-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+}
+.fund-raised {
+  font-family: var(--display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 2.6rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.fund-pct {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.4rem;
+  color: var(--brand);
+}
+.fund-bar {
+  height: 12px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin-top: 12px;
+}
+.fund-bar > div {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--ball), var(--coral));
+  transition: width 0.6s;
+}
+.fund-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+.fund-stats b {
+  color: var(--ink);
+}
+.choice-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+}
+.choice-grid.compact .choice {
+  align-items: center;
+  padding: 10px 8px;
+}

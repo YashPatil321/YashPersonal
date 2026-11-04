@@ -6,6 +6,8 @@ import { BRAND } from '../brand';
 import { download } from '../lib/exporters';
 import { Mandala, Toran } from '../components/ui';
 import { remote } from '../lib/sync';
+import { FundraiserCard, raisedTotal } from '../components/Fundraiser';
+import type { EventInfo } from '../state/useEventInfo';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
@@ -282,6 +284,7 @@ function Dashboard() {
         </div>
 
         {isAdmin && <RegistrationCard open={info?.registrationOpen ?? true} count={info?.registrations ?? 0} onChange={refresh} />}
+        {isAdmin && info && <FundraisingCard info={info} onChange={refresh} />}
       </div>
 
       {isAdmin && (
@@ -356,6 +359,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
   const header = rows?.[0] ?? [];
   const col = (title: string) => header.indexOf(title);
   const body = rows?.slice(1) ?? [];
+  const donationTotal = body.reduce((sum, r) => sum + (Number(String(r[col('Extra donation')] ?? '').replace(/[^0-9.]/g, '')) || 0), 0);
 
   return (
     <div className="card">
@@ -372,6 +376,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
             {count}
           </div>
           <div className="small muted">sign-ups so far</div>
+          {donationTotal > 0 && <div className="small bold">${donationTotal} in extra donations</div>}
         </div>
         <div className="row">
           <a className="btn btn-sm" href="#/register">
@@ -408,6 +413,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
                   <th>Skill</th>
                   <th>School</th>
                   <th>Paid</th>
+                  <th>Donation</th>
                 </tr>
               </thead>
               <tbody>
@@ -422,6 +428,7 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
                       <td className="small">{(r[col('Skill level')] || '').split(' (')[0]}</td>
                       <td className="small">{r[col('School')]}</td>
                       <td className="small">{r[col('Payment method')]}</td>
+                      <td className="small">{r[col('Extra donation')]}</td>
                     </tr>
                   ))}
               </tbody>
@@ -429,6 +436,57 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Goal and money raised outside the form, shown on the public progress bar. */
+function FundraisingCard({ info, onChange }: { info: EventInfo; onChange: () => void }) {
+  const { sync } = useStore();
+  const [goal, setGoal] = useState(String(info.fundraising.goal || ''));
+  const [extra, setExtra] = useState(String(info.fundraising.extra || ''));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  if (!sync?.passcode) return null;
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await remote.setFundraising(sync.url, sync.passcode!, Number(goal) || 0, Number(extra) || 0);
+      setMsg('Saved. The progress bar updates for everyone.');
+      onChange();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="card" style={{ gridColumn: '1 / -1' }}>
+      <h2>Fundraising</h2>
+      <FundraiserCard info={info} />
+      <p className="small muted" style={{ margin: '12px 0' }}>
+        Raised = {info.registrations} sign-ups × ${BRAND.payment.feeAmount || 0} entry fee + ${info.fundraising.donations} in
+        extra donations + money raised elsewhere. Currently ${raisedTotal(info)}.
+        {!BRAND.payment.feeAmount && ' The entry fee amount isn’t set yet, so fees aren’t counted.'}
+      </p>
+      <div className="form-grid">
+        <label className="field">
+          Goal ($)
+          <input className="input" inputMode="numeric" value={goal} onChange={(e) => setGoal(e.target.value.replace(/[^0-9]/g, ''))} />
+        </label>
+        <label className="field">
+          Raised elsewhere ($)
+          <input className="input" inputMode="numeric" value={extra} onChange={(e) => setExtra(e.target.value.replace(/[^0-9]/g, ''))} />
+          <span className="hint">Cash at the event, GoFundMe, sponsors… anything not entered through the form.</span>
+        </label>
+      </div>
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        {msg && <span className="small muted">{msg}</span>}
+      </div>
     </div>
   );
 }

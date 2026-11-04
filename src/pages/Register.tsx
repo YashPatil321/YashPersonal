@@ -4,12 +4,14 @@ import { CheckCircle2, ClipboardList, Users } from 'lucide-react';
 import { BRAND } from '../brand';
 import { remote } from '../lib/sync';
 import type { RegistrationEntry } from '../lib/sync';
+import { FundraiserCard } from '../components/Fundraiser';
 import { CauseCard, Mandala, Toran } from '../components/ui';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
 export const SKILL_LEVELS = ['Beginner (new to pickleball)', 'Intermediate (2.5 - 3.5)', 'Advanced (4.0+)'];
 export const DIVISIONS: Array<{ value: 'Adult' | 'Kids' }> = [{ value: 'Adult' }, { value: 'Kids' }];
+export const DONATION_CHOICES = ['No thanks', '$10', '$25', '$50', 'Other'];
 export const PAYMENT_METHODS: Array<{ value: 'Zelle' | 'Venmo' | 'Cash at check-in' }> = [
   { value: 'Zelle' },
   { value: 'Venmo' },
@@ -30,6 +32,7 @@ const EMPTY: RegistrationEntry = {
   notes: '',
   payment: '',
   paid: false,
+  donation: 0,
 };
 
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -40,7 +43,9 @@ function Choices({
   options,
   onChange,
   allowClear,
+  compact,
 }: {
+  compact?: boolean;
   name: string;
   value: string;
   options: Array<{ value: string; hint?: string }>;
@@ -48,7 +53,7 @@ function Choices({
   allowClear?: boolean;
 }) {
   return (
-    <div className="choice-grid" role="radiogroup" aria-label={name}>
+    <div className={`choice-grid ${compact ? 'compact' : ''}`} role="radiogroup" aria-label={name}>
       {options.map((o) => (
         <label key={o.value} className={`choice ${value === o.value ? 'on' : ''}`}>
           <input
@@ -84,9 +89,11 @@ export function Register() {
   const { info, loading, refresh } = useEventInfo();
   const [form, setForm] = useState<RegistrationEntry>(EMPTY);
   const [honeypot, setHoneypot] = useState('');
+  const [donationChoice, setDonationChoice] = useState('No thanks');
+  const [customDonation, setCustomDonation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ name: string; partner?: string; count?: number } | null>(null);
+  const [done, setDone] = useState<{ name: string; partner?: string; count?: number; donation?: number } | null>(null);
   const set = (p: Partial<RegistrationEntry>) => setForm((f) => ({ ...f, ...p }));
 
   const intro = (
@@ -151,7 +158,8 @@ export function Register() {
           <h2>You’re in, {done.name.split(' ')[0]}!</h2>
           <p className="muted">
             {done.partner ? `You and ${done.partner} are registered.` : 'You’re registered. We’ll pair you with a partner.'}{' '}
-            Thank you for playing for the {BRAND.charity.name}.
+            Thank you for playing for the {BRAND.charity.name}
+            {done.donation ? `, and for your extra $${done.donation} donation` : ''}.
           </p>
           {done.count ? <p className="small bold">{done.count} sign-ups so far</p> : null}
           <div className="row" style={{ justifyContent: 'center' }}>
@@ -160,6 +168,8 @@ export function Register() {
               onClick={() => {
                 setDone(null);
                 setForm(EMPTY);
+                setDonationChoice('No thanks');
+                setCustomDonation('');
               }}
             >
               Register another team
@@ -181,12 +191,14 @@ export function Register() {
     if (!form.division) return setError('Please choose Adult or Kids division.');
     if (!form.payment) return setError('Please choose how you’re paying the entry fee.');
     if (!form.paid) return setError('Please confirm your entry fee payment.');
+    if (donationChoice === 'Other' && !(form.donation && form.donation > 0))
+      return setError('Enter a donation amount, or choose “No thanks”.');
     if (form.partnerEmail && !emailOk(form.partnerEmail)) return setError('Please check your partner’s email.');
     if (!sync) return;
     setBusy(true);
     try {
       const res = await remote.register(sync.url, form, honeypot);
-      setDone({ name: form.name.trim(), partner: form.partnerName?.trim() || undefined, count: res.count });
+      setDone({ name: form.name.trim(), partner: form.partnerName?.trim() || undefined, count: res.count, donation: form.donation });
       refresh();
       window.scrollTo({ top: 0 });
     } catch (e) {
@@ -208,6 +220,10 @@ export function Register() {
           </div>
         )}
       </Hero>
+
+      <div style={{ marginBottom: 14 }}>
+        <FundraiserCard info={info} />
+      </div>
 
       <form
         className="stack register-form"
@@ -322,6 +338,50 @@ export function Register() {
             {BRAND.payment.fee ? `${BRAND.payment.fee}. ` : ''}
             {BRAND.charity.pledge}
           </p>
+          <div className="field" style={{ marginBottom: 14 }}>
+            Add a donation? (optional)
+            <span className="hint">Every extra dollar goes to the cause. Send it together with your entry fee.</span>
+            <Choices
+              name="Extra donation"
+              value={donationChoice}
+              onChange={(v) => {
+                setDonationChoice(v);
+                if (v === 'Other') set({ donation: Number(customDonation) || 0, paid: false });
+                else set({ donation: v === 'No thanks' ? 0 : Number(v.replace('$', '')), paid: false });
+              }}
+              options={DONATION_CHOICES.map((value) => ({ value }))}
+              compact
+            />
+            {donationChoice === 'Other' && (
+              <input
+                className="input"
+                style={{ marginTop: 8, maxWidth: 200 }}
+                inputMode="decimal"
+                placeholder="$ amount"
+                aria-label="Other donation amount"
+                value={customDonation}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^0-9.]/g, '').slice(0, 7);
+                  setCustomDonation(v);
+                  set({ donation: Number(v) || 0, paid: false });
+                }}
+              />
+            )}
+          </div>
+          {(form.donation ?? 0) > 0 && (
+            <div className="alert alert-ok small" style={{ marginBottom: 12 }}>
+              {BRAND.payment.feeAmount ? (
+                <>
+                  Total to send: <b>${BRAND.payment.feeAmount + (form.donation ?? 0)}</b> (${BRAND.payment.feeAmount} entry + $
+                  {form.donation} donation). Thank you!
+                </>
+              ) : (
+                <>
+                  Please send your entry fee <b>plus ${form.donation}</b> as one payment. Thank you!
+                </>
+              )}
+            </div>
+          )}
           <ul className="small pay-list">
             <li>
               <b>Zelle</b>
@@ -347,8 +407,8 @@ export function Register() {
           <label className="check" style={{ marginTop: 14, fontWeight: 600 }}>
             <input type="checkbox" checked={form.paid} onChange={(e) => set({ paid: e.target.checked })} />
             {form.payment === 'Cash at check-in'
-              ? 'I’ll bring the entry fee in cash to check-in. *'
-              : `I’ve sent the entry fee${form.payment ? ` by ${form.payment}` : ''}. *`}
+              ? `I’ll bring the entry fee${form.donation ? ' and my donation' : ''} in cash to check-in. *`
+              : `I’ve sent the entry fee${form.donation ? ' and my donation' : ''}${form.payment ? ` by ${form.payment}` : ''}. *`}
           </label>
         </div>
 
