@@ -14,7 +14,7 @@ export const BRAND = {
     /** Used to plan the schedule only; not shown to players. */
     hours: 4,
     /** When the event is, as shown to players. */
-    when: 'Sunday, November 29 · 11am',
+    when: 'Sunday, November 29 · 11am–3pm',
     /** ISO date the setup wizard starts with. */
     date: '2026-11-29',
     /** The only divisions. */
