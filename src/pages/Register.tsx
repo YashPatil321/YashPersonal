@@ -251,7 +251,7 @@ export function Register() {
         </div>
         <div className="gf-story">
           <p>
-            Doubles play across {BRAND.courts} courts in two divisions, Adults and Kids/Teens. Every team plays at least{' '}
+            Doubles play in two divisions, Adults and Kids/Teens. Every team plays at least{' '}
             {BRAND.minGames} games.
           </p>
           <p>
