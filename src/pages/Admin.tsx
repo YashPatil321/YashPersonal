@@ -681,7 +681,7 @@ function FundraisingCard({ info, onChange }: { info: EventInfo; onChange: () => 
   return (
     <div className="card" style={{ gridColumn: '1 / -1' }}>
       <h2>Fundraising</h2>
-      <FundraiserCard info={info} />
+      <FundraiserCard info={info} showCounts />
       <p className="small muted" style={{ margin: '12px 0' }}>
         Raised = {info.fundraising.players || info.registrations} players × ${BRAND.payment.feeAmount || 0} required donation + $
         {info.fundraising.donations} in
