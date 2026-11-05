@@ -33,7 +33,7 @@ export function DonateForm({ onDone }: { onDone?: () => void }) {
   const submit = async () => {
     setError(null);
     if (!name.trim()) return setError('Please enter your name.');
-    if (!emailOk(email)) return setError('Please enter a valid email.');
+    if (email.trim() && !emailOk(email)) return setError('Please check your email.');
     if (!(amount > 0)) return setError('Please enter a donation amount.');
     if (!payment) return setError('Please choose a payment method.');
     if (!paid) return setError('Please confirm your donation.');
@@ -86,7 +86,7 @@ export function DonateForm({ onDone }: { onDone?: () => void }) {
             <input className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="field">
-            Email *
+            Email (optional)
             <input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </label>
         </div>
