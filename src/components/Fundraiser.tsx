@@ -20,6 +20,7 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
   if (!raised && !goal) return null;
   const pct = goal ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
   const supporters = info.fundraising.players || info.registrations;
+  const donationCount = info.fundraising.list?.length ?? info.registrations;
   return (
     <div className="fund-card">
       <div className="fund-top">
@@ -38,7 +39,7 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
       )}
       <div className="fund-stats">
         <span>
-          <b>{info.registrations}</b> {info.registrations === 1 ? 'donation' : 'donations'}
+          <b>{donationCount}</b> {donationCount === 1 ? 'donation' : 'donations'}
         </span>
         <span>
           <b>{supporters}</b> {supporters === 1 ? 'player' : 'players'}
@@ -191,7 +192,7 @@ function GiftRow({ g, tag }: { g: Gift; tag?: string }) {
 }
 
 /** The sticky GoFundMe-style card: ring, raised of goal, buttons, recent + top donations. */
-export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; onDonate: () => void }) {
+export function FundraiserSidebar({ info, onRegister }: { info: EventInfo | null; onRegister: () => void }) {
   const [modal, setModal] = useState<'all' | 'top' | null>(null);
   const [copied, setCopied] = useState(false);
   const raised = info ? raisedTotal(info) : 0;
@@ -231,11 +232,14 @@ export function FundraiserSidebar({ info, onDonate }: { info: EventInfo | null; 
         {goal > 0 && <Ring pct={pct} />}
       </div>
       <div className="gf-actions">
-        <button className="btn btn-primary btn-lg gf-btn" type="button" onClick={onDonate}>
-          Register
-        </button>
-        <button className="btn btn-lg gf-btn gf-share" type="button" onClick={() => void share()}>
-          {copied ? 'Link copied!' : 'Share'}
+        <a className="btn btn-primary btn-lg gf-btn" href="#/register" onClick={onRegister}>
+          Register to play
+        </a>
+        <a className="btn btn-lg gf-btn gf-share" href="#/register?donate=1">
+          Donate
+        </a>
+        <button className="btn btn-sm btn-ghost gf-btn" type="button" onClick={() => void share()}>
+          {copied ? 'Link copied' : 'Share'}
         </button>
         {BRAND.donateUrl && (
           <a className="btn gf-btn" href={BRAND.donateUrl} target="_blank" rel="noreferrer">

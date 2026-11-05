@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Check, ClipboardList, Copy, Download, ExternalLink, LayoutGrid, LogOut, Settings as SettingsIcon, Wand2 } from 'lucide-react';
+import { Check, ClipboardList, Trash2, Copy, Download, ExternalLink, LayoutGrid, LogOut, Settings as SettingsIcon, Wand2 } from 'lucide-react';
 import setupScript from '../../apps-script/Code.gs?raw';
 import { BRAND } from '../brand';
 import { download } from '../lib/exporters';
@@ -8,6 +8,7 @@ import { Mandala, Toran } from '../components/ui';
 import { DEFAULT_LIVE_URL } from '../config';
 import { quickDraw } from '../lib/quickDraw';
 import { remote } from '../lib/sync';
+import type { DonationRow } from '../lib/sync';
 import { FundraiserCard, raisedTotal } from '../components/Fundraiser';
 import type { EventInfo } from '../state/useEventInfo';
 import { SignupTable } from '../components/SignupManager';
@@ -328,7 +329,12 @@ function Dashboard() {
         </div>
       )}
       {tab === 'draw' && <DrawTab onSignups={() => pick('signups')} />}
-      {tab === 'money' && <div className="grid">{info && <FundraisingCard info={info} onChange={refresh} />}</div>}
+      {tab === 'money' && (
+        <div className="grid">
+          {info && <FundraisingCard info={info} onChange={refresh} />}
+          <DonationsCard onChange={refresh} />
+        </div>
+      )}
       {tab === 'share' && <ShareTab />}
 
       <div className="row section">
@@ -565,6 +571,88 @@ function RegistrationCard({ open, count, onChange }: { open: boolean; count: num
         />
       )}
       {show && !rows && !error && <div className="muted small" style={{ marginTop: 12 }}>Loading…</div>}
+    </div>
+  );
+}
+
+/** Donations from people who aren't playing, with delete for mistakes. */
+function DonationsCard({ onChange }: { onChange: () => void }) {
+  const { sync } = useStore();
+  const [rows, setRows] = useState<DonationRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sync?.passcode) return;
+    let alive = true;
+    remote
+      .donations(sync.url, sync.passcode)
+      .then((r) => alive && setRows(r))
+      .catch((e) => alive && setError((e as Error).message));
+    return () => {
+      alive = false;
+    };
+  }, [sync?.url, sync?.passcode]);
+  if (!sync?.passcode) return null;
+  const total = (rows ?? []).reduce((n, r) => n + Number(r.amount), 0);
+  return (
+    <div className="card" style={{ gridColumn: '1 / -1' }}>
+      <div className="card-head">
+        <h2>Donations (not playing)</h2>
+        {rows && <span className="badge">${total}</span>}
+      </div>
+      {error && <div className="alert alert-error small">{error}</div>}
+      {!rows ? (
+        <div className="muted small">Loading…</div>
+      ) : rows.length === 0 ? (
+        <div className="muted small">None yet. People can donate from the Register page.</div>
+      ) : (
+        <div className="table-wrap">
+          <table className="table signup-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Amount</th>
+                <th>Paid</th>
+                <th>When</th>
+                <th aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="bold">
+                    {r.name}
+                    {r.anonymous && <div className="tiny muted">shown as Anonymous</div>}
+                    <div className="tiny muted">{r.email}</div>
+                  </td>
+                  <td>${Number(r.amount)}</td>
+                  <td className="small">
+                    {r.paid}
+                    <div className="tiny muted">{r.payment}</div>
+                  </td>
+                  <td className="small">{r.at}</td>
+                  <td>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      aria-label={`Delete ${r.name}'s donation`}
+                      onClick={async () => {
+                        if (!window.confirm(`Delete ${r.name}'s $${Number(r.amount)} donation?`)) return;
+                        try {
+                          setRows(await remote.deleteDonation(sync.url, sync.passcode!, r.id));
+                          onChange();
+                        } catch (e) {
+                          setError((e as Error).message);
+                        }
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

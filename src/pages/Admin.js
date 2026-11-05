@@ -1,6 +1,6 @@
 import { Fragment as _Fragment, jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useEffect, useState } from 'react';
-import { Check, ClipboardList, Copy, Download, ExternalLink, LayoutGrid, LogOut, Settings as SettingsIcon, Wand2 } from 'lucide-react';
+import { Check, ClipboardList, Trash2, Copy, Download, ExternalLink, LayoutGrid, LogOut, Settings as SettingsIcon, Wand2 } from 'lucide-react';
 import setupScript from '../../apps-script/Code.gs?raw';
 import { BRAND } from '../brand';
 import { download } from '../lib/exporters';
@@ -131,7 +131,7 @@ function Dashboard() {
         { title: 'Create the draw', done: !!t, text: t ? 'Draft ready' : 'When sign-ups close', tab: 'draw' },
         { title: 'Publish', done: published, text: published ? `Published · ${played} played` : 'Players see nothing yet', tab: 'draw' },
     ];
-    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "page-head", children: _jsxs("div", { children: [_jsx("div", { className: "eyebrow", children: BRAND.eventName }), _jsx("h1", { children: "Organizer" })] }) }), _jsx("ol", { className: "steps", children: steps.map((s, i) => (_jsx("li", { className: s.done ? 'done' : steps.findIndex((x) => !x.done) === i ? 'now' : '', children: _jsxs("button", { onClick: () => pick(s.tab), children: [_jsx("span", { className: "steps-num", children: s.done ? _jsx(Check, { size: 16 }) : i + 1 }), _jsxs("span", { children: [_jsx("b", { children: s.title }), _jsx("span", { className: "small muted", children: s.text })] })] }) }, s.title))) }), _jsx("div", { className: "admin-tabs", role: "tablist", children: TABS.map((x) => (_jsx("button", { role: "tab", "aria-selected": tab === x.id, className: tab === x.id ? 'on' : '', onClick: () => pick(x.id), children: x.label }, x.id))) }), tab === 'signups' && (_jsx("div", { className: "grid", children: _jsx(RegistrationCard, { open: info?.registrationOpen ?? true, count: count, onChange: refresh }) })), tab === 'draw' && _jsx(DrawTab, { onSignups: () => pick('signups') }), tab === 'money' && _jsx("div", { className: "grid", children: info && _jsx(FundraisingCard, { info: info, onChange: refresh }) }), tab === 'share' && _jsx(ShareTab, {}), _jsxs("div", { className: "row section", children: [_jsxs("button", { className: "btn btn-ghost", onClick: () => void connect({ url: sync.url, role: 'viewer' }), children: [_jsx(LogOut, { size: 16 }), " Sign out on this device"] }), _jsxs("a", { className: "btn btn-ghost", href: "#/settings", children: [_jsx(SettingsIcon, { size: 16 }), " Advanced"] })] })] }));
+    return (_jsxs(_Fragment, { children: [_jsx("div", { className: "page-head", children: _jsxs("div", { children: [_jsx("div", { className: "eyebrow", children: BRAND.eventName }), _jsx("h1", { children: "Organizer" })] }) }), _jsx("ol", { className: "steps", children: steps.map((s, i) => (_jsx("li", { className: s.done ? 'done' : steps.findIndex((x) => !x.done) === i ? 'now' : '', children: _jsxs("button", { onClick: () => pick(s.tab), children: [_jsx("span", { className: "steps-num", children: s.done ? _jsx(Check, { size: 16 }) : i + 1 }), _jsxs("span", { children: [_jsx("b", { children: s.title }), _jsx("span", { className: "small muted", children: s.text })] })] }) }, s.title))) }), _jsx("div", { className: "admin-tabs", role: "tablist", children: TABS.map((x) => (_jsx("button", { role: "tab", "aria-selected": tab === x.id, className: tab === x.id ? 'on' : '', onClick: () => pick(x.id), children: x.label }, x.id))) }), tab === 'signups' && (_jsx("div", { className: "grid", children: _jsx(RegistrationCard, { open: info?.registrationOpen ?? true, count: count, onChange: refresh }) })), tab === 'draw' && _jsx(DrawTab, { onSignups: () => pick('signups') }), tab === 'money' && (_jsxs("div", { className: "grid", children: [info && _jsx(FundraisingCard, { info: info, onChange: refresh }), _jsx(DonationsCard, { onChange: refresh })] })), tab === 'share' && _jsx(ShareTab, {}), _jsxs("div", { className: "row section", children: [_jsxs("button", { className: "btn btn-ghost", onClick: () => void connect({ url: sync.url, role: 'viewer' }), children: [_jsx(LogOut, { size: 16 }), " Sign out on this device"] }), _jsxs("a", { className: "btn btn-ghost", href: "#/settings", children: [_jsx(SettingsIcon, { size: 16 }), " Advanced"] })] })] }));
 }
 /** Create the draw in one click, then review, edit and publish it. */
 function DrawTab({ onSignups }) {
@@ -237,6 +237,38 @@ function RegistrationCard({ open, count, onChange }) {
                     setTick((n) => n + 1);
                     onChange();
                 } })), show && !rows && !error && _jsx("div", { className: "muted small", style: { marginTop: 12 }, children: "Loading\u2026" })] }));
+}
+/** Donations from people who aren't playing, with delete for mistakes. */
+function DonationsCard({ onChange }) {
+    const { sync } = useStore();
+    const [rows, setRows] = useState(null);
+    const [error, setError] = useState(null);
+    useEffect(() => {
+        if (!sync?.passcode)
+            return;
+        let alive = true;
+        remote
+            .donations(sync.url, sync.passcode)
+            .then((r) => alive && setRows(r))
+            .catch((e) => alive && setError(e.message));
+        return () => {
+            alive = false;
+        };
+    }, [sync?.url, sync?.passcode]);
+    if (!sync?.passcode)
+        return null;
+    const total = (rows ?? []).reduce((n, r) => n + Number(r.amount), 0);
+    return (_jsxs("div", { className: "card", style: { gridColumn: '1 / -1' }, children: [_jsxs("div", { className: "card-head", children: [_jsx("h2", { children: "Donations (not playing)" }), rows && _jsxs("span", { className: "badge", children: ["$", total] })] }), error && _jsx("div", { className: "alert alert-error small", children: error }), !rows ? (_jsx("div", { className: "muted small", children: "Loading\u2026" })) : rows.length === 0 ? (_jsx("div", { className: "muted small", children: "None yet. People can donate from the Register page." })) : (_jsx("div", { className: "table-wrap", children: _jsxs("table", { className: "table signup-table", children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { children: "Name" }), _jsx("th", { children: "Amount" }), _jsx("th", { children: "Paid" }), _jsx("th", { children: "When" }), _jsx("th", { "aria-label": "Actions" })] }) }), _jsx("tbody", { children: rows.map((r) => (_jsxs("tr", { children: [_jsxs("td", { className: "bold", children: [r.name, r.anonymous && _jsx("div", { className: "tiny muted", children: "shown as Anonymous" }), _jsx("div", { className: "tiny muted", children: r.email })] }), _jsxs("td", { children: ["$", Number(r.amount)] }), _jsxs("td", { className: "small", children: [r.paid, _jsx("div", { className: "tiny muted", children: r.payment })] }), _jsx("td", { className: "small", children: r.at }), _jsx("td", { children: _jsx("button", { className: "btn btn-ghost btn-sm", "aria-label": `Delete ${r.name}'s donation`, onClick: async () => {
+                                                if (!window.confirm(`Delete ${r.name}'s $${Number(r.amount)} donation?`))
+                                                    return;
+                                                try {
+                                                    setRows(await remote.deleteDonation(sync.url, sync.passcode, r.id));
+                                                    onChange();
+                                                }
+                                                catch (e) {
+                                                    setError(e.message);
+                                                }
+                                            }, children: _jsx(Trash2, { size: 15 }) }) })] }, r.id))) })] }) }))] }));
 }
 /** Goal and money raised outside the form, shown on the public progress bar. */
 function FundraisingCard({ info, onChange }) {
