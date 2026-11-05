@@ -3211,3 +3211,35 @@ h1 .wordmark,
   font-size: 1.05rem;
   font-weight: 600;
 }
+
+.mode-switch {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 14px 0;
+  border-radius: 14px;
+  background: var(--surface-2);
+  scroll-margin-top: 90px;
+}
+.mode-switch a {
+  flex: 1;
+  text-align: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-decoration: none;
+}
+.mode-switch a.on {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.btn-on-night {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+.btn-on-night:hover {
+  background: rgba(255, 255, 255, 0.1);
+}

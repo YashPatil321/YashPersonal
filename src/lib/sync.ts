@@ -17,6 +17,28 @@ export interface Fundraising {
 }
 
 /** One sign-up from the website's Register tab (keys match the Apps Script REG_FIELDS). */
+/** A donation from someone who isn't playing. */
+export interface DonationEntry {
+  name: string;
+  email: string;
+  amount: number;
+  payment: 'Zelle' | 'Venmo' | 'Cash at check-in' | '';
+  paid: boolean;
+  anonymous?: boolean;
+}
+
+/** As the organizer sees it. */
+export interface DonationRow {
+  id: number;
+  at: string;
+  name: string;
+  email: string;
+  amount: number;
+  payment: string;
+  paid: string;
+  anonymous: boolean;
+}
+
 /** Someone who signed up and is waiting for their partner to join (short name only). */
 export interface Waiting {
   id: number;
@@ -119,6 +141,14 @@ export const remote = {
   /** Public: save one sign-up from the Register tab. `website` is a honeypot that must stay empty. */
   register: (url: string, entry: RegistrationEntry, website = ''): Promise<{ count?: number }> =>
     postJSON(url, { action: 'register', entry, website }),
+  /** Public: give without playing. */
+  donate: (url: string, entry: DonationEntry, website = ''): Promise<{ ok: true }> =>
+    postJSON(url, { action: 'donate', entry, website }),
+  /** Admin: every direct donation, newest first. */
+  donations: async (url: string, passcode: string): Promise<DonationRow[]> =>
+    (await postJSON(url, { action: 'donations', passcode })).donations,
+  deleteDonation: async (url: string, passcode: string, id: number): Promise<DonationRow[]> =>
+    (await postJSON(url, { action: 'deleteDonation', passcode, id })).donations,
   /** Admin: add a sign-up by hand (walk-ups, phone sign-ups). Works while registration is closed. */
   addRegistration: (url: string, passcode: string, entry: RegistrationEntry): Promise<{ count?: number }> =>
     postJSON(url, { action: 'addRegistration', passcode, entry }),

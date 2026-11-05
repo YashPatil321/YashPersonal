@@ -4,8 +4,10 @@ import { CheckCircle2, HandHeart, Users } from 'lucide-react';
 import { BRAND } from '../brand';
 import { remote } from '../lib/sync';
 import type { RegistrationEntry } from '../lib/sync';
+import { DonateForm } from '../components/DonateForm';
 import { FundraiserSidebar } from '../components/Fundraiser';
 import { CauseCard } from '../components/ui';
+import { useRoute } from '../state/router';
 import { useStore } from '../state/store';
 import { useEventInfo } from '../state/useEventInfo';
 
@@ -91,6 +93,7 @@ function Hero({ children }: { children?: ReactNode }) {
 export function Register() {
   const { t, sync, isAdmin } = useStore();
   const { info, loading, refresh } = useEventInfo();
+  const donateMode = useRoute().query.get('donate') === '1';
   const [form, setForm] = useState<RegistrationEntry>(EMPTY);
   const [honeypot, setHoneypot] = useState('');
   const [donationChoice, setDonationChoice] = useState('No thanks');
@@ -141,12 +144,15 @@ export function Register() {
     );
   }
 
-  if (closed) {
+  if (closed && !donateMode) {
     return (
       <>
         <Hero>{intro}</Hero>
         <div className="card empty" style={{ color: 'var(--ink)' }}>
           {closed}
+          <p className="small muted" style={{ marginTop: 14 }}>
+            You can still support SACS and the {BRAND.charity.name}. <a href="#/register?donate=1">Make a donation</a>
+          </p>
         </div>
         <div style={{ marginTop: 16 }}>
           <CauseCard compact />
@@ -234,7 +240,7 @@ export function Register() {
         <img src="./photos/sacs-cast.webp" alt="The SACS 2026 cast on stage after the show" />
       </figure>
       <aside className="gf-side">
-        <FundraiserSidebar info={info} onDonate={toForm} />
+        <FundraiserSidebar info={info} onRegister={toForm} />
       </aside>
       <div className="gf-main">
         <div className="gf-organizer">
@@ -258,9 +264,17 @@ export function Register() {
             Each player registers individually with a ${BRAND.payment.feeAmount} donation. {BRAND.charity.pledge}
           </p>
         </div>
-        <h2 id="register-form" className="gf-form-title">
-          Registration
-        </h2>
+        <div id="register-form" className="mode-switch" role="tablist" aria-label="Register or donate">
+          <a href="#/register" role="tab" aria-selected={!donateMode} className={donateMode ? '' : 'on'}>
+            Register to play
+          </a>
+          <a href="#/register?donate=1" role="tab" aria-selected={donateMode} className={donateMode ? 'on' : ''}>
+            Donate
+          </a>
+        </div>
+        {donateMode ? (
+          <DonateForm onDone={refresh} />
+        ) : (
       <form
         className="stack register-form"
         style={{ gap: 14 }}
@@ -413,6 +427,10 @@ export function Register() {
               />
             )}
           </div>
+          <label className="check" style={{ margin: '0 0 14px' }}>
+            <input type="checkbox" checked={!!form.anonymous} onChange={(e) => set({ anonymous: e.target.checked })} />
+            List my name as anonymous on the donations list (optional)
+          </label>
           <div className="total-box" aria-live="polite">
             <div className="total-line">
               <span>Registration</span>
@@ -439,10 +457,6 @@ export function Register() {
               options={PAYMENT_METHODS}
             />
           </div>
-          <label className="check" style={{ marginTop: 14 }}>
-            <input type="checkbox" checked={!!form.anonymous} onChange={(e) => set({ anonymous: e.target.checked })} />
-            List my donation as anonymous
-          </label>
           <label className="check" style={{ marginTop: 10, fontWeight: 600 }}>
             <input type="checkbox" checked={form.paid} onChange={(e) => set({ paid: e.target.checked })} />
             {form.payment === 'Cash at check-in'
@@ -458,6 +472,7 @@ export function Register() {
           </button>
         </div>
       </form>
+        )}
       </div>
     </div>
   );

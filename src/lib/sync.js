@@ -54,6 +54,11 @@ export const remote = {
     ping: (url) => getJSON(url, 'ping'),
     /** Public: save one sign-up from the Register tab. `website` is a honeypot that must stay empty. */
     register: (url, entry, website = '') => postJSON(url, { action: 'register', entry, website }),
+    /** Public: give without playing. */
+    donate: (url, entry, website = '') => postJSON(url, { action: 'donate', entry, website }),
+    /** Admin: every direct donation, newest first. */
+    donations: async (url, passcode) => (await postJSON(url, { action: 'donations', passcode })).donations,
+    deleteDonation: async (url, passcode, id) => (await postJSON(url, { action: 'deleteDonation', passcode, id })).donations,
     /** Admin: add a sign-up by hand (walk-ups, phone sign-ups). Works while registration is closed. */
     addRegistration: (url, passcode, entry) => postJSON(url, { action: 'addRegistration', passcode, entry }),
     /** Admin: change sign-up number `row` (1 = first). `stamp` is its timestamp as loaded. */
