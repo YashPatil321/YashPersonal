@@ -153,7 +153,7 @@ function DrawTab({ onSignups }) {
                 throw new Error('No sign-ups yet.');
             const d = quickDraw(rows);
             replace(d.t);
-            setNote(`Draft created: ${d.teams} ${d.teams === 1 ? 'team' : 'teams'} across ${BRAND.courts} courts.` +
+            setNote(`Draft created: ${d.teams} ${d.teams === 1 ? 'team' : 'teams'} on ${BRAND.courts} courts (change this under Courts & time).` +
                 (d.needPartner.length
                     ? ` ${d.needPartner.join(', ')} still ${d.needPartner.length === 1 ? 'needs' : 'need'} a partner: add one under Teams & players below.`
                     : '') +
