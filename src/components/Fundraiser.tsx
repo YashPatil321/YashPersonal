@@ -13,7 +13,8 @@ export function raisedTotal(info: EventInfo): number {
 const money = (n: number) => `$${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
 /** GoFundMe-style progress card. */
-export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: boolean }) {
+/** `showCounts`: organizers see how many donations/players; the public page doesn't. */
+export function FundraiserCard({ info, cta, showCounts }: { info: EventInfo | null; cta?: boolean; showCounts?: boolean }) {
   if (!info) return null;
   const raised = raisedTotal(info);
   const goal = info.fundraising.goal;
@@ -37,6 +38,7 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
           <div style={{ width: `${pct}%` }} />
         </div>
       )}
+      {showCounts && (
       <div className="fund-stats">
         <span>
           <b>{donationCount}</b> {donationCount === 1 ? 'donation' : 'donations'}
@@ -45,6 +47,7 @@ export function FundraiserCard({ info, cta }: { info: EventInfo | null; cta?: bo
           <b>{supporters}</b> {supporters === 1 ? 'player' : 'players'}
         </span>
       </div>
+      )}
       {cta && (
         <div className="row" style={{ marginTop: 12 }}>
           <a className="btn btn-primary" href="#/register">
@@ -225,8 +228,7 @@ export function FundraiserSidebar({ info, onRegister }: { info: EventInfo | null
             {money(raised)} <span>raised</span>
           </div>
           <div className="small muted">
-            {goal ? `${money(goal)} goal · ` : ''}
-            {list.length || info?.registrations || 0} {(list.length || info?.registrations) === 1 ? 'donation' : 'donations'}
+            {goal ? `${money(goal)} goal` : ''}
           </div>
         </div>
         {goal > 0 && <Ring pct={pct} />}
@@ -274,7 +276,7 @@ export function FundraiserSidebar({ info, onRegister }: { info: EventInfo | null
       )}
       {modal && (
         <Modal
-          title={modal === 'top' ? 'Top donations' : `Donations (${list.length})`}
+          title={modal === 'top' ? 'Top donations' : 'All donations'}
           subtitle={`${money(raised)} raised${goal ? ` of ${money(goal)}` : ''}`}
           onClose={() => setModal(null)}
         >

@@ -415,7 +415,6 @@ function Landing() {
           <a className="btn btn-lg btn-on-night" href="#/register?donate=1">
             Donate
           </a>
-          {info && info.registrations > 0 && <span className="hero-count">{info.registrations} registered</span>}
         </div>
       </section>
 
