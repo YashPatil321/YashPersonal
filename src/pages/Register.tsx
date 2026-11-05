@@ -205,7 +205,7 @@ export function Register() {
   const submit = async () => {
     setError(null);
     if (!form.name.trim()) return setError('Please enter your full name.');
-    if (!emailOk(form.email)) return setError('Please enter a valid email.');
+    if (form.email.trim() && !emailOk(form.email)) return setError('Please check your email.');
     if (!form.division) return setError('Please choose Adults or Kids/Teens.');
     if (partnerMode === 'named' && !form.partnerName?.trim()) return setError('Please enter your partner’s name, or pick “I need a partner”.');
     if (partnerMode === 'join' && !form.joinId) return setError('Tap the partner you’re joining.');
@@ -292,7 +292,7 @@ export function Register() {
               <input className="input" autoComplete="name" value={form.name} onChange={(e) => set({ name: e.target.value })} />
             </label>
             <label className="field">
-              Email *
+              Email (optional)
               <input
                 className="input"
                 type="email"
