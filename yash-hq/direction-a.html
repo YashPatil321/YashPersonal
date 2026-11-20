@@ -354,8 +354,10 @@ const JUNK_FROM = /no-?reply|notifications?@|newsletter|marketing|mailer|news@|u
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let ev = [], calOk = false, mailRows = [], codeRows = [], brief = null, doneIds = new Set(), db = null, mcp = null, sample = null, briefing = false;
-const got = {cal: false, mail: false, code: false};
-const synced = {cal: 0, mail: 0, code: 0}, errs = {};
+const got = {cal: false, mail: false, code: false, shop: false};
+const synced = {cal: 0, mail: 0, code: 0, shop: 0}, errs = {};
+let shop = {ov: null, td: null};
+const hasShop = () => typeof renderShop === 'function';
 
 /* ---------- derived: what the views read ---------- */
 const KINDS = [
@@ -429,7 +431,7 @@ const initials = (s) => (String(s).match(/\b\w/g) || ['?']).slice(0, 2).join('')
 function alerts() {
   const out = [];
   if (!navigator.onLine) out.push({lvl: 'warn', t: 'Offline. Showing last data'});
-  for (const k of ['cal', 'mail', 'code']) if (errs[k]) out.push({lvl: 'bad', t: errs[k]});
+  for (const k of ['cal', 'mail', 'code', 'shop']) if (errs[k]) out.push({lvl: 'bad', t: errs[k]});
   for (const [a, b] of conflicts().slice(0, 2)) out.push({lvl: 'warn', t: 'Clash ' + dow(b.s) + ' ' + fmtTime(b.s) + ': ' + a.title + ' and ' + b.title});
   if (calOk) { const {nxt, cur} = nowNext(); if (!cur && nxt && nxt.s - Date.now() < 15 * 60e3) out.push({lvl: 'info', t: nxt.title + ' in ' + dur((nxt.s - Date.now()) / 60000)}); }
   return out;
@@ -506,6 +508,29 @@ function opsRows() {
   return got.code ? opsFallback() : null;
 }
 
+/* ---------- SolidHauz feed (business overview + who is waiting) ---------- */
+function unwrap(result) {
+  let p = result && (result.payload ?? result.structuredContent);
+  if (typeof p === 'string') { try { p = JSON.parse(p); } catch { p = null; } }
+  if (!p && result && Array.isArray(result.content) && result.content[0]?.text) { try { p = JSON.parse(result.content[0].text); } catch {} }
+  return p && typeof p === 'object' ? p : null;
+}
+function onShop(which) {
+  return (e) => {
+    if (e.type === 'error') { led('Shop', 'err', 'ERR'); errs.shop = errCopy('SolidHauz', e.error); if (!got.shop && hasShop()) showErr('shop', errs.shop); refreshAlerts(); return; }
+    errs.shop = null; shop[which] = unwrap(e.result); got.shop = true; synced.shop = Date.now();
+    led('Shop', 'on', shop.td ? String((shop.td.awaitingReply || []).length) : 'OK'); if (hasShop()) renderShop(); refreshAlerts();
+  };
+}
+function shopLines() {
+  const o = shop.ov, t = shop.td; if (!o && !t) return '';
+  const k = o?.kpis || {}, m = o?.money || {};
+  return '\n\nSOLIDHAUZ (his custom cabinetry company, last 30 days):\n'
+    + (o ? '- cash collected $' + Math.round(k.cashCollected || 0) + ' (prev $' + Math.round(k.cashPrevious || 0) + '), leads ' + (k.leads ?? '?') + ', overdue $' + Math.round(m.overdue || 0) + ' on ' + (m.overdueCount ?? 0) + ' invoices, ' + (o.production?.active ?? '?') + ' jobs in production\n' : '')
+    + (t ? '- customers waiting on a reply: ' + (t.awaitingReply || []).length + ', new leads to review: ' + (t.pendingReview || []).length + ', consults today: ' + (t.consultsToday || []).length + '\n' : '')
+    + (o && Array.isArray(o.attention) ? o.attention.slice(0, 4).map((a) => '- ' + a.title).join('\n') : '');
+}
+
 /* ---------- AI brief (prompt and shape unchanged) ---------- */
 const aid = (a) => String(a.id || a.text || 'task').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 60);
 function hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
@@ -520,6 +545,7 @@ async function maybeBrief(force) {
     + ev.filter((e) => !e.free).map((e) => '- ' + dayName(e.s) + ' ' + (e.allDay ? 'all day' : fmtTime(e.s)) + ': ' + e.title).join('\n')
     + '\n\nUNREAD MAIL (id | from | subject | snippet):\n' + mailRows.map((r) => r.id + ' | ' + r.from + ' <' + r.addr + '> | ' + r.subj + ' | ' + r.snip).join('\n')
     + '\n\nGITHUB ACTIVITY (7 days):\n' + codeRows.slice(0, 40).map((r) => '- [' + r.repo + '] ' + r.title + (r.pr ? ' (#' + r.pr + ')' : '') + ' ' + dayKey(r.date)).join('\n')
+    + shopLines()
     + '\n\nReply with only JSON: {"headline":"one sharp sentence on what today is about","actions":[{"id":"short-kebab-id","text":"concrete task, imperative, under 12 words","area":"school|build|apps|life|money","due":"YYYY-MM-DD or empty","why":"under 12 words"}],"mail_keep":["ids of threads a real person wrote or that need Yash to act"],"mail_why":{"<id>":"what it needs from him, under 10 words"},"ops":[{"project":"repo or project","update":"one line on what shipped or changed"}],"ticker":["4 to 6 short status lines for a news ticker"]}\n'
     + 'Rules: 3 to 6 actions only from the data above. Drop marketing, receipts, automated notices, college brochures and waitlist confirmations from mail_keep. Max 5 ops. Keep ids stable for the same task. No hyphens or em dashes in any text. Never invent facts.';
   try {
@@ -577,6 +603,8 @@ const FIVE = 5 * 60e3;
 const CAL = ['Google Calendar', 'list_events', {orderBy: 'startTime', pageSize: 60}];
 const MAIL = ['Gmail', 'search_threads', {query: 'in:inbox newer_than:3d -category:promotions -category:social -category:forums', view: 'THREAD_VIEW_SUMMARY', pageSize: 30}];
 const CODE = ['Gmail', 'search_threads', {query: 'from:notifications@github.com newer_than:7d', view: 'THREAD_VIEW_SUMMARY', pageSize: 50}];
+const SHOP_OV = ['Solidhauz', 'business_overview', {days: 30}];
+const SHOP_TD = ['Solidhauz', 'today', {limit: 20}];
 
 /* PREVIEW MODE: outside Claude (plain browser, local dev) there is no mcp/db/sample, so feed realistic sample data */
 function mockFeeds() {
@@ -611,6 +639,15 @@ function mockFeeds() {
   }
 }
 
+/* preview data for the SolidHauz panel: made up numbers, no real customers */
+function mockShop() {
+  onShop('ov')({type: 'data', result: {payload: {days: 30, kpis: {cashCollected: 85566, cashPrevious: 34006, booked: 63805, leads: 39, leadsPrevious: 32, quotes: 3, deals: 2},
+    money: {receivable: 148693, overdue: 15731, overdueCount: 2, openQuotes: 944220, openQuotesCount: 38},
+    production: {active: 17, stages: [{stage: 'In design', count: 7}, {stage: 'Queued', count: 6}, {stage: 'Materials', count: 0}, {stage: 'CNC cutting', count: 2}, {stage: 'Assembly', count: 2}, {stage: 'Finishing', count: 0}, {stage: 'QC', count: 0}, {stage: 'Packing', count: 0}, {stage: 'Out for delivery', count: 0}], stuck: [{name: 'Kitchen, Rivera', stage: 'Queued', days: 21}, {name: 'Closet, Lee', stage: 'Assembly', days: 15}]},
+    attention: [{severity: 'warning', title: '2 payments unpaid 14+ days after invoicing'}, {severity: 'warning', title: '36 sent quotes with no movement in 14+ days'}]}}});
+  onShop('td')({type: 'data', result: {payload: {awaitingReply: [{name: 'Dana Ruiz', stage: 'engaged', lastInboundAt: new Date(Date.now() - 3 * 36e5).toISOString()}, {name: 'Sam Okafor', stage: 'won', lastInboundAt: new Date(Date.now() - 20 * 36e5).toISOString()}, {name: 'Priya N', stage: 'appointment_set', lastInboundAt: new Date(Date.now() - 50 * 36e5).toISOString()}], pendingReview: [{name: 'A'}, {name: 'B'}], consultsToday: [{name: 'Consult'}]}}});
+}
+
 async function start() {
   nightCheck(); tick(); renderDial(); renderGauges(); renderHeat();
   setInterval(tick, 1000); setInterval(minuteTick, 5000); setInterval(pixelShift, 180e3);
@@ -621,15 +658,18 @@ async function start() {
     db.collection('done').onSnapshot((s) => { doneIds = new Set(s.docs.map((d) => d.id)); paintBrief(); }, () => {});
     db.collection('agents').onSnapshot((s) => renderAgents(sortAgents(s.docs.map((d) => ({id: d.id, ...d.data()})))), () => renderAgents([], 'Agent board offline.'));
   } else renderAgents([], 'Open in Claude to see agents.');
-  if (!mcp) { mockFeeds(); T('stamp', 'Preview data'); document.documentElement.dataset.preview = '1'; return; }
+  if (!mcp) { mockFeeds(); if (hasShop()) mockShop(); T('stamp', 'Preview data'); document.documentElement.dataset.preview = '1'; return; }
   mcp.watchTool(...CAL, onCal, {refetchInterval: FIVE});
   mcp.watchTool(...MAIL, onMail, {refetchInterval: FIVE});
   mcp.watchTool(...CODE, onCode, {refetchInterval: FIVE});
+  if (hasShop()) { mcp.watchTool(...SHOP_OV, onShop('ov'), {refetchInterval: 3 * FIVE}); mcp.watchTool(...SHOP_TD, onShop('td'), {refetchInterval: FIVE}); }
 }
 function rescan() {
   if (!mcp) { document.documentElement.dataset.scan = '1'; setTimeout(() => delete document.documentElement.dataset.scan, 900); return; }
   led('Cal', 'busy'); led('Mail', 'busy'); led('Ops', 'busy');
-  for (const [srv, tool, input, fn] of [[...CAL, onCal], [...MAIL, onMail], [...CODE, onCode]]) mcp.callTool(srv, tool, input, {cache: {staleTime: 0, gcTime: FIVE, refresh: true}}).then((result) => fn({type: 'data', result})).catch((error) => fn({type: 'error', error}));
+  const feeds = [[...CAL, onCal], [...MAIL, onMail], [...CODE, onCode]];
+  if (hasShop()) { led('Shop', 'busy'); feeds.push([...SHOP_OV, onShop('ov')], [...SHOP_TD, onShop('td')]); }
+  for (const [srv, tool, input, fn] of feeds) mcp.callTool(srv, tool, input, {cache: {staleTime: 0, gcTime: FIVE, refresh: true}}).then((result) => fn({type: 'data', result})).catch((error) => fn({type: 'error', error}));
   setTimeout(() => maybeBrief(true), 5000);
 }
 let lock = null;
