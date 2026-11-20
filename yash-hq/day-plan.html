@@ -1,0 +1,346 @@
+<title>Yash Day Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:ROND,wght@0..100,100..900&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one column console. Today strip, the week, day types as timelines, the UC crunch, the rules.
+   Same Ember Cockpit language as HQ: true black, one ember hue, cream ink, numbers in dots. Single dark look on purpose. */
+:root{
+  color-scheme:dark;
+  --bg:#000;--mod:#0c0706;--mod2:#170d0b;--mod3:#21130f;--line:#2a1813;
+  --ink:#fff1ea;--ink2:#e8c2b6;--mute:#ad8679;--dim:#5e3e35;--off:#241511;
+  --hot:#ff5a43;--hot2:#ff8a6e;--amb:#ffb84d;
+  /* block kinds */
+  --k-sleep:#3a2620;--k-school:#e8c2b6;--k-deep:#ff5a43;--k-soccer:#ffb84d;--k-build:#ff8a6e;--k-life:#7a5a50;--k-recover:#a8786b;
+  --f:"Geist",system-ui,sans-serif;--fm:"Geist Mono",ui-monospace,monospace;--fd:"Doto",ui-monospace,monospace;
+  --r:18px;
+}
+*{box-sizing:border-box;min-width:0}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--f);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+.dz{font-family:var(--fd);font-weight:900;font-variation-settings:"ROND" 100;font-variant-numeric:tabular-nums}
+.lb{font:500 11px/1 var(--fm);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);display:flex;gap:10px;align-items:center}
+.lb .ix{color:var(--dim)}
+.mod{background:var(--mod);border-radius:var(--r);padding:20px}
+h1{margin:0;font:600 clamp(28px,4.4vw,44px)/1.05 var(--f);letter-spacing:-.03em;text-wrap:balance}
+h1 span{color:var(--hot2)}
+h2{margin:0;font:600 20px/1.2 var(--f);letter-spacing:-.01em}
+p{margin:0}
+.sub{color:var(--ink2);max-width:62ch;margin-top:8px}
+a{color:var(--hot2)}
+
+/* header + countdowns */
+.top{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;align-items:stretch}
+.cds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border-radius:var(--r);overflow:hidden}
+.cd{background:var(--mod);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.cd b{font-size:40px;line-height:.9}
+.cd b small{font:500 13px var(--fm);color:var(--mute);margin-left:4px}
+.cd span{font:500 12px/1.3 var(--f);color:var(--ink2)}
+.cd em{font:400 11px var(--fm);font-style:normal;color:var(--mute)}
+.cd.hot b{color:var(--hot)}
+
+/* week strip */
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:14px}
+.day{border-radius:14px;background:var(--mod2);padding:12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;border:1px solid transparent;text-align:left;color:inherit;font:inherit}
+.day:hover{border-color:var(--line)}
+.day:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+.day.today{border-color:var(--hot)}
+.day .d{font:500 11px var(--fm);color:var(--mute);letter-spacing:.06em}
+.day .n{font-size:26px;line-height:1}
+.day .t{font:600 13px/1.2 var(--f)}
+.day .g{font:500 11px/1.3 var(--fm);color:var(--amb)}
+.day .g.dl{color:var(--hot2)}
+
+/* day type tabs + timeline */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.tab{background:var(--mod2);border:0;border-radius:999px;padding:9px 14px;font:500 13px var(--f);color:var(--ink2);cursor:pointer;min-height:38px}
+.tab[aria-selected=true]{background:var(--hot);color:#140504}
+.tab:focus-visible{outline:2px solid var(--hot2);outline-offset:2px}
+.plan{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px;margin-top:18px}
+.tl{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.tl li{display:grid;grid-template-columns:76px 10px minmax(0,1fr) auto;gap:12px;align-items:start;padding:9px 12px;border-radius:12px;background:var(--mod2)}
+.tl li .tm{font:500 13px/1.35 var(--fm);color:var(--ink2);font-variant-numeric:tabular-nums}
+.tl li i{width:10px;height:10px;border-radius:50%;margin-top:5px;background:var(--kc)}
+.tl li b{display:block;font:600 14px/1.3 var(--f)}
+.tl li small{display:block;color:var(--mute);font-size:12.5px;margin-top:2px}
+.tl li .dur{font:500 11px var(--fm);color:var(--mute);padding-top:3px;white-space:nowrap}
+.tl li.deep{background:color-mix(in srgb,var(--hot) 10%,var(--mod2));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hot) 35%,transparent)}
+.side{display:grid;gap:12px;align-content:start}
+.bar{display:flex;height:22px;border-radius:6px;overflow:hidden;gap:2px}
+.bar i{display:block;height:100%;background:var(--kc)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 14px;font:500 11px var(--fm);color:var(--mute)}
+.legend span{display:flex;gap:6px;align-items:center}
+.legend i{width:9px;height:9px;border-radius:50%;background:var(--kc)}
+.totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.totals div{background:var(--mod2);border-radius:12px;padding:10px 12px}
+.totals b{display:block;font-size:24px;line-height:1}
+.totals span{font:500 11px var(--fm);color:var(--mute)}
+.why{background:var(--mod2);border-radius:12px;padding:14px;color:var(--ink2);font-size:13.5px}
+.why b{color:var(--ink)}
+
+/* crunch */
+.crunch{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:14px}
+.cr{background:var(--mod2);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.cr .d{font:500 11px var(--fm);color:var(--mute)}
+.cr b{font:600 13.5px/1.3 var(--f)}
+.cr small{color:var(--mute);font-size:12px}
+.cr.sub2{box-shadow:inset 0 0 0 1px var(--hot)}
+.cr.sub2 .d{color:var(--hot2)}
+.cr.off{opacity:.55}
+
+/* rules */
+.rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.rule{background:var(--mod2);border-radius:12px;padding:14px}
+.rule b{display:block;font:600 14px/1.3 var(--f);margin-bottom:4px}
+.rule span{color:var(--ink2);font-size:13px}
+.flags{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.flags li{background:var(--mod2);border-radius:12px;padding:11px 14px;font-size:13.5px;color:var(--ink2);display:flex;gap:10px}
+.flags li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--amb);flex:none;margin-top:6px}
+
+@media(max-width:860px){
+  .top,.plan{grid-template-columns:minmax(0,1fr)}
+  .week{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .crunch{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rules{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:460px){
+  .week{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tl li{grid-template-columns:64px 10px minmax(0,1fr)}
+  .tl li .dur{display:none}
+}
+@media(prefers-reduced-motion:no-preference){.tl li{animation:in .35s ease-out both;animation-delay:calc(var(--i) * 25ms)}@keyframes in{from{opacity:.001;transform:translateY(4px)}}}
+</style>
+
+<div class="wrap">
+  <section class="top">
+    <div class="mod">
+      <div class="lb"><span class="ix">00</span>Day plan</div>
+      <h1 style="margin-top:12px">Every day has a <span>shape</span>.</h1>
+      <p class="sub">Six day types built around your late start school schedule, varsity practices and games, and the UC deadline. Pick a day below or let it pick today for you. Your calendar holds the exact times for games and leave blocks; this holds the rhythm around them.</p>
+    </div>
+    <div class="cds" id="cds"></div>
+  </section>
+
+  <section class="mod">
+    <div class="lb"><span class="ix">01</span>Next 7 days<span style="margin-left:auto;text-transform:none;letter-spacing:0" id="wkNote"></span></div>
+    <div class="week" id="week"></div>
+  </section>
+
+  <section class="mod">
+    <div class="lb"><span class="ix">02</span>Day types</div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="plan">
+      <ol class="tl" id="tl"></ol>
+      <div class="side">
+        <div class="bar" id="bar" aria-hidden="true"></div>
+        <div class="legend" id="legend"></div>
+        <div class="totals" id="totals"></div>
+        <div class="why" id="why"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mod">
+    <div class="lb"><span class="ix">03</span>UC crunch · filed a day early</div>
+    <p class="sub">UC applications close Mon Nov 30. Your calendar note says the SolidHauz revenue figures have to match between the personal statement and PIQ 3. Ninety focused minutes a day gets it done with a buffer, and USC SlideRoom right behind it.</p>
+    <div class="crunch" id="crunch"></div>
+  </section>
+
+  <section class="mod">
+    <div class="lb"><span class="ix">04</span>Rules that make it work</div>
+    <div class="rules">
+      <div class="rule"><b>Use the late start</b><span>School starts at 9:46 (10:30 Wednesday). That morning block is the best focus time you have. Do the hardest thing there, before anyone can text you.</span></div>
+      <div class="rule"><b>Office hours are a weapon</b><span>10:55 to 11:30 every school day. Homework sprint or a teacher question. Thirty five minutes a day is three hours a week you don't owe at night.</span></div>
+      <div class="rule"><b>Homework before building</b><span>SolidHauz and code expand to fill any time. Give them a fixed hour after homework and a big block Saturday morning.</span></div>
+      <div class="rule"><b>Eat on a clock around soccer</b><span>Real meal three hours before kickoff, light snack 60 to 90 minutes before practice, protein within 45 minutes after.</span></div>
+      <div class="rule"><b>8.5 hours, protected</b><span>Lights out by 10:45 on school nights. Late games push it, so the morning after a game drops the deep block and keeps the sleep.</span></div>
+      <div class="rule"><b>Ten minute shutdown</b><span>Every night: clear the HQ checklist, look at tomorrow, pack the bag. Jarvis can read tomorrow back to you.</span></div>
+    </div>
+  </section>
+
+  <section class="mod">
+    <div class="lb"><span class="ix">05</span>Calendar things to fix</div>
+    <ul class="flags">
+      <li>"School" is on your calendar every day of Thanksgiving week (Nov 23 to 27), including Thanksgiving itself. That looks wrong; confirm the break dates and I'll clear it.</li>
+      <li>Tue Nov 24 has the Eddie meeting twice at 4:00 PM: the ProMX invite and your own copy. Keep the invite, drop the copy.</li>
+      <li>Tue Nov 24, 3:00 PM: Zoom with Karen Rowe (college counseling), still waiting on your RSVP. Bring your PIQ drafts.</li>
+      <li>Tue Jan 5 at Saints kicks off at 3:00 PM, so you leave school at 1:20 PM. Set up the early release the day before.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+{
+const TZ = 'America/Los_Angeles';
+const K = {sleep: ['Sleep', '--k-sleep'], school: ['School', '--k-school'], deep: ['Deep work', '--k-deep'], soccer: ['Soccer', '--k-soccer'], build: ['Build and SolidHauz', '--k-build'], life: ['Meals, travel, life', '--k-life'], recover: ['Recovery', '--k-recover']};
+
+/* day types: [start, end, kind, title, note] in 24h "HH:MM" */
+const TYPES = {
+  practice: {name: 'School + practice', short: 'Practice day', why: '<b>Mon, Tue, Thu, Fri.</b> Practice times change week to week, so slide the evening around whatever the coach sends. The morning deep block and the office hour are what keep the evening light.', blocks: [
+    ['07:30', '07:45', 'life', 'Wake, water, 10 min mobility', 'Hips, hamstrings, ankles'],
+    ['07:45', '08:00', 'life', 'Breakfast', 'Protein plus carbs'],
+    ['08:00', '09:20', 'deep', 'Deep work 1', 'Hardest thing first: apps now, the big build later'],
+    ['09:30', '09:46', 'life', 'Leave for school', '10 min drive'],
+    ['09:46', '15:35', 'school', 'School', '10:55 to 11:30 office hours: homework sprint'],
+    ['15:45', '16:00', 'life', 'Home, snack, reset', ''],
+    ['16:00', '17:15', 'deep', 'Homework', 'Phone in the other room'],
+    ['17:15', '18:15', 'build', 'Build or SolidHauz', 'Replies first, then one real task'],
+    ['18:15', '18:45', 'life', 'Light dinner', 'Easy carbs, not heavy'],
+    ['19:00', '21:00', 'soccer', 'Practice', 'Usually 7 to 9. Check the coach email'],
+    ['21:15', '21:45', 'recover', 'Recovery meal and shower', 'Protein within 45 min'],
+    ['21:45', '22:15', 'life', 'Shutdown', 'Clear HQ checklist, plan tomorrow, pack bag'],
+    ['22:45', '07:30', 'sleep', 'Lights out', '8 hours 45 minutes'],
+  ]},
+  game: {name: 'Game day', short: 'Game day', why: '<b>Shown for a 7:00 PM home kickoff.</b> Your calendar has the exact leave time for every game, drive included. Everything here keys off kickoff: real meal at minus three hours, bag packed before you leave for school.', blocks: [
+    ['07:30', '07:45', 'life', 'Wake, water, light mobility', ''],
+    ['07:45', '08:00', 'life', 'Big breakfast', ''],
+    ['08:00', '09:00', 'deep', 'Light deep work', 'Save energy, one task only'],
+    ['09:00', '09:20', 'life', 'Pack game bag', 'Cleats, shin guards, running shoes, water'],
+    ['09:46', '15:35', 'school', 'School', 'Office hours: get homework out of the way'],
+    ['15:45', '16:00', 'life', 'Pre game meal', 'Three hours before kickoff: rice or pasta and protein'],
+    ['16:15', '17:15', 'deep', 'Homework, light', 'Nothing stressful'],
+    ['17:15', '17:40', 'recover', 'Nap or visualization', '20 minutes, no longer'],
+    ['17:50', '18:00', 'life', 'Leave for the game', 'Exact time is on your calendar'],
+    ['18:00', '19:00', 'soccer', 'Warmup', 'Arrive one hour before'],
+    ['19:00', '21:00', 'soccer', 'Game', ''],
+    ['21:15', '22:00', 'recover', 'Recovery meal, ice, stretch', ''],
+    ['22:30', '07:30', 'sleep', 'Lights out', 'Skip tomorrow\'s deep block if you need sleep'],
+  ]},
+  wed: {name: 'Wednesday late start', short: 'Late start', why: '<b>School starts at 10:30.</b> This is the best two hour block of your week. Put college essays or the hardest build problem here, every Wednesday.', blocks: [
+    ['07:30', '07:50', 'life', 'Wake, mobility, breakfast', ''],
+    ['08:00', '10:00', 'deep', 'Deep work 2 hour block', 'Best block of the week. Essays or the hardest build'],
+    ['10:15', '10:30', 'life', 'Leave for school', ''],
+    ['10:30', '15:35', 'school', 'School', ''],
+    ['15:45', '16:00', 'life', 'Snack, reset', ''],
+    ['16:00', '17:15', 'deep', 'Homework', ''],
+    ['17:15', '18:15', 'build', 'Build or SolidHauz', ''],
+    ['18:15', '18:45', 'life', 'Light dinner', ''],
+    ['19:00', '21:00', 'soccer', 'Practice', 'If scheduled'],
+    ['21:15', '22:15', 'recover', 'Recovery and shutdown', ''],
+    ['22:45', '07:30', 'sleep', 'Lights out', ''],
+  ]},
+  sat: {name: 'Saturday', short: 'Saturday', why: '<b>Build morning, then soccer or rest.</b> On a Saturday game day (Dec 5 at Torrey Pines, 2:00 PM), eat by 11:00 and follow the leave block on your calendar.', blocks: [
+    ['08:30', '09:00', 'life', 'Wake, breakfast', 'Sleep in a little'],
+    ['09:00', '12:00', 'build', 'Build session', 'SolidHauz, HQ, Jarvis, new projects. The big block of the week'],
+    ['12:00', '13:00', 'life', 'Lunch', ''],
+    ['13:00', '15:00', 'soccer', 'Game or touches and recovery', 'Ball work, sprints, or foam roll on a rest weekend'],
+    ['15:00', '18:00', 'life', 'Free', 'Friends, family, nothing scheduled'],
+    ['18:00', '23:00', 'life', 'Evening', ''],
+    ['23:30', '08:30', 'sleep', 'Lights out', ''],
+  ]},
+  sun: {name: 'Sunday reset', short: 'Reset', why: '<b>Set the week up so weekdays run themselves.</b> The 6:00 PM planning block is where you check the coach email, look at the calendar and fill the HQ checklist.', blocks: [
+    ['08:30', '09:15', 'life', 'Wake, breakfast', ''],
+    ['09:30', '11:30', 'deep', 'Apps and homework', 'Two focused hours'],
+    ['12:00', '13:00', 'build', 'SolidHauz weekly ops', 'Customer replies, quotes, jobs behind'],
+    ['13:00', '17:30', 'life', 'Family and free time', ''],
+    ['17:30', '18:00', 'recover', 'Stretch and recovery', ''],
+    ['18:00', '18:30', 'deep', 'Plan the week', 'Coach email, calendar, HQ checklist, pack Monday bag'],
+    ['18:30', '22:00', 'life', 'Dinner and evening', ''],
+    ['22:30', '07:30', 'sleep', 'Lights out', ''],
+  ]},
+  brk: {name: 'Break day', short: 'Break', why: '<b>Thanksgiving week and winter break.</b> The coach is planning break practices, so keep the afternoon flexible. Mornings are for the UC push.', blocks: [
+    ['08:00', '08:30', 'life', 'Wake, breakfast', ''],
+    ['08:30', '11:30', 'deep', 'Deep work', 'UC app push: PIQs, activities, review'],
+    ['11:30', '12:30', 'life', 'Lunch', ''],
+    ['12:30', '14:30', 'soccer', 'Break practice', 'When the coach announces it; otherwise touches and a run'],
+    ['15:00', '17:00', 'build', 'Build session', ''],
+    ['17:00', '22:30', 'life', 'Family and free time', ''],
+    ['23:00', '08:00', 'sleep', 'Lights out', ''],
+  ]},
+};
+
+/* the real season, from the coach's schedule (kickoff, leave, opponent) */
+const GAMES = [
+  ['2026-12-01', '18:00', '16:50', 'vs University City'], ['2026-12-03', '19:00', '17:50', 'vs Scripps Ranch'], ['2026-12-05', '14:00', '12:35', 'at Torrey Pines'],
+  ['2026-12-08', '17:30', '16:20', 'vs Calexico'], ['2026-12-10', '18:00', '16:20', 'at La Costa Canyon'], ['2026-12-16', '18:00', '16:50', 'vs Central Union'],
+  ['2026-12-17', '18:30', '16:30', 'at Hilltop'], ['2027-01-05', '15:00', '13:20', 'at Saints'], ['2027-01-06', '16:00', '15:00', 'vs University SF'],
+  ['2027-01-12', '19:00', '17:40', 'at Mt. Carmel'], ['2027-01-14', '19:00', '17:50', 'vs San Marcos'], ['2027-01-19', '19:00', '17:20', 'at San Pasqual'],
+  ['2027-01-21', '19:00', '17:20', 'at Mission Hills'], ['2027-01-26', '19:00', '17:50', 'vs Westview'], ['2027-01-28', '19:00', '17:50', 'vs Mt. Carmel'],
+  ['2027-02-02', '19:00', '17:20', 'at San Marcos'], ['2027-02-04', '18:00', '16:50', 'vs San Pasqual'], ['2027-02-09', '19:00', '17:50', 'vs Mission Hills'],
+  ['2027-02-11', '19:15', '17:55', 'at Westview'],
+];
+const DEADLINES = [['2026-11-30', 'UC apps due'], ['2026-12-01', 'USC SlideRoom due']];
+const BREAKS = [['2026-11-23', '2026-11-27'], ['2026-12-21', '2027-01-01']];   // Thanksgiving and winter break, typical PUSD dates
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const todayKey = () => new Date().toLocaleDateString('en-CA', {timeZone: TZ});
+const addDays = (k, n) => { const d = new Date(k + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const dow = (k) => new Date(k + 'T12:00:00Z').getUTCDay();
+const fmt = (hm) => { let [h, m] = hm.split(':').map(Number); const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; return h + (m ? ':' + String(m).padStart(2, '0') : '') + ' ' + ap; };
+const mins = (a, b) => { const [h1, m1] = a.split(':').map(Number), [h2, m2] = b.split(':').map(Number); let d = h2 * 60 + m2 - (h1 * 60 + m1); return d <= 0 ? d + 1440 : d; };
+const dur = (m) => m >= 60 ? Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + m % 60 + 'm' : '') : m + 'm';
+const inBreak = (k) => BREAKS.some(([a, b]) => k >= a && k <= b);
+function typeFor(k) {
+  if (GAMES.some((g) => g[0] === k)) return 'game';
+  const d = dow(k);
+  if (d === 6) return 'sat';
+  if (d === 0) return 'sun';
+  if (inBreak(k)) return 'brk';
+  return d === 3 ? 'wed' : 'practice';
+}
+
+/* countdowns */
+function renderCds() {
+  const t = todayKey(), dd = (k) => Math.round((new Date(k + 'T12:00:00Z') - new Date(t + 'T12:00:00Z')) / 864e5);
+  const next = GAMES.find((g) => g[0] >= t);
+  const items = [
+    ...DEADLINES.filter(([k]) => k >= t).map(([k, l]) => [dd(k), l, new Date(k + 'T12:00:00Z').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC'}), dd(k) <= 10]),
+    next ? [dd(next[0]), 'First game: ' + next[3], 'Kickoff ' + fmt(next[1]) + ', leave ' + fmt(next[2]), false] : null,
+    [GAMES.filter((g) => g[0] >= t).length, 'Varsity games left', 'Palomar League starts Jan 12', false],
+  ].filter(Boolean).slice(0, 4);
+  $('cds').innerHTML = items.map(([n, l, e, hot], i) => '<div class="cd' + (hot ? ' hot' : '') + '"><b class="dz">' + n + (i < 3 && l !== 'Varsity games left' ? '<small>' + (n === 1 ? 'day' : 'days') + '</small>' : '') + '</b><span>' + esc(l) + '</span><em>' + esc(e) + '</em></div>').join('');
+}
+
+/* week strip */
+function renderWeek() {
+  const t = todayKey(); let h = '';
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(t, i), ty = typeFor(k), g = GAMES.find((x) => x[0] === k), dl = DEADLINES.find((x) => x[0] === k);
+    const d = new Date(k + 'T12:00:00Z');
+    h += '<button type="button" class="day' + (i === 0 ? ' today' : '') + '" data-type="' + ty + '"><span class="d">' + (i === 0 ? 'TODAY' : d.toLocaleDateString('en-US', {weekday: 'short', timeZone: 'UTC'}).toUpperCase()) + '</span><span class="n dz">' + d.getUTCDate() + '</span><span class="t">' + esc(TYPES[ty].short) + '</span>'
+      + (g ? '<span class="g">' + esc(g[3]) + ' ' + fmt(g[1]) + '<br>leave ' + fmt(g[2]) + '</span>' : '') + (dl ? '<span class="g dl">' + esc(dl[1]) + '</span>' : '') + '</button>';
+  }
+  $('week').innerHTML = h;
+  $('wkNote').textContent = 'Tap a day to see its plan';
+}
+
+/* tabs + timeline */
+let cur = typeFor(todayKey());
+function renderTabs() {
+  $('tabs').innerHTML = Object.entries(TYPES).map(([id, ty]) => '<button type="button" role="tab" class="tab" id="tab-' + id + '" data-type="' + id + '" aria-selected="' + (id === cur) + '">' + esc(ty.name) + '</button>').join('');
+}
+function renderPlan() {
+  const ty = TYPES[cur], tot = {};
+  $('tl').innerHTML = ty.blocks.map(([a, b, k, title, note], i) => { const m = mins(a, b); tot[k] = (tot[k] || 0) + m;
+    return '<li class="' + (k === 'deep' ? 'deep' : '') + '" style="--i:' + i + ';--kc:var(' + K[k][1] + ')"><span class="tm">' + fmt(a) + '</span><i></i><span><b>' + esc(title) + '</b>' + (note ? '<small>' + esc(note) + '</small>' : '') + '</span><span class="dur">' + dur(m) + '</span></li>'; }).join('');
+  const all = Object.values(tot).reduce((s, x) => s + x, 0);
+  $('bar').innerHTML = Object.entries(tot).map(([k, m]) => '<i style="--kc:var(' + K[k][1] + ');flex:' + m + '" title="' + esc(K[k][0] + ' ' + dur(m)) + '"></i>').join('');
+  $('legend').innerHTML = Object.keys(tot).map((k) => '<span><i style="--kc:var(' + K[k][1] + ')"></i>' + esc(K[k][0]) + '</span>').join('');
+  const h = (k) => ((tot[k] || 0) / 60).toFixed(1);
+  $('totals').innerHTML = '<div><b class="dz">' + h('deep') + '</b><span>hours deep work</span></div><div><b class="dz">' + h('sleep') + '</b><span>hours sleep</span></div><div><b class="dz">' + (((tot.build || 0) + (tot.soccer || 0)) / 60).toFixed(1) + '</b><span>build and soccer</span></div>';
+  $('why').innerHTML = ty.why;
+  [...$('tabs').children].forEach((b) => b.setAttribute('aria-selected', b.dataset.type === cur));
+  void all;
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-type]'); if (!b) return; cur = b.dataset.type; renderPlan(); if (b.classList.contains('day')) $('tabs').scrollIntoView({behavior: 'smooth', block: 'nearest'}); });
+
+/* UC crunch */
+const CRUNCH = [
+  ['Sat Nov 21', 'Lock the PIQ picks', 'Choose your 4 PIQs and outline each in 5 bullets'],
+  ['Sun Nov 22', 'PIQ 1 and 2 drafts', 'Two hours, Sunday morning block'],
+  ['Mon Nov 23', 'PIQ 3: SolidHauz', 'Match the revenue figures to the personal statement'],
+  ['Tue Nov 24', 'PIQ 4 + counselor call', '3:00 PM with Karen Rowe, bring drafts'],
+  ['Wed Nov 25', 'Full read through', 'Out loud, cut 10 percent'],
+  ['Thu Nov 26', 'Thanksgiving', 'Off', 'off'],
+  ['Fri Nov 27', 'Activities and awards', 'All 20 slots, numbers everywhere'],
+  ['Sat Nov 28', 'Parent review and polish', 'Mom or dad reads it once'],
+  ['Sun Nov 29', 'Submit UC', 'One day early. Screenshot the confirmation', 'sub2'],
+  ['Mon Nov 30', 'USC SlideRoom', 'Due Dec 1. Upload and submit', 'sub2'],
+];
+$('crunch').innerHTML = CRUNCH.map(([d, b, s, c]) => '<div class="cr ' + (c || '') + '"><span class="d">' + esc(d) + '</span><b>' + esc(b) + '</b><small>' + esc(s) + '</small></div>').join('');
+
+renderCds(); renderWeek(); renderTabs(); renderPlan();
+}
+</script>
