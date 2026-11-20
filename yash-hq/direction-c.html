@@ -634,17 +634,19 @@ async function start() {
     db.collection('done').onSnapshot((s) => { doneIds = new Set(s.docs.map((d) => d.id)); paintBrief(); }, () => {});
     db.collection('agents').onSnapshot((s) => renderAgents(sortAgents(s.docs.map((d) => ({id: d.id, ...d.data()})))), () => renderAgents([], 'Agent board offline.'));
   } else renderAgents([], 'Open in Claude to see agents.');
-  if (!mcp) { mockFeeds(); if (hasShop()) mockShop(); T('stamp', 'Preview data'); document.documentElement.dataset.preview = '1'; return; }
+  if (!mcp) { mockFeeds(); if (hasShop()) mockShop(); if (typeof extraMock === 'function') extraMock(); T('stamp', 'Preview data'); document.documentElement.dataset.preview = '1'; return; }
   mcp.watchTool(...CAL, onCal, {refetchInterval: FIVE});
   mcp.watchTool(...MAIL, onMail, {refetchInterval: FIVE});
   mcp.watchTool(...CODE, onCode, {refetchInterval: FIVE});
   if (hasShop()) { mcp.watchTool(...SHOP_OV, onShop('ov'), {refetchInterval: 3 * FIVE}); mcp.watchTool(...SHOP_TD, onShop('td'), {refetchInterval: FIVE}); }
+  if (typeof extraFeeds === 'function') extraFeeds(mcp);
 }
 function rescan() {
   if (!mcp) { document.documentElement.dataset.scan = '1'; setTimeout(() => delete document.documentElement.dataset.scan, 900); return; }
   led('Cal', 'busy'); led('Mail', 'busy'); led('Ops', 'busy');
   const feeds = [[...CAL, onCal], [...MAIL, onMail], [...CODE, onCode]];
   if (hasShop()) { led('Shop', 'busy'); feeds.push([...SHOP_OV, onShop('ov')], [...SHOP_TD, onShop('td')]); }
+  if (typeof extraRescan === 'function') extraRescan(mcp);
   for (const [srv, tool, input, fn] of feeds) mcp.callTool(srv, tool, input, {cache: {staleTime: 0, gcTime: FIVE, refresh: true}}).then((result) => fn({type: 'data', result})).catch((error) => fn({type: 'error', error}));
   setTimeout(() => maybeBrief(true), 5000);
 }

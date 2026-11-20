@@ -55,6 +55,22 @@ Walk in: while Jarvis runs the PC never sleeps (the monitor still does). Clap tw
 "hey jarvis, I'm home": monitor wakes, windows tile, your room playlist starts, greeting, and HQ
 on the iPad wakes from standby. Set `ROOM_PLAYLIST` in `jarvis_room.py`.
 
+More instant commands:
+
+| Say | Does |
+|---|---|
+| what time is it | tells you |
+| set a timer for 10 minutes | chimes and tells you when done |
+| remind me in 20 minutes to stretch | spoken reminder |
+| take a note call coach about Saturday | adds it to notes/inbox.md |
+| goodnight | pauses music, turns the monitors off |
+| turn off the monitor | monitors off |
+| what are my sessions doing | status of your cloud Claude Code sessions |
+| tell the godot session to push the branch | asks you to confirm, then sends it |
+
+On a clap Jarvis also plays a short power up sound, and if `NTFY_TOPIC` is set your iPhone gets a push
+(install the free ntfy app, subscribe to a long random topic name, paste it at the top of jarvis.py).
+
 Everything else goes to Claude Code, which can search the web, read your calendar and mail, and
 write files only inside `notes/`. It cannot run commands or touch other files.
 

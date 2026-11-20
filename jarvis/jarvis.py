@@ -66,6 +66,10 @@ CONNECTOR_TOOLS = "mcp__claude_ai_Google_Calendar,mcp__claude_ai_Gmail"
 # Voice can search, read your calendar and mail, and write new files only inside notes/. Never add Bash.
 ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 SPOTIFY_CLIENT_ID = ""       # optional, from developer.spotify.com. Then run --spotify-login once
+NTFY_TOPIC = ""              # optional: phone push on clap. Install the ntfy app on your iPhone, subscribe to a long random topic, paste it here
+# your cloud Claude Code sessions, through the claude.ai Claude Code Remote connector (run --doctor to confirm the name)
+SESSIONS_TOOLS = "mcp__claude_ai_Claude_Code_Remote__list_sessions,mcp__claude_ai_Claude_Code_Remote__get_session,mcp__claude_ai_Claude_Code_Remote__list_events"
+SESSIONS_SEND = "mcp__claude_ai_Claude_Code_Remote__send_message"
 # -----------------------------------------------------------
 
 RATE = 16000
@@ -264,6 +268,18 @@ class Speaker:
             self.engine.say(text)
             self.engine.runAndWait()
 
+    def powerup(self):
+        """A short rising chord: the room powering on."""
+        sd = _sd()
+        sr, dur = 24000, 0.9
+        t = np.linspace(0, dur, int(sr * dur), False)
+        sweep = np.zeros_like(t)
+        for i, f in enumerate((220, 330, 440, 660)):
+            env = np.clip((t - i * 0.12) * 8, 0, 1) * np.exp(-np.clip(t - i * 0.12, 0, None) * 2.2)
+            sweep += np.sin(2 * np.pi * f * (1 + 0.04 * t) * t) * env
+        sd.play((0.12 * sweep / max(1e-6, np.max(np.abs(sweep)))).astype(np.float32), sr, device=SPEAKER_DEVICE)
+        sd.wait()
+
     def chime(self, freq=880):
         sd = _sd()
         t = np.linspace(0, 0.12, int(24000 * 0.12), False)
@@ -367,6 +383,12 @@ class PC:
             u.mouse_event(0x0001, 1, 0, 0, 0)
             u.mouse_event(0x0001, -1, 0, 0, 0)
 
+    def monitor_off(self):
+        log("monitor off")
+        if IS_WIN:
+            import ctypes
+            ctypes.windll.user32.SendMessageW(0xFFFF, 0x0112, 0xF170, 2)   # broadcast: turn displays off
+
     def spotify_title(self):
         """What the Spotify desktop app shows in its window title, like 'Artist - Song'."""
         if not IS_WIN:
@@ -380,7 +402,7 @@ class PC:
             return ""
 
 
-WORDNUM = {"five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+WORDNUM = {"one": 1, "a": 1, "an": 1, "two": 2, "three": 3, "four": 4, "six": 6, "seven": 7, "eight": 8, "nine": 9, "twelve": 12, "forty five": 45, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
            "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90, "hundred": 100, "a hundred": 100}
 
 
@@ -394,6 +416,23 @@ def _num(s):
     return None
 
 
+def _dur(secs):
+    secs = int(secs)
+    if secs < 60:
+        return f"{secs} seconds"
+    m = secs // 60
+    return f"{m} minute" + ("s" if m != 1 else "") if m < 60 else f"{m // 60} hour" + ("s" if m // 60 != 1 else "") + (f" {m % 60} minutes" if m % 60 else "")
+
+
+def push_phone(text):
+    """Optional iPhone notification through ntfy (free app). Only a short status line is sent."""
+    try:
+        urllib.request.urlopen(urllib.request.Request("https://ntfy.sh/" + NTFY_TOPIC, data=text.encode(),
+                                                      headers={"Title": "Yash HQ", "Tags": "red_circle"}), timeout=8)
+    except Exception as e:
+        log(f"push failed: {e}")
+
+
 def route(text):
     """Turn a spoken line into a local command, or None to send it to Claude.
     Returns (action, arg). Only actions from this list can ever run by voice."""
@@ -402,11 +441,37 @@ def route(text):
     t = re.sub(r"\b(please|can you|could you|for me|real quick)\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
 
-    if re.fullmatch(r"(go to sleep|shut down jarvis|goodnight jarvis)", t) or t == "go to sleep":
+    if re.fullmatch(r"(go to sleep|shut down jarvis)", t) or t == "go to sleep":
         return ("sleep", None)
+    if re.fullmatch(r"(yes|yeah|yep|do it|send it|confirm|go ahead)", t):
+        return ("confirm", True)
+    if re.fullmatch(r"(no|nope|cancel|never ?mind|don't)", t):
+        return ("confirm", False)
+    if re.search(r"\b(what are|how are|status of|check on) my (claude )?(cloud )?(sessions|agents)( doing)?\b|\bsession status\b", t):
+        return ("sessions", None)
     cc = jarvis_claude.route_claude(t)
     if cc:
         return cc
+    if re.fullmatch(r"what time is it|what's the time|time", t):
+        return ("time", None)
+    m = re.search(r"\b(?:set )?(?:a )?timer (?:for )?(.+?) (seconds?|minutes?|hours?)\b", t) or re.fullmatch(r"(.+?) (seconds?|minutes?|hours?) timer", t)
+    if m and _num(m.group(1)) is not None:
+        return ("timer", _num(m.group(1)) * {"s": 1, "m": 60, "h": 3600}[m.group(2)[0]])
+    m = re.fullmatch(r"remind me in (.+?) (minutes?|hours?) (?:to |that |about )?(.+)", t)
+    if m and _num(m.group(1)) is not None:
+        return ("remind", (_num(m.group(1)) * (60 if m.group(2)[0] == "m" else 3600), m.group(3)))
+    m = re.fullmatch(r"(?:take a note|note to self|make a note|write down|remember)(?: that)? (.+)", t)
+    if m:
+        return ("note", m.group(1))
+    if re.fullmatch(r"(good ?night|goodnight jarvis|i'?m going to bed|bedtime)", t):
+        return ("goodnight", None)
+    if re.fullmatch(r"(turn off|sleep) (the )?(monitor|screen|display)s?|(monitor|screen) off", t):
+        return ("monitor_off", None)
+    if re.search(r"\b(what are|how are|status of|check on) my (claude )?(sessions|agents)\b|\bsession status\b", t):
+        return ("sessions", None)
+    m = re.fullmatch(r"(?:tell|message) (?:the |my )?(.+?) session (?:to |that )?(.+)", t)
+    if m:
+        return ("session_send", (m.group(1), m.group(2)))
     if re.search(r"\bnew conversation\b|\bstart over\b|\bfresh start\b", t):
         return ("reset", None)
     if re.search(r"\b(open|show|pull up) (the )?hq\b|\bwake (everything|up the room|up)\b|\bi'?m (home|back)\b", t):
@@ -602,6 +667,18 @@ class Jarvis:
         self.session_id = load_session()
         self.last_brief_day = None
         self.quiet_until = 0.0
+        self.pending = None
+
+    def later(self, secs, text):
+        def fire():
+            try:
+                self.speaker.chime(1320)
+                self.speaker.say(text)
+            except Exception as e:
+                log(f"timer: {e}")
+        t = threading.Timer(secs, fire)
+        t.daemon = True
+        t.start()
 
     def wake_room(self):
         """The walk in scene. Opening HQ here also tells HQ on the iPad to wake up."""
@@ -614,6 +691,12 @@ class Jarvis:
                 log(f"layout failed: {e}")
         threading.Thread(target=lambda: log("music: " + jarvis_room.start_music(self.pc, self.spotify, log)), daemon=True).start()
         log("room awake, HQ opened")
+        if NTFY_TOPIC:
+            threading.Thread(target=push_phone, args=("HQ is online. Welcome back.",), daemon=True).start()
+        try:
+            self.speaker.powerup()
+        except Exception:
+            pass
         self.speaker.say(GREETING)
         today = time.strftime("%Y-%m-%d")
         if time.localtime().tm_hour < MORNING_BRIEF_BEFORE and self.last_brief_day != today:
@@ -634,13 +717,62 @@ class Jarvis:
 
     def run(self, action, arg):
         say, pc, sp = self.speaker.say, self.pc, self.spotify
+        if action == "confirm":
+            job, self.pending = self.pending, None
+            if not job:
+                say("Nothing to confirm.")
+            elif arg:
+                job()
+            else:
+                say("Cancelled.")
+            return True
+        self.pending = None
+        if action == "time":
+            say("It's " + time.strftime("%I:%M %p").lstrip("0") + ".")
+        elif action == "timer":
+            self.later(arg, "Timer done.")
+            say("Timer set for " + _dur(arg) + ".")
+        elif action == "remind":
+            secs, what = arg
+            self.later(secs, "Reminder: " + what)
+            say("I'll remind you in " + _dur(secs) + ".")
+        elif action == "note":
+            os.makedirs(os.path.join(WORKDIR, "notes"), exist_ok=True)
+            with open(os.path.join(WORKDIR, "notes", "inbox.md"), "a", encoding="utf-8") as f:
+                f.write(time.strftime("- %Y-%m-%d %H:%M ") + arg + "\n")
+            say("Noted.")
+        elif action == "goodnight":
+            pc.key("play_pause") if pc.spotify_title() else None
+            say("Goodnight Yash. Shutting the room down.")
+            pc.monitor_off()
+        elif action == "monitor_off":
+            pc.monitor_off()
+        elif action == "sessions":
+            say("Checking your sessions.")
+            ans, _ = ask_claude("Give me a spoken status of my Claude Code cloud sessions: which are working, which are waiting on me, "
+                                "and what the most recent one did. Use the Claude Code Remote tools.", None, self.claude, SESSIONS_TOOLS)
+            say(ans)
+        elif action == "session_send":
+            name, msg = arg
+            msg = jarvis_claude.clean_task(msg)
+
+            def send():
+                say("Sending.")
+                ans, _ = ask_claude(f"Find my Claude Code cloud session whose title best matches '{name}'. If exactly one clearly matches, "
+                                    f"send it this message with send_message: '{msg}'. Then tell me in one sentence which session got it. "
+                                    "If none or several match, send nothing and say which ones you found.", None, self.claude,
+                                    SESSIONS_TOOLS + "," + SESSIONS_SEND)
+                say(ans)
+            self.pending = send
+            say(f"Send to the {name} session: {msg}. Say yes to send.")
+            return True
         if action.startswith(("cc_", "chat_", "claude_")):
             jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude()).handle(action, arg)
             return True
-        if action == "sleep":
+        elif action == "sleep":
             say("Going offline.")
             return False
-        if action == "reset":
+        elif action == "reset":
             self.session_id = None
             save_session(None)
             say("Fresh start.")

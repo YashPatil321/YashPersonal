@@ -246,14 +246,21 @@ html[data-briefing] .brief .lb .rt::before{content:"updating, "}
 .rp li{font:400 .82rem/1.3 var(--f);color:var(--ink2);padding:.36rem 0;border-top:1px solid var(--line)}
 .rp li b{display:flex;justify-content:space-between;font:500 .68rem/1 var(--fm);letter-spacing:.04em;color:var(--ink);text-transform:uppercase;margin-bottom:.2rem}
 .rp li b em{font-style:normal;color:var(--mute)}
-.rp li:nth-child(n+3){display:none}
+.rp li:nth-child(n+2){display:none}
 .agw{border-top:1px solid var(--line);padding-top:.7rem;flex:1;min-height:0;display:flex;flex-direction:column}
 .agw .lb{margin-bottom:.45rem}
 .ag{list-style:none;margin:0;padding:0;overflow:hidden}
 .ag li{display:grid;grid-template-columns:.7rem minmax(0,1fr);gap:.5rem;padding:.3rem 0;font-size:.86rem;align-items:baseline}
 .ag li i{width:.5rem;height:.5rem;border-radius:50%;background:var(--ink2)}
 .ag li.blocked i{background:var(--amb)}.ag li.done i{background:var(--dim)}
-.ag li small{display:block;font:400 .68rem var(--fm);color:var(--mute)}
+.ag li small{display:block;font:400 .68rem var(--fm);color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag li>span{min-width:0}
+.ag li.working i{background:var(--hot)}
+@media(prefers-reduced-motion:no-preference){.ag li.working i{animation:pn 2s ease-in-out infinite}}
+.ag li.blocked i,.ag li.failed i{background:var(--amb)}
+.ag li.completed i{background:var(--ink2)}
+.ag li b.un{display:inline-block;width:.4rem;height:.4rem;border-radius:50%;background:var(--hot);margin-left:.35rem;vertical-align:middle}
+.ag li em{font-style:normal;color:var(--mute);font:400 .66rem var(--fm);float:right;margin-left:.4rem}
 
 /* decks: on the iPad two slots rotate between modules */
 .deck{display:contents}
@@ -277,6 +284,31 @@ html[data-standby] .standby{opacity:1;visibility:visible}
 .standby p b{color:var(--mute);font-weight:500}
 html[data-dark] .standby .dz{color:var(--dim);font-size:clamp(3rem,8vw,8rem)}
 html[data-dark] .standby p{display:none}
+
+/* ===== wake sequence: dot ripple, title card, panels power on ===== */
+.wake{position:fixed;inset:0;z-index:18;background:#000;display:grid;place-items:center;pointer-events:none;opacity:0;visibility:hidden}
+html[data-waking] .wake{opacity:1;visibility:visible}
+.wake .wg{position:absolute;inset:0;display:grid;grid-template-columns:repeat(var(--c),1fr);grid-template-rows:repeat(var(--r),1fr);padding:2vmin}
+.wake .wg i{place-self:center;width:.5vmin;height:.5vmin;min-width:3px;min-height:3px;border-radius:50%;background:var(--ink);opacity:0}
+.wake .card{position:relative;text-align:center;display:grid;gap:1.1rem;justify-items:center;opacity:0}
+.wake .card .dz{font-size:clamp(3rem,7vw,8.5rem);line-height:.9;color:var(--ink);font-variation-settings:"ROND" 100}
+.wake .card .hi{font:600 clamp(1.4rem,2.4vw,2.6rem)/1.1 var(--f);letter-spacing:-.02em}
+.wake .card .hi span{color:var(--hot2)}
+.wake .card .sub{font:500 clamp(.85rem,1vw,1.15rem)/1.4 var(--fm);color:var(--ink2);letter-spacing:.04em}
+.wake .card .bar{width:min(40vw,22rem);height:3px;background:var(--off);border-radius:2px;overflow:hidden}
+.wake .card .bar i{display:block;height:100%;width:0;background:var(--hot)}
+@media(prefers-reduced-motion:no-preference){
+  html[data-waking] .wake .wg i{animation:rip 1.5s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--d) * 1ms)}
+  @keyframes rip{0%{opacity:0;transform:scale(.2)}25%{opacity:1;transform:scale(2.6);background:var(--hot)}60%{opacity:.5;transform:scale(1)}100%{opacity:.12;transform:scale(1)}}
+  html[data-waking] .wake .card{animation:cin .7s .55s ease-out forwards}
+  @keyframes cin{from{opacity:0;transform:translateY(1.2rem);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+  html[data-waking] .wake .card .bar i{animation:fill 1.6s .8s cubic-bezier(.5,0,.2,1) forwards}
+  @keyframes fill{to{width:100%}}
+  html[data-cascade] .app>*,html[data-cascade] .app>.deck>*{animation:pwr .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 70ms)}
+  @keyframes pwr{0%{opacity:0;transform:translateY(14px) scale(.985);filter:brightness(2.2) blur(3px)}55%{opacity:1;filter:brightness(1.3)}100%{opacity:1;transform:none;filter:none}}
+}
+@media(prefers-reduced-motion:reduce){html[data-waking] .wake .card{opacity:1}}
+html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
 
 /* ===== boot ===== */
 .boot{position:fixed;inset:0;background:#000;z-index:20;display:grid;place-content:center;justify-items:center;gap:1.1rem;transition:opacity .6s}
@@ -321,7 +353,7 @@ html[data-dark] .standby p{display:none}
   .app{grid-template-rows:auto minmax(0,1.15fr) auto auto minmax(0,1fr)}
 }
 @media(max-width:999px){
-  .app{grid-template-areas:"fma" "time" "ring" "nav" "brief" "today" "nums" "chk" "mail" "shop" "week" "ops";grid-template-columns:minmax(0,1fr)}
+  .app{grid-template-areas:"fma" "ring" "brief" "chk" "ops" "mail" "shop" "today" "nums" "time" "nav" "week";grid-template-columns:minmax(0,1fr)}
   .fma{grid-template-columns:1fr 1fr}
   .fma>div+div::before{display:none}
   .fma>div{border-top:1px solid var(--line)}.fma>div:nth-child(-n+2){border-top:0}
@@ -341,6 +373,7 @@ html[data-dark] .standby p{display:none}
 <body>
 <div class="boot" id="boot" aria-hidden="true"><svg id="bootSvg" viewBox="0 0 230 50"></svg><p>YASH HQ · SELF TEST</p></div>
 
+<div class="wake" id="wake" aria-hidden="true"><div class="wg" id="wakeGrid"></div><div class="card"><span class="dz" id="wkClock">--:--</span><div class="hi" id="wkHi"></div><div class="sub" id="wkSub"></div><div class="bar"><i></i></div></div></div>
 <div class="standby" id="standby" role="button" aria-label="Wake HQ"><span class="dz" id="sbClock">--:--</span><p id="sbNext"></p><p>Tap or clap to wake</p></div>
 
 <main class="app">
@@ -420,7 +453,7 @@ html[data-dark] .standby p{display:none}
       <div class="lb" style="margin-bottom:.2rem"><span class="ix">11</span>Builds<span class="rt" id="opsStamp">7 days</span></div>
       <div class="dc" id="chart"></div>
       <ul class="rp" id="opsList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul>
-      <div class="agw"><div class="lb"><span class="ix">12</span>Agents</div><ul class="ag fade" id="agentList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul></div>
+      <div class="agw"><div class="lb"><span class="ix">12</span>Claude sessions<span class="rt" id="sessT"></span></div><ul class="ag fade" id="sessList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul><ul class="ag" id="agentList"></ul></div>
     </section>
   </div>
 
@@ -775,17 +808,19 @@ async function start() {
     db.collection('done').onSnapshot((s) => { doneIds = new Set(s.docs.map((d) => d.id)); paintBrief(); }, () => {});
     db.collection('agents').onSnapshot((s) => renderAgents(sortAgents(s.docs.map((d) => ({id: d.id, ...d.data()})))), () => renderAgents([], 'Agent board offline.'));
   } else renderAgents([], 'Open in Claude to see agents.');
-  if (!mcp) { mockFeeds(); if (hasShop()) mockShop(); T('stamp', 'Preview data'); document.documentElement.dataset.preview = '1'; return; }
+  if (!mcp) { mockFeeds(); if (hasShop()) mockShop(); if (typeof extraMock === 'function') extraMock(); T('stamp', 'Preview data'); document.documentElement.dataset.preview = '1'; return; }
   mcp.watchTool(...CAL, onCal, {refetchInterval: FIVE});
   mcp.watchTool(...MAIL, onMail, {refetchInterval: FIVE});
   mcp.watchTool(...CODE, onCode, {refetchInterval: FIVE});
   if (hasShop()) { mcp.watchTool(...SHOP_OV, onShop('ov'), {refetchInterval: 3 * FIVE}); mcp.watchTool(...SHOP_TD, onShop('td'), {refetchInterval: FIVE}); }
+  if (typeof extraFeeds === 'function') extraFeeds(mcp);
 }
 function rescan() {
   if (!mcp) { document.documentElement.dataset.scan = '1'; setTimeout(() => delete document.documentElement.dataset.scan, 900); return; }
   led('Cal', 'busy'); led('Mail', 'busy'); led('Ops', 'busy');
   const feeds = [[...CAL, onCal], [...MAIL, onMail], [...CODE, onCode]];
   if (hasShop()) { led('Shop', 'busy'); feeds.push([...SHOP_OV, onShop('ov')], [...SHOP_TD, onShop('td')]); }
+  if (typeof extraRescan === 'function') extraRescan(mcp);
   for (const [srv, tool, input, fn] of feeds) mcp.callTool(srv, tool, input, {cache: {staleTime: 0, gcTime: FIVE, refresh: true}}).then((result) => fn({type: 'data', result})).catch((error) => fn({type: 'error', error}));
   setTimeout(() => maybeBrief(true), 5000);
 }
@@ -986,8 +1021,8 @@ function renderBrief() {
 }
 function aiMsg(t) { $('headline').textContent = t; if (!brief) $('actions').innerHTML = '<li class="empty">' + esc(t) + '</li>'; }
 function renderAgents(rows, msg) {
-  if (msg) { $('agentList').innerHTML = '<li class="empty' + (/offline/i.test(msg) ? ' bad' : '') + '" style="display:block">' + esc(msg) + '</li>'; return; }
-  $('agentList').innerHTML = rows.length ? rows.slice(0, 4).map((r) => '<li class="' + esc(r.status || 'working') + '"><i></i><span>' + esc(r.name) + '<small>' + esc(r.status || 'working') + (r.note ? ', ' + esc(r.note) : '') + '</small></span></li>').join('') : '<li class="empty" style="display:block">No agents reporting.</li>';
+  if (msg) { $('agentList').innerHTML = ''; return; }
+  $('agentList').innerHTML = rows.slice(0, 3).map((r) => '<li class="' + esc(r.status || 'working') + '"><i></i><span>' + esc(r.name) + ' <em>agent</em><small>' + esc(r.status || 'working') + (r.note ? ', ' + esc(r.note) : '') + '</small></span></li>').join('');
 }
 
 /* SolidHauz */
@@ -1038,6 +1073,38 @@ document.querySelectorAll('.deck').forEach((d) => {
   show();
 });
 
+/* Claude Code cloud sessions, through the built in Claude Code Remote connector */
+const SESS = ['Claude Code Remote', 'list_sessions', {limit: 8, mine: true}];
+let sessRows = null;
+function sessArray(p) {
+  if (!p || typeof p !== 'object') return [];
+  const cands = [p.ccr?.data, p.data, p.sessions, Array.isArray(p) ? p : null];
+  return (cands.find(Array.isArray) || []).filter((x) => x && x.id);
+}
+function onSess(e) {
+  if (e.type === 'error') { if (!sessRows) H('sessList', '<li class="empty" style="display:block">' + esc(/not_connected|not_in_manifest|approval/.test(e.error?.code || '') ? 'Allow Claude Code Remote for this page to see sessions.' : 'Sessions unavailable right now.') + '</li>'); return; }
+  sessRows = sessArray(unwrap(e.result)); renderSessions();
+}
+const BUCKET = (s) => String(s.status_bucket || s.session_status || '').toLowerCase().replace(/^session_status_(bucket_)?/, '');
+function renderSessions() {
+  if (!sessRows) return;
+  const live = sessRows.filter((s) => BUCKET(s) === 'working').length, wait = sessRows.filter((s) => ['blocked', 'review_ready'].includes(BUCKET(s))).length;
+  T('sessT', live ? live + ' working' + (wait ? ', ' + wait + ' need you' : '') : wait ? wait + ' need you' : 'all quiet');
+  H('sessList', sessRows.length ? sessRows.slice(0, 6).map((s) => { const b = BUCKET(s), cls = b === 'working' ? 'working' : b === 'failed' ? 'failed' : ['blocked', 'review_ready'].includes(b) ? 'blocked' : 'completed';
+    const what = s.post_turn_summary?.recent_action || (cls === 'working' ? 'working' : cls === 'blocked' ? 'waiting on you' : 'done');
+    return '<li class="' + cls + '"><i></i><span>' + A('https://claude.ai/code/' + encodeURIComponent(s.id), s.title || 'Untitled session') + (s.unread ? '<b class="un" title="unread"></b>' : '') + (s.updated_at ? '<em>' + esc(ago(s.updated_at)) + '</em>' : '') + '<small>' + esc(what) + '</small></span></li>'; }).join('') : '<li class="empty" style="display:block">No Claude Code sessions yet.</li>');
+}
+function extraFeeds(m) { m.watchTool(...SESS, onSess, {refetchInterval: 2 * 60e3}); }
+function extraRescan(m) { m.callTool(...SESS, {cache: {staleTime: 0, gcTime: 2 * 60e3, refresh: true}}).then((result) => onSess({type: 'data', result})).catch((error) => onSess({type: 'error', error})); }
+function extraMock() {
+  const t = (m) => new Date(Date.now() - m * 6e4).toISOString();
+  onSess({type: 'data', result: {payload: {ccr: {data: [
+    {id: 's1', title: 'Game AI research', status_bucket: 'SESSION_STATUS_BUCKET_WORKING', updated_at: t(3)},
+    {id: 's2', title: 'Wall dashboard', status_bucket: 'SESSION_STATUS_BUCKET_WORKING', updated_at: t(1)},
+    {id: 's3', title: 'Designer production readiness', status_bucket: 'SESSION_STATUS_BUCKET_COMPLETED', updated_at: t(130), unread: true, post_turn_summary: {recent_action: 'Merged and live in production'}},
+    {id: 's4', title: 'Kitchen panel design', status_bucket: 'SESSION_STATUS_BUCKET_REVIEW_READY', updated_at: t(600), post_turn_summary: {recent_action: 'PR ready for your review'}}]}}}});
+}
+
 /* standby and wake. Another HQ opening (Jarvis does that on a clap) sends 'wake' to every other open HQ */
 const IDLE_MS = 20 * 60e3;
 /* schedule, Pacific time: HQ wakes itself at these times and stays dark overnight */
@@ -1046,10 +1113,29 @@ const DARK_FROM = '23:30', DARK_UNTIL = '06:45';  // overnight: black standby, a
 let lastAct = Date.now(), lastSlot = '';
 const hm = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
 function inDark() { const m = laMin(Date.now()), a = hm(DARK_FROM), b = hm(DARK_UNTIL); return a > b ? (m >= a || m < b) : (m >= a && m < b); }
-function wakeHQ() { lastAct = Date.now(); document.documentElement.removeAttribute('data-standby'); document.documentElement.removeAttribute('data-dark'); }
+function wakeHQ(cinematic) { lastAct = Date.now(); const was = document.documentElement.hasAttribute('data-standby'); document.documentElement.removeAttribute('data-standby'); document.documentElement.removeAttribute('data-dark'); if (cinematic || was) playWake(); }
+let waking = false;
+function playWake() {
+  if (waking || inDark()) return; waking = true;
+  const r = document.documentElement, C = innerWidth < 600 ? 14 : 32, R = innerWidth < 600 ? 26 : 16, g = $('wakeGrid');
+  g.style.setProperty('--c', C); g.style.setProperty('--r', R);
+  let h = ''; for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) { const dx = (x - (C - 1) / 2) / C, dy = (y - (R - 1) / 2) / R; h += '<i style="--d:' + Math.round(Math.hypot(dx, dy * 1.4) * 900) + '"></i>'; }
+  g.innerHTML = h;
+  const c = clockParts(), hr = new Date().toLocaleString('en-US', {timeZone: TZ, hour: 'numeric', hour12: false}) | 0;
+  T('wkClock', c.h + ':' + c.m);
+  $('wkHi').innerHTML = (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening') + ', <span>Yash</span>';
+  const n = calOk ? nowNext() : {}, e = n.cur || n.nxt, m = metrics();
+  T('wkSub', [e ? (n.cur ? 'Now ' + e.title : 'Next ' + e.title + ' at ' + fmtTime(e.s)) : 'Nothing on the calendar', m.open != null ? m.open + ' tasks' : '', m.mail != null ? m.mail + ' mail' : ''].filter(Boolean).join('  ·  '));
+  r.setAttribute('data-waking', '');
+  setTimeout(() => {
+    [...document.querySelectorAll('.app>*:not(.deck), .app>.deck>*')].forEach((el, i) => el.style.setProperty('--i', i));
+    r.removeAttribute('data-waking'); r.setAttribute('data-cascade', '');
+    setTimeout(() => { r.removeAttribute('data-cascade'); waking = false; }, 1800);
+  }, reduced ? 900 : 2700);
+}
 function standbyCheck() {
   const now = laMin(Date.now()), slot = WAKE_AT.find((t) => now >= hm(t) && now < hm(t) + 1);
-  if (slot && slot !== lastSlot) { lastSlot = slot; wakeHQ(); return; }
+  if (slot && slot !== lastSlot) { lastSlot = slot; wakeHQ(true); return; }
   const dark = inDark() && Date.now() - lastAct > 60e3;
   document.documentElement.toggleAttribute('data-dark', dark);
   if (!dark && Date.now() - lastAct < IDLE_MS) return;
@@ -1062,7 +1148,7 @@ setInterval(standbyCheck, 15e3);
 (async () => {
   const room = window.claude && claude.use ? await claude.use('room').catch(() => null) : null;
   if (!room) return;
-  room.on('wake', (m) => { if (!m.sameTab) wakeHQ(); });
+  room.on('wake', (m) => { if (!m.sameTab) wakeHQ(true); });
   const ping = () => room.emit('wake', {at: Date.now()}).catch(() => {});
   setTimeout(ping, 2000); setTimeout(ping, 7000);
 })();
@@ -1075,6 +1161,7 @@ setInterval(standbyCheck, 15e3);
   $('bootSvg').innerHTML = s;
 })();
 new ResizeObserver(() => renderNav()).observe($('nd'));
+setTimeout(() => playWake(), reduced ? 0 : 950);
 
 start();
 }
