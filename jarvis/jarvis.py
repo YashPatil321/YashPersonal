@@ -38,6 +38,9 @@ import urllib.request
 
 import numpy as np
 
+import jarvis_claude
+import jarvis_room
+
 # ---------------- settings you might change ----------------
 MIC_DEVICE = None            # None = find the Focusrite by name. Or put a number from --devices
 MIC_NAME_HINTS = ["focusrite", "scarlett"]
@@ -401,9 +404,12 @@ def route(text):
 
     if re.fullmatch(r"(go to sleep|shut down jarvis|goodnight jarvis)", t) or t == "go to sleep":
         return ("sleep", None)
+    cc = jarvis_claude.route_claude(t)
+    if cc:
+        return cc
     if re.search(r"\bnew conversation\b|\bstart over\b|\bfresh start\b", t):
         return ("reset", None)
-    if re.search(r"\b(open|show|pull up) (the )?hq\b|\bwake (everything|up the room)\b", t):
+    if re.search(r"\b(open|show|pull up) (the )?hq\b|\bwake (everything|up the room|up)\b|\bi'?m (home|back)\b", t):
         return ("hq", None)
     if re.search(r"\block (the |my )?(screen|computer|pc)\b", t):
         return ("lock", None)
@@ -598,8 +604,15 @@ class Jarvis:
         self.quiet_until = 0.0
 
     def wake_room(self):
+        """The walk in scene. Opening HQ here also tells HQ on the iPad to wake up."""
         self.pc.nudge_display()
         self.pc.open_url(HQ_URL, app_window=HQ_FULLSCREEN)
+        if hasattr(self.pc, "arrange"):
+            try:
+                self.pc.arrange()
+            except Exception as e:
+                log(f"layout failed: {e}")
+        threading.Thread(target=lambda: log("music: " + jarvis_room.start_music(self.pc, self.spotify, log)), daemon=True).start()
         log("room awake, HQ opened")
         self.speaker.say(GREETING)
         today = time.strftime("%Y-%m-%d")
@@ -621,6 +634,9 @@ class Jarvis:
 
     def run(self, action, arg):
         say, pc, sp = self.speaker.say, self.pc, self.spotify
+        if action.startswith(("cc_", "chat_", "claude_")):
+            jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude()).handle(action, arg)
+            return True
         if action == "sleep":
             say("Going offline.")
             return False
@@ -766,6 +782,7 @@ def main():
     download_models([WAKE_WORD])
     wake = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
 
+    jarvis_room.keep_awake()
     whisper, _ = load_whisper()
     speaker = Speaker()
     jarvis = Jarvis(speaker, claude=claude)

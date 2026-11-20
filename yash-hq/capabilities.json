@@ -1,10 +1,37 @@
 {
-  "db": { "rules": [ { "path": "", "read": "admin", "write": "admin" } ] },
+  "db": {
+    "rules": [
+      {
+        "path": "",
+        "read": "admin",
+        "write": "admin"
+      }
+    ]
+  },
   "user": {},
   "sample": {},
-  "mcp": { "servers": [
-    { "server": "Google Calendar", "tools": ["list_events"] },
-    { "server": "Gmail", "tools": ["search_threads"] },
-    { "server": "Solidhauz", "tools": ["business_overview", "today"] }
-  ] }
+  "mcp": {
+    "servers": [
+      {
+        "server": "Google Calendar",
+        "tools": [
+          "list_events"
+        ]
+      },
+      {
+        "server": "Gmail",
+        "tools": [
+          "search_threads"
+        ]
+      },
+      {
+        "server": "Solidhauz",
+        "tools": [
+          "business_overview",
+          "today"
+        ]
+      }
+    ]
+  },
+  "room": {}
 }

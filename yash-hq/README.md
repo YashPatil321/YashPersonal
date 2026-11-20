@@ -33,7 +33,10 @@ a nav display of the next 6 hours over dot terrain, sun arc and live moon phase 
 (computed locally, no network), today in 64 quarter hour dots, week grid, checklist, mail,
 SolidHauz production pipeline, builds and agents. Night mode runs 11 PM to 6 AM (N toggles).
 The layout drifts 1px every 3 minutes to protect the OLED. On the iPad two slots rotate.
-Keys: R rescan, N night, F full screen. `direction-a/b/c.html` are the earlier explorations.
+Keys: R rescan, N night, F full screen.
+Standby: after 20 idle minutes HQ dims to a dot clock. A tap wakes it, and so does any other HQ
+opening (the `room` capability): Jarvis opens HQ on the PC after a clap, which wakes the iPad.
+iPad setup: Settings, Display, Auto-Lock Never, keep it plugged in, Guided Access to pin Safari. `direction-a/b/c.html` are the earlier explorations.
 
 ## Preview mode
 

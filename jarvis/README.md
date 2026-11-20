@@ -38,6 +38,23 @@ Instant voice commands (no Claude, nothing destructive is possible):
 | lock the screen | locks Windows |
 | new conversation, go to sleep | resets context, quits |
 
+Claude control (all projects are found automatically from your Claude Code history):
+
+| Say | Does |
+|---|---|
+| open claude code in solidhauz | new terminal tab with Claude Code in that project |
+| continue my jarvis session | reopens the last conversation there |
+| tell claude in hq to fix the footer | starts Claude Code on that task, you approve changes in the terminal |
+| ask solidhauz what's left on the todo list | Claude reads the project (read only) and answers out loud |
+| what was I working on | your three most recent Claude Code sessions |
+| new claude chat about college essays | opens claude.ai with the question typed in |
+| open claude, open cowork | opens the Claude desktop app |
+| open claude code on the web | your cloud sessions |
+
+Walk in: while Jarvis runs the PC never sleeps (the monitor still does). Clap twice or say
+"hey jarvis, I'm home": monitor wakes, windows tile, your room playlist starts, greeting, and HQ
+on the iPad wakes from standby. Set `ROOM_PLAYLIST` in `jarvis_room.py`.
+
 Everything else goes to Claude Code, which can search the web, read your calendar and mail, and
 write files only inside `notes/`. It cannot run commands or touch other files.
 
