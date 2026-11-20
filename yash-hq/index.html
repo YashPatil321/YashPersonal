@@ -203,6 +203,18 @@ html[data-briefing] .brief .lb .rt::before{content:"updating, "}
 .ci .due{color:var(--amb)}
 .ci.done .tx{color:var(--mute);text-decoration:line-through;text-decoration-color:var(--hot)}
 .ci.done .ar{color:var(--dim)}
+.coach:empty{display:none}
+.coach{margin:0 0 .5rem;padding:.6rem .7rem;border-radius:calc(var(--r) * .6);background:color-mix(in srgb,var(--hot) 8%,var(--mod2));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hot) 30%,transparent);flex:none}
+.coach .ch{display:flex;align-items:center;gap:.45rem;font:500 .62rem/1 var(--fm);letter-spacing:.1em;text-transform:uppercase;color:var(--hot2);margin-bottom:.45rem}
+.coach .ch .glyph{width:.95rem;color:var(--hot2)}
+.coach .cr{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:.5rem;align-items:center;padding:.3rem 0;border-top:1px solid var(--line)}
+.coach .cr:first-of-type{border-top:0}
+.coach .cr b{display:block;font:600 .9rem/1.2 var(--f);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.coach .cr small{display:block;font:400 .68rem/1.3 var(--fm);color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.coach button{border:0;border-radius:.5rem;padding:.45rem .7rem;font:600 .7rem/1 var(--fm);cursor:pointer;background:var(--mod3);color:var(--ink2);min-height:2.1rem}
+.coach button.add{background:var(--hot);color:#140504}
+.coach button:disabled{opacity:.5;cursor:default}
+.coach .cr.done b{color:var(--mute)}
 .clsum{display:flex;justify-content:space-between;font:500 .62rem/1 var(--fm);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);padding-top:.6rem;margin-top:.4rem;border-top:1px solid var(--line);flex:none}
 .clsum b{font-weight:500;color:var(--ink2)}
 
@@ -440,6 +452,7 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
 
   <section class="mod chk" aria-label="Checklist">
     <div class="lb"><span class="ix">08</span>Checklist<span class="rt">tap to clear</span></div>
+    <div class="coach" id="coach"></div>
     <ul class="cl fade" id="actions"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul>
     <div class="clsum"><span>Items</span><b id="tsum">--</b></div>
   </section>
@@ -981,6 +994,7 @@ function renderDial() {
   $('cardMeta').innerHTML = '<div>Left today<b class="dz">' + (m.left ?? '--') + '</b></div><div>Free hrs<b class="dz">' + (m.free == null ? '--' : m.free.toFixed(1)) + '</b></div><div>Tomorrow<b class="dz">' + (tm ? esc(fmtShort(tm.s)) : '--') + '</b></div>';
   if (calOk) { T('fCa', freeHours().toFixed(1) + 'h'); T('fCb', fw.length ? 'Next ' + minLabel(fw[0][0]) + ' · ' + dur(fw[0][1] - fw[0][0]) : 'No open blocks'); }
   renderNav(); renderSky();
+  if (typeof coachSugs !== 'undefined' && coachSugs.length) renderCoach();
 }
 function renderGauges() {
   const m = metrics(), v = (x, d) => x == null ? '--' : d ? x.toFixed(d) : String(x);
@@ -1073,6 +1087,55 @@ document.querySelectorAll('.deck').forEach((d) => {
   show();
 });
 
+/* Coach watch: finds O'Rielly's emails (often forwarded by mom or dad), asks Claude for the dates,
+   and offers one tap Add to calendar for anything not already on it */
+const COACH = ['Gmail', 'search_threads', {query: '(orielly OR rielly OR "Coach Tim" OR "DN Boys") newer_than:30d -from:nfhsnetwork.com -from:gofan.co', view: 'THREAD_VIEW_SUMMARY', pageSize: 6}];
+let coachKey = '', coachSugs = [], coachGone = new Set();
+const ckey = (s) => hash(s.title + '|' + s.start);
+async function onCoach(e) {
+  if (e.type === 'error' || !mcp || !sample) return;
+  const ths = ((unwrap(e.result) || {}).threads || []).slice(0, 4), key = hash(ths.map((t) => t.id + ':' + (t.messageCount || 1)).join());
+  if (!ths.length || key === coachKey) return; coachKey = key;
+  const mails = (await Promise.all(ths.map((t) => mcp.callTool('Gmail', 'get_thread', {threadId: t.id, messageFormat: 'PLAIN_TEXT'}).then((r) => {
+    const p = unwrap(r) || {}, m = (p.messages || []).slice(-1)[0] || {};
+    return {link: p.viewUrl || t.viewUrl || '', date: m.date || '', text: String(m.plaintextBody || '').slice(0, 3500)};
+  }).catch(() => null)))).filter(Boolean);
+  if (!mails.length) return;
+  const today = new Date().toLocaleDateString('en-CA', {timeZone: TZ});
+  try {
+    const o = await sample.json('Today is ' + today + ' (Pacific). These emails are from Yash\'s Del Norte boys varsity soccer coaches, often forwarded by a parent. '
+      + 'Extract every FUTURE practice, game, scrimmage, tournament or team or parent meeting that has a concrete date and time. Resolve relative dates against each email date.\n\n'
+      + mails.map((m, i) => 'EMAIL ' + i + ' (sent ' + m.date + '):\n' + m.text).join('\n\n')
+      + '\n\nReply with only JSON: {"events":[{"title":"short title, e.g. Varsity soccer practice or Varsity soccer vs Torrey Pines","start":"YYYY-MM-DDTHH:MM","end":"YYYY-MM-DDTHH:MM","location":"or empty","note":"what to bring or empty","email":0}]}. '
+      + 'If there is no end time use 2 hours for practices and games, 45 minutes for meetings. Only events after today. Never invent dates. No hyphens or em dashes in text.', {cache: {gcTime: 60 * 60e3}});
+    coachSugs = (Array.isArray(o?.events) ? o.events : []).filter((x) => x && x.title && /^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(x.start || '')).map((x) => ({...x, link: (mails[x.email] || mails[0]).link}));
+  } catch { return; }
+  renderCoach();
+}
+function coachOnCal(s) { const t = +new Date(s.start + ':00' + laOffset(s.start)); return ev.some((e) => !e.allDay && Math.abs(e.s - t) < 30 * 60e3 && /soccer|practice|game|meeting|vs/i.test(e.title)); }
+function laOffset(iso) { const d = new Date(iso + ':00Z'), p = new Intl.DateTimeFormat('en-US', {timeZone: TZ, timeZoneName: 'longOffset'}).formatToParts(d).find((x) => x.type === 'timeZoneName')?.value || 'GMT-08:00'; return p.replace('GMT', '') || '-08:00'; }
+function renderCoach() {
+  const list = coachSugs.filter((s) => !coachGone.has(ckey(s)) && +new Date(s.start + ':00' + laOffset(s.start)) > Date.now());
+  const fresh = list.filter((s) => !coachOnCal(s));
+  if (!fresh.length) { H('coach', ''); return; }
+  H('coach', '<div class="ch">' + glyphSvg('sport') + 'From Coach · ' + fresh.length + ' not on your calendar</div>' + fresh.slice(0, 3).map((s) => { const t = new Date(s.start + ':00' + laOffset(s.start));
+    return '<div class="cr" data-k="' + ckey(s) + '"><div><b>' + A(s.link, s.title) + '</b><small>' + esc(cap(dow(t)) + ' ' + dnum(t) + ' · ' + fmtTime(t) + (s.location ? ' · ' + s.location : '')) + '</small></div><button class="add" type="button" data-coach="add">Add</button><button type="button" data-coach="skip" aria-label="Dismiss">✕</button></div>'; }).join(''));
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-coach]'); if (!b) return;
+  const row = b.closest('.cr'), k = row.dataset.k, s = coachSugs.find((x) => ckey(x) === k); if (!s) return;
+  if (b.dataset.coach === 'skip') { coachGone.add(k); if (db) db.doc('coach/' + k).set({s: 'skip', at: Date.now()}).catch(() => {}); renderCoach(); return; }
+  if (!mcp) { b.textContent = 'Preview'; return; }
+  b.disabled = true; b.textContent = 'Adding';
+  try {
+    await mcp.callTool('Google Calendar', 'create_event', {summary: s.title, startTime: s.start + ':00', endTime: (s.end || s.start) + ':00', location: s.location || '',
+      description: (s.note ? s.note + '\n\n' : '') + 'From coach email: ' + (s.link || ''), overrideReminders: [{method: 'popup', minutes: 60}, {method: 'popup', minutes: 15}]});
+    coachGone.add(k); if (db) db.doc('coach/' + k).set({s: 'added', at: Date.now()}).catch(() => {});
+    row.classList.add('done'); b.textContent = 'Added';
+    setTimeout(() => { renderCoach(); rescan(); }, 1200);
+  } catch (err) { b.disabled = false; b.textContent = 'Retry'; }
+});
+
 /* Claude Code cloud sessions, through the built in Claude Code Remote connector */
 const SESS = ['Claude Code Remote', 'list_sessions', {limit: 8, mine: true}];
 let sessRows = null;
@@ -1094,9 +1157,16 @@ function renderSessions() {
     const what = s.post_turn_summary?.recent_action || (cls === 'working' ? 'working' : cls === 'blocked' ? 'waiting on you' : 'done');
     return '<li class="' + cls + '"><i></i><span>' + A('https://claude.ai/code/' + encodeURIComponent(s.id), s.title || 'Untitled session') + (s.unread ? '<b class="un" title="unread"></b>' : '') + (s.updated_at ? '<em>' + esc(ago(s.updated_at)) + '</em>' : '') + '<small>' + esc(what) + '</small></span></li>'; }).join('') : '<li class="empty" style="display:block">No Claude Code sessions yet.</li>');
 }
-function extraFeeds(m) { m.watchTool(...SESS, onSess, {refetchInterval: 2 * 60e3}); }
+function extraFeeds(m) {
+  m.watchTool(...SESS, onSess, {refetchInterval: 2 * 60e3});
+  m.watchTool(...COACH, onCoach, {refetchInterval: 15 * 60e3});
+  if (db) db.collection('coach').onSnapshot((s) => { s.docs.forEach((d) => coachGone.add(d.id)); renderCoach(); }, () => {});
+}
 function extraRescan(m) { m.callTool(...SESS, {cache: {staleTime: 0, gcTime: 2 * 60e3, refresh: true}}).then((result) => onSess({type: 'data', result})).catch((error) => onSess({type: 'error', error})); }
 function extraMock() {
+  const d = new Date(Date.now() + 3 * 864e5), ymd = d.toLocaleDateString('en-CA', {timeZone: TZ});
+  coachSugs = [{title: 'Varsity soccer break practice', start: ymd + 'T09:00', end: ymd + 'T11:00', location: 'Del Norte High School', link: 'https://mail.google.com'}, {title: 'Varsity soccer vs Torrey Pines', start: ymd + 'T15:30', end: ymd + 'T17:30', location: 'Away', link: 'https://mail.google.com'}];
+  renderCoach();
   const t = (m) => new Date(Date.now() - m * 6e4).toISOString();
   onSess({type: 'data', result: {payload: {ccr: {data: [
     {id: 's1', title: 'Game AI research', status_bucket: 'SESSION_STATUS_BUCKET_WORKING', updated_at: t(3)},
