@@ -1,0 +1,68 @@
+# Jarvis
+
+Say "hey jarvis" (or clap twice), hear a chime, talk, get a spoken answer. Runs on your PC.
+
+## Setup (once, about 15 minutes)
+
+1. Install Python 3.12 from python.org (check "Add to PATH").
+2. Make sure Claude Code works: open a terminal, type `claude`, log in with your Max account.
+3. Put this folder at `C:\jarvis` and double click `setup.bat`. It installs everything
+   (CUDA 12.8 PyTorch for the RTX 5070) and finishes with a checkup.
+4. Read the checkup. Every line should say PASS. It also lists your claude.ai connectors and the
+   exact tool names. If they differ from `CONNECTOR_TOOLS` at the top of `jarvis.py`, paste them in.
+5. Optional: install espeak-ng (link at the end of setup) for the best voice.
+6. Double click `install-autostart.bat` so Jarvis starts minimized when you log in.
+
+The Focusrite is found by name. If the checkup says no Focusrite, run
+`.venv\Scripts\python jarvis.py --devices` and put its number in `MIC_DEVICE`.
+If your mic is plugged into input 2, set `MIC_CHANNEL = 1`.
+
+## Use
+
+- Clap twice: wakes the monitor, opens HQ full screen, says hi. Before noon it also reads a short
+  morning brief (first event, how many more, mail that needs you). Once a day.
+- "hey jarvis" then anything. It remembers the conversation between questions and restarts.
+
+Instant voice commands (no Claude, nothing destructive is possible):
+
+| Say | Does |
+|---|---|
+| pause, play music, resume | Spotify play or pause (media key) |
+| next song, skip, previous song | track controls |
+| volume up, turn it down by 20, set volume to 40, mute | system volume |
+| play Drake on Spotify, play my lofi playlist | plays it (with Spotify connected) or opens the search |
+| what's playing | reads the current song |
+| open Spotify, Chrome, VS Code, Discord, Steam, Notepad, Explorer, Settings, Terminal | opens the app |
+| open YouTube, Gmail, Calendar, Drive, GitHub, Vercel, Supabase, Claude, Common App | opens the site |
+| open HQ | wakes the room |
+| lock the screen | locks Windows |
+| new conversation, go to sleep | resets context, quits |
+
+Everything else goes to Claude Code, which can search the web, read your calendar and mail, and
+write files only inside `notes/`. It cannot run commands or touch other files.
+
+## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
+
+Media keys work out of the box. To play a specific song by name:
+
+1. Go to developer.spotify.com/dashboard, Create app. Redirect URI: `http://127.0.0.1:8765/callback`.
+   Check "Web API". Save.
+2. Copy the Client ID into `SPOTIFY_CLIENT_ID` at the top of `jarvis.py`.
+3. Run `.venv\Scripts\python jarvis.py --spotify-login` and approve in the browser.
+
+## Tuning (do this live)
+
+Run `.venv\Scripts\python jarvis.py --levels`. It prints a live meter: peak, crest (sharpness) and the
+wake word score, and marks claps and wakes.
+
+- Claps missed: lower `CLAP_LEVEL` (try 0.25) or `CLAP_CREST` (try 3.5).
+- Talking or music sets it off: raise `CLAP_LEVEL` to 0.5 or `CLAP_CREST` to 5.
+- Wake word false triggers: raise `WAKE_THRESHOLD` to 0.6 or 0.7. Missed: lower to 0.4.
+- Cuts you off mid sentence: raise `SILENCE_SECONDS` to 1.8.
+
+Other tests: `--say "hello"` (voice), `--ask "what's my day look like"` (brain, no mic), `--doctor` (everything).
+
+## What to expect
+
+Commands are instant. Claude answers take a few seconds, mostly Claude Code starting up, and use your
+Max plan. If the GPU path fails, Whisper falls back to CPU on its own and the checkup tells you.
