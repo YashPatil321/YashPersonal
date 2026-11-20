@@ -275,6 +275,8 @@ html[data-standby] .standby{opacity:1;visibility:visible}
 .standby .dz{font-size:clamp(5rem,14vw,16rem);line-height:.85;color:var(--mute);transform:translate(var(--sx,0),var(--sy,0))}
 .standby p{margin:0;font:500 1rem/1.3 var(--fm);color:var(--dim);letter-spacing:.06em;text-align:center}
 .standby p b{color:var(--mute);font-weight:500}
+html[data-dark] .standby .dz{color:var(--dim);font-size:clamp(3rem,8vw,8rem)}
+html[data-dark] .standby p{display:none}
 
 /* ===== boot ===== */
 .boot{position:fixed;inset:0;background:#000;z-index:20;display:grid;place-content:center;justify-items:center;gap:1.1rem;transition:opacity .6s}
@@ -1038,10 +1040,19 @@ document.querySelectorAll('.deck').forEach((d) => {
 
 /* standby and wake. Another HQ opening (Jarvis does that on a clap) sends 'wake' to every other open HQ */
 const IDLE_MS = 20 * 60e3;
-let lastAct = Date.now();
-function wakeHQ() { lastAct = Date.now(); document.documentElement.removeAttribute('data-standby'); }
+/* schedule, Pacific time: HQ wakes itself at these times and stays dark overnight */
+const WAKE_AT = ['06:45', '15:45'];          // after the alarm, after school
+const DARK_FROM = '23:30', DARK_UNTIL = '06:45';  // overnight: black standby, a tap still wakes it for a minute
+let lastAct = Date.now(), lastSlot = '';
+const hm = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+function inDark() { const m = laMin(Date.now()), a = hm(DARK_FROM), b = hm(DARK_UNTIL); return a > b ? (m >= a || m < b) : (m >= a && m < b); }
+function wakeHQ() { lastAct = Date.now(); document.documentElement.removeAttribute('data-standby'); document.documentElement.removeAttribute('data-dark'); }
 function standbyCheck() {
-  if (Date.now() - lastAct < IDLE_MS) return;
+  const now = laMin(Date.now()), slot = WAKE_AT.find((t) => now >= hm(t) && now < hm(t) + 1);
+  if (slot && slot !== lastSlot) { lastSlot = slot; wakeHQ(); return; }
+  const dark = inDark() && Date.now() - lastAct > 60e3;
+  document.documentElement.toggleAttribute('data-dark', dark);
+  if (!dark && Date.now() - lastAct < IDLE_MS) return;
   document.documentElement.setAttribute('data-standby', '');
   const n = calOk ? nowNext() : {}, e = n.cur || n.nxt;
   $('sbNext').innerHTML = e ? (n.cur ? 'Now <b>' + esc(e.title) + '</b>' : 'Next <b>' + esc(e.title) + '</b> · ' + esc(fmtTime(e.s))) : '';
