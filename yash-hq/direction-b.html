@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Yash HQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* DIRECTION B: GLASS COCKPIT
+   A modern flight deck. True black for the OLED, B612 (the typeface Airbus drew for
+   cockpit displays), and the avionics colour code: white is data, green is active or good,
+   cyan labels things, amber is caution, red is warning. Nothing glows.
+   Signature: a vertical time tape like a primary flight display altitude tape. The present
+   stays fixed in a boxed readout and the day scrolls past it. Tasks run as an ECAM checklist. */
+:root{
+  color-scheme:dark;
+  --bg:#000;--bez:#0b0d0f;--line:#24282c;--line2:#3a4046;
+  --ink:#f5f7f7;--ink2:#c3c9cc;--mute:#7d878d;--dim:#454c52;
+  --grn:#3ee07a;--cyn:#5fd4ea;--amb:#ffb020;--red:#ff4136;--wht:#f5f7f7;
+  --k-school:#d9dee0;--k-sport:var(--grn);--k-meet:var(--cyn);--k-other:#9aa3a8;
+  --f:"B612",system-ui,sans-serif;--fm:"B612",system-ui,sans-serif;
+  --gap:clamp(6px,.55vw,11px);--pad:clamp(10px,.9vw,18px);
+}
+html[data-night]{
+  --bez:#050000;--line:#1f0603;--line2:#33100a;
+  --ink:#ff4a35;--ink2:#d8381f;--mute:#8e2615;--dim:#4c130a;
+  --grn:#ff4a35;--cyn:#c8341d;--amb:#ff4a35;--red:#ff4a35;--wht:#ff4a35;
+  --k-school:#ff4a35;--k-sport:#d8381f;--k-meet:#b02c16;--k-other:#8e2615;
+}
+*{box-sizing:border-box;min-width:0}
+html{font-size:clamp(12.5px,.42vw + 8px,22px);background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.35 var(--f);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}a:hover{text-decoration:underline;text-underline-offset:3px}
+button{font:inherit;color:inherit}
+.mono{font-family:var(--fm);font-variant-numeric:tabular-nums}
+.cy{color:var(--cyn)}.gr{color:var(--grn)}.am{color:var(--amb)}.rd{color:var(--red)}.mu{color:var(--mute)}
+.app{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--gap);padding:var(--gap);padding-bottom:calc(var(--gap) + 2.5rem);transform:translate(var(--sx,0),var(--sy,0));transition:transform 2s}
+/* display units: black glass inside a thin bezel */
+.du{background:var(--bg);border:1px solid var(--line);border-radius:.55rem;padding:var(--pad);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.du::before{content:"";position:absolute;inset:3px;border-radius:.4rem;border:1px solid var(--bez);pointer-events:none}
+.hd{display:flex;align-items:baseline;gap:.7rem;margin:0 0 .75rem}
+.hd h2{margin:0;font:700 .8rem/1 var(--f);letter-spacing:.12em;color:var(--cyn);text-transform:uppercase}
+.hd small{margin-left:auto;font:400 .72rem/1 var(--fm);color:var(--mute);white-space:nowrap}
+.empty{color:var(--mute);font-size:.92rem;padding:.3rem 0;list-style:none}
+.empty.bad{color:var(--amb)}
+.wait{color:var(--dim);font:400 .85rem var(--fm);letter-spacing:.1em}
+@media(prefers-reduced-motion:no-preference){.wait{animation:wt 1.2s steps(2) infinite}@keyframes wt{50%{opacity:.35}}}
+.fade{-webkit-mask-image:linear-gradient(#000 calc(100% - 1.6rem),transparent);mask-image:linear-gradient(#000 calc(100% - 1.6rem),transparent)}
+
+/* FMA: flight mode annunciator strip */
+.fma{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1.25fr) minmax(0,1fr) minmax(0,1.5fr) auto;border:1px solid var(--line);border-radius:.55rem;overflow:hidden}
+.fma>div{padding:.6rem .9rem .65rem;border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;gap:.3rem;min-height:3.9rem}
+.fma>div:first-child{border-left:0}
+.fma .l{font:700 .66rem/1 var(--f);letter-spacing:.14em;color:var(--mute)}
+.fma .a{font:700 1.15rem/1.1 var(--f);color:var(--grn);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fma .b{font:400 .8rem/1 var(--fm);color:var(--cyn);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fma .a.w{color:var(--ink)}
+#caut .a{color:var(--grn)}
+#caut[data-lvl=warn] .a,#caut[data-lvl=info] .a{color:var(--amb)}#caut[data-lvl=bad] .a{color:var(--red)}
+#caut[data-lvl=warn],#caut[data-lvl=bad]{box-shadow:inset 0 0 0 2px var(--amb)}
+#caut[data-lvl=bad]{box-shadow:inset 0 0 0 2px var(--red)}
+#caut .a{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:.95rem}
+.sys{flex-direction:row!important;align-items:center;gap:.4rem!important;flex-wrap:wrap}
+.lt{display:flex;align-items:center;gap:.35rem;font:700 .7rem/1 var(--f);letter-spacing:.1em;color:var(--mute);border:1px solid var(--line);border-radius:.3rem;padding:.35rem .45rem}
+.lt b{font:400 .68rem var(--fm);color:var(--ink2)}
+.led{width:.48rem;height:.48rem;border-radius:1px;background:var(--dim)}
+.led.on{background:var(--grn)}.led.err{background:var(--red)}.led.busy{background:var(--cyn)}.led.warn{background:var(--amb)}
+@media(prefers-reduced-motion:no-preference){.led.busy{animation:wt 1s steps(2) infinite}}
+.keys{display:flex;gap:.35rem}
+.key{background:var(--bez);border:1px solid var(--line2);border-radius:.3rem;font:700 .72rem/1 var(--f);letter-spacing:.1em;color:var(--ink2);padding:0 .7rem;min-height:2.3rem;min-width:2.75rem;cursor:pointer;text-transform:uppercase}
+.key:hover,.key:focus-visible{border-color:var(--cyn);color:var(--ink);outline:none}
+html[data-scan] .key[data-cmd=rescan]{border-color:var(--grn);color:var(--grn)}
+
+/* PFD column */
+.pfd{grid-column:span 3}
+.clk{font:700 clamp(3.6rem,5.3vw,7.2rem)/.9 var(--fm);letter-spacing:-.05em;font-variant-numeric:tabular-nums;display:flex;align-items:flex-start}
+.clk small{font:400 1.1rem/1 var(--fm);letter-spacing:0;color:var(--mute);margin:.3rem 0 0 .5rem;display:flex;flex-direction:column;gap:.35rem}
+.clk small b{font-weight:400;color:var(--grn)}
+.dt{font:700 .95rem/1 var(--f);letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin:.75rem 0 0}
+.utc{font:400 .72rem var(--fm);color:var(--mute);margin-top:.35rem}
+.eicas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem .8rem;margin-top:auto;padding-top:.8rem}
+.gg{display:flex;flex-direction:column;align-items:center}
+.gg svg{width:100%;max-width:9rem;height:auto;display:block}
+.gg .gl{font:700 .66rem/1 var(--f);letter-spacing:.12em;color:var(--cyn);margin-top:-.2rem;text-transform:uppercase}
+.sub{display:grid;grid-template-columns:1fr 1fr;gap:.3rem .8rem;margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.sub div{display:flex;justify-content:space-between;font:400 .78rem/1 var(--fm);color:var(--mute)}
+.sub b{font-weight:400;color:var(--grn)}
+
+/* tape: signature */
+.tape{grid-column:span 3;padding-right:0}
+.tp{position:relative;flex:1;min-height:20rem;margin:0 -1px 0 0}
+.tp .sc{position:absolute;left:0;top:0;bottom:0;width:4.4rem;border-right:1px solid var(--ink2);background:linear-gradient(90deg,var(--bez),transparent)}
+.tp .tk{position:absolute;right:0;height:1px;background:var(--ink2)}
+.tp .tl{position:absolute;right:1.1rem;transform:translateY(-50%);font:400 .78rem/1 var(--fm);color:var(--ink2)}
+.tp .day{position:absolute;left:.5rem;right:0;border-top:1px dashed var(--amb);z-index:1}
+.tp .day b{position:absolute;left:4.6rem;top:-.55rem;background:var(--bg);font:700 .64rem/1 var(--f);letter-spacing:.12em;color:var(--amb);padding:.15rem .3rem}
+.tp .bar{position:absolute;left:5rem;right:.9rem;border-left:3px solid var(--kc);padding:.25rem .5rem;background:color-mix(in srgb,var(--kc) 7%,transparent);overflow:hidden;min-height:2px}
+.tp .bar b{display:block;font:700 .9rem/1.15 var(--f);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tp .bar span{display:block;font:400 .7rem/1.2 var(--fm);color:var(--mute)}
+.tp .bar.past{opacity:.38}
+.tp .bar.thin b,.tp .bar.thin span{display:inline;margin-right:.4rem}
+.tp .bar.thin{padding-top:.08rem;padding-bottom:0}
+.tp .bar.tiny b,.tp .bar.tiny span{display:none}
+.tp .opn{position:absolute;left:4.55rem;width:.3rem;border:1.5px solid var(--grn);border-right:0}
+.tp .opn i{position:absolute;left:.15rem;top:50%;transform:translate(-100%,-50%) rotate(-90deg);transform-origin:center;font:700 .55rem/1 var(--f);letter-spacing:.1em;color:var(--grn);font-style:normal;white-space:nowrap;display:none}
+.tp .ptr{position:absolute;left:0;right:0;height:0;z-index:3}
+.tp .ptr::after{content:"";position:absolute;left:4.4rem;right:0;border-top:2px solid var(--grn)}
+.tp .rd{position:absolute;left:-.2rem;top:-1.3rem;width:4.9rem;height:2.6rem;background:#000;border:2px solid var(--ink);display:grid;place-content:center;font:700 1.25rem/1 var(--fm);letter-spacing:-.04em;color:var(--grn);clip-path:polygon(0 0,86% 0,100% 50%,86% 100%,0 100%)}
+.tp .rd{padding-right:.5rem}
+.tp .nowl{position:absolute;right:1rem;top:-1.2rem;background:#000;padding:.15rem .3rem;font:700 .62rem/1 var(--f);letter-spacing:.14em;color:var(--grn)}
+
+/* right column: next + checklist */
+.nxt{grid-column:span 3}
+.nxt .st{font:700 .72rem/1 var(--f);letter-spacing:.14em;color:var(--grn)}
+html[data-soon] .nxt .st{color:var(--amb)}
+.nxt .wh{font:700 clamp(1.5rem,1.75vw,2.5rem)/1.08 var(--f);margin:.45rem 0 .3rem;text-wrap:balance}
+.nxt .wn{font:400 .85rem/1.3 var(--fm);color:var(--cyn)}
+.cd{font:700 clamp(2.4rem,3vw,4.2rem)/1 var(--fm);letter-spacing:-.05em;font-variant-numeric:tabular-nums;color:var(--ink);margin:.7rem 0 .2rem}
+html[data-soon] .cd{color:var(--amb)}
+.prog{height:.4rem;border:1px solid var(--ink2);margin-top:.5rem;position:relative}.prog i{position:absolute;inset:1px auto 1px 1px;background:var(--grn)}
+.wpt{list-style:none;margin:1rem 0 0;padding:0;overflow:hidden}
+.wpt li{display:grid;grid-template-columns:5.4rem .7rem minmax(0,1fr);gap:.5rem;align-items:center;padding:.32rem 0;font:400 .88rem/1.2 var(--f)}
+.wpt li .t{color:var(--cyn);white-space:nowrap;font-variant-numeric:tabular-nums}
+.wpt li i{width:.6rem;height:.6rem;border:1.5px solid var(--kc);transform:rotate(45deg)}
+.wpt li span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wpt .l{display:block;font:700 .66rem/1 var(--f);letter-spacing:.14em;color:var(--mute);margin-bottom:.2rem}
+.atis{margin-top:auto;padding-top:.9rem;border-top:1px solid var(--line)}
+.atis .l{display:flex;gap:.6rem;font:700 .66rem/1 var(--f);letter-spacing:.14em;color:var(--cyn)}
+.atis .l span{color:var(--mute);font-family:var(--fm);letter-spacing:0;font-weight:400}
+html[data-briefing] .atis .l::after{content:"UPDATING";color:var(--amb)}
+.atis p{margin:.5rem 0 0;font:400 clamp(1rem,1.1vw,1.4rem)/1.35 var(--f);color:var(--ink);text-wrap:pretty}
+.ecam{grid-column:span 3}
+.cl{list-style:none;margin:0;padding:0;flex:1;overflow:hidden}
+.ci{padding:.55rem 0;border-top:1px solid var(--line)}
+.ci:first-child{border-top:0}
+.ci label{display:grid;grid-template-columns:1.6rem minmax(0,1fr);gap:.6rem;cursor:pointer;align-items:start}
+.box{appearance:none;width:1.4rem;height:1.4rem;margin:0;border:1.5px solid var(--cyn);border-radius:0;display:grid;place-content:center;cursor:pointer;background:transparent}
+.box:focus-visible{outline:2px solid var(--amb);outline-offset:2px}
+.box:checked{border-color:var(--grn)}
+.box:checked::after{content:"";width:.4rem;height:.75rem;border:solid var(--grn);border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.ci .row{display:flex;align-items:baseline;gap:.4rem;font:700 .9rem/1.25 var(--f);text-transform:uppercase;letter-spacing:.02em}
+.ci .row .tx{flex:0 1 auto}
+.ci .row .dots{flex:1 1 1rem;border-bottom:2px dotted var(--dim);transform:translateY(-.25rem);min-width:.8rem}
+.ci .row .ar{flex:none;color:var(--cyn);font-size:.78rem;letter-spacing:.08em}
+.ci .why{font:400 .78rem/1.3 var(--fm);color:var(--mute);margin-top:.2rem}
+.ci .due{color:var(--amb)}
+.ci.done .row,.ci.done .row .ar{color:var(--grn)}
+.ci.done .row .tx::before{content:"DONE  ";white-space:pre}
+.ci.done .why{opacity:.5}
+.cl-sum{display:flex;justify-content:space-between;font:700 .66rem/1 var(--f);letter-spacing:.14em;color:var(--mute);margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.cl-sum b{color:var(--grn);font-weight:700}
+
+/* lower units */
+.wk{grid-column:span 3}
+.vb{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.4rem;flex:1;min-height:7rem}
+.vb div{display:flex;flex-direction:column;align-items:center;gap:.35rem}
+.vb .v{font:400 .78rem/1 var(--fm);color:var(--grn);border:1px solid var(--line2);padding:.2rem .25rem;min-width:2.6rem;text-align:center}
+.vb .v.hi{color:var(--amb);border-color:var(--amb)}
+.vb .s{flex:1;width:.9rem;position:relative;border:1px solid var(--ink2);border-top-color:var(--dim)}
+.vb .s i{position:absolute;left:1px;right:1px;bottom:1px;background:var(--ink2)}
+.vb .s u{position:absolute;left:-.4rem;right:-.4rem;border-top:2px solid var(--amb)}
+.vb .s em{position:absolute;left:1px;right:1px;background:var(--grn);height:2px}
+.vb .d{font:700 .66rem/1 var(--f);letter-spacing:.1em;color:var(--mute)}
+.vb .td .d{color:var(--cyn)}.vb .td .s i{background:var(--wht)}
+.msg{grid-column:span 4}
+.ml{list-style:none;margin:0;padding:0;flex:1;overflow:hidden}
+.ml li{padding:.55rem 0;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.2rem .8rem}
+.ml li:first-child{border-top:0}
+.ml .f{font:700 .82rem/1.2 var(--f);letter-spacing:.06em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ml .f span{color:var(--cyn);margin-right:.4rem;font-weight:400}
+.ml .a{font:400 .72rem var(--fm);color:var(--mute)}
+.ml .s{grid-column:1/-1;font:400 .95rem/1.3 var(--f);color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bld{grid-column:span 3}
+.spk{display:flex;align-items:flex-end;gap:.3rem;height:3.2rem;margin-bottom:.6rem;border-bottom:1px solid var(--ink2);padding-bottom:1px}
+.spk div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.spk i{width:.55rem;background:var(--grn);display:block}
+.spk i.z{background:var(--dim);height:1px!important}
+.spk-l{display:flex;gap:.3rem;margin:-.35rem 0 .5rem}.spk-l span{flex:1;text-align:center;font:400 .58rem var(--fm);color:var(--mute)}
+.ops{list-style:none;margin:0;padding:0;flex:1;overflow:hidden}
+.ops li{padding:.45rem 0;border-top:1px solid var(--line);font-size:.86rem;line-height:1.3;color:var(--ink2)}
+.ops li b{display:flex;justify-content:space-between;font:700 .72rem/1 var(--f);letter-spacing:.1em;color:var(--ink);text-transform:uppercase;margin-bottom:.2rem}
+.ops li b em{font:400 .68rem var(--fm);font-style:normal;color:var(--grn);letter-spacing:0}
+.agt{grid-column:span 2}
+.ag{list-style:none;margin:0;padding:0;flex:1;overflow:hidden}
+.ag li{padding:.5rem 0;border-top:1px solid var(--line)}
+.ag li:first-child{border-top:0}
+.ag .s{font:700 .66rem/1 var(--f);letter-spacing:.12em;color:var(--cyn)}
+.ag .s.done{color:var(--grn)}.ag .s.blocked{color:var(--amb)}
+.ag .nm{font:700 .88rem/1.25 var(--f);margin-top:.2rem}
+.ag .nt{font:400 .74rem var(--fm);color:var(--mute)}
+
+/* memo line */
+.memo{position:fixed;left:0;right:0;bottom:0;height:2.5rem;display:flex;align-items:center;gap:.9rem;padding:0 calc(var(--gap) + .5rem);background:var(--bg);border-top:1px solid var(--line);z-index:5}
+.memo .l{font:700 .7rem/1 var(--f);letter-spacing:.14em;color:var(--cyn)}
+#railN{font:400 .7rem var(--fm);color:var(--dim)}
+#rail{flex:1;font:700 .88rem/1 var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--grn);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(prefers-reduced-motion:no-preference){#rail.in{animation:ri .4s steps(4)}@keyframes ri{from{opacity:0}}}
+.memo .pv{display:none;font:700 .66rem/1 var(--f);letter-spacing:.14em;color:var(--amb);border:1px solid var(--amb);padding:.3rem .45rem}
+html[data-preview] .memo .pv{display:inline-block}
+.memo .kh{font:400 .66rem var(--fm);color:var(--dim);white-space:nowrap}
+
+.boot{position:fixed;inset:0;background:#000;z-index:20;display:grid;place-content:center;justify-items:center;gap:.6rem;transition:opacity .5s}
+.boot.gone{opacity:0;pointer-events:none}
+.boot b{font:700 1rem/1 var(--f);letter-spacing:.3em;color:var(--cyn)}
+.boot span{font:400 .8rem var(--fm);color:var(--grn)}
+
+@media(min-width:1000px) and (min-height:680px){
+  body{height:100dvh;overflow:hidden}
+  .app{height:100dvh;grid-template-rows:auto minmax(0,1.45fr) minmax(0,1fr)}
+}
+@media(max-width:1280px){
+  .pfd{grid-column:span 4}.tape{grid-column:span 4}.nxt{grid-column:span 4}.ecam{grid-column:span 5}
+  .wk{display:none}.msg{grid-column:span 4}.bld{grid-column:span 3}.agt{display:none}
+  .fma .sys .lt{display:none}
+}
+@media(max-width:1280px) and (min-width:1000px) and (min-height:680px){
+  .app{grid-template-rows:auto minmax(0,1.5fr) minmax(0,.95fr)}
+  .ecam{grid-row:3;grid-column:1/span 5}.msg{grid-row:3;grid-column:6/span 4}.bld{grid-row:3;grid-column:10/span 3}
+  .eicas{gap:.2rem .6rem}.gg svg{max-width:7rem}
+}
+@media(max-width:999px){
+  .pfd,.tape,.nxt,.ecam,.wk,.msg,.bld,.agt{grid-column:1/-1;display:flex}
+  .fma{grid-template-columns:1fr 1fr}.fma>div:nth-child(n+3){border-top:1px solid var(--line)}.fma>div:nth-child(3){border-left:0}
+  .fma #caut{grid-column:1/-1;border-left:0}.fma .sys{grid-column:1/-1;border-left:0;display:flex}
+  .tp{min-height:26rem}.kh{display:none!important}
+  .fade{-webkit-mask-image:none;mask-image:none}
+}
+</style>
+</head>
+<body>
+<div class="boot" id="boot" aria-hidden="true"><b>YASH HQ</b><span>SELF TEST OK</span></div>
+
+<main class="app">
+  <header class="fma" aria-label="Status">
+    <div><span class="l">ACTIVE</span><span class="a" id="fNow"><span class="wait">ACQ</span></span><span class="b" id="fNowB"></span></div>
+    <div><span class="l">ARMED</span><span class="a w" id="fNxt"><span class="wait">ACQ</span></span><span class="b" id="fNxtB"></span></div>
+    <div><span class="l">FREE TODAY</span><span class="a" id="fFree">--</span><span class="b" id="fFreeB"></span></div>
+    <div id="caut" data-lvl="ok" role="status"><span class="l">CAUTION</span><span class="a" id="cautT">NO CAUTIONS</span></div>
+    <div class="sys">
+      <div class="lt"><span class="led" id="lCal"></span>CAL<b id="bCal">--</b></div>
+      <div class="lt"><span class="led" id="lMail"></span>MAIL<b id="bMail">--</b></div>
+      <div class="lt"><span class="led" id="lOps"></span>OPS<b id="bOps">--</b></div>
+      <div class="lt"><span class="led" id="lAi"></span>AI<b id="bAi">--</b></div>
+      <div class="keys">
+        <button class="key" data-cmd="rescan" type="button">Rescan</button>
+        <button class="key" data-cmd="night" type="button" id="nightBtn">Night</button>
+        <button class="key" data-cmd="full" type="button">Full</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="du pfd" aria-label="Clock and numbers">
+    <div class="hd"><h2>Local</h2><small id="stamp">--</small></div>
+    <div class="clk"><span id="hm">--:--</span><small><span id="ss">--</span><b id="ap"></b></small></div>
+    <div class="dt" id="date"></div>
+    <div class="utc" id="utc"></div>
+    <div class="eicas" id="gs"></div>
+    <div class="sub" id="sub"></div>
+  </section>
+
+  <section class="du tape" aria-label="Time tape">
+    <div class="hd"><h2>Time tape</h2><small id="calStamp">--</small></div>
+    <div class="tp" id="dial"></div>
+  </section>
+
+  <section class="du nxt" aria-label="Next">
+    <div class="hd"><h2>Next</h2></div>
+    <div class="st" id="nlbl">ACQUIRING</div>
+    <div class="wh" id="nwhat"><span class="wait">LINKING CALENDAR</span></div>
+    <div class="wn" id="nwhen"></div>
+    <div class="cd" id="cd"></div>
+    <div class="prog" id="prog" hidden><i id="progi"></i></div>
+    <ul class="wpt" id="wpt"></ul>
+    <div class="atis"><div class="l">ATIS<span id="aiStamp"></span></div><p id="headline"><span class="wait">RECEIVING</span></p></div>
+  </section>
+
+  <section class="du ecam" aria-label="Task checklist">
+    <div class="hd"><h2>Checklist</h2><small>tap to complete</small></div>
+    <ul class="cl fade" id="actions"><li class="wait">LOADING</li></ul>
+    <div class="cl-sum"><span>ITEMS</span><span id="tsum">--</span></div>
+  </section>
+
+  <section class="du wk" aria-label="Week load">
+    <div class="hd"><h2>Week load</h2><small>hours booked</small></div>
+    <div class="vb" id="heat"></div>
+  </section>
+
+  <section class="du msg" aria-label="Messages">
+    <div class="hd"><h2>Messages</h2><small id="mailStamp">filtering</small></div>
+    <ul class="ml fade" id="mailList"><li class="wait">RECEIVING</li></ul>
+  </section>
+
+  <section class="du bld" aria-label="Builds">
+    <div class="hd"><h2>Builds</h2><small id="opsStamp">GitHub 7D</small></div>
+    <div class="spk" id="chart"></div><div class="spk-l" id="chartL"></div>
+    <ul class="ops fade" id="opsList"><li class="wait">READING</li></ul>
+  </section>
+
+  <section class="du agt" aria-label="Agents">
+    <div class="hd"><h2>Agents</h2><small>live</small></div>
+    <ul class="ag fade" id="agentList"><li class="wait">LINKING</li></ul>
+  </section>
+</main>
+
+<footer class="memo" aria-live="polite"><span class="l">MEMO</span><span id="railN"></span><span id="rail">SYSTEMS NORMAL</span><span class="pv">PREVIEW DATA</span><span class="kh">R RESCAN · N NIGHT · F FULL</span></footer>
+
+<script>
+{
+/* ============================================================
+   DATA CORE. Fetching, payload parsing, AI brief, mock data and
+   db wiring are unchanged from the original. Views implement:
+   renderClock(c) renderNext(n) renderDial() renderGauges()
+   renderHeat() renderMail() renderChart() renderOps()
+   renderBrief() renderAgents(rows,msg) showErr(feed,msg) aiMsg(t)
+   ============================================================ */
+const TZ = 'America/Los_Angeles';
+const $ = (id) => document.getElementById(id);
+const T = (id, t) => { const n = $(id); if (n) n.textContent = t; };
+const H = (id, h) => { const n = $(id); if (n) n.innerHTML = h; };
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safe = (u) => (typeof u === 'string' && /^https?:/.test(u)) ? u : '';
+const A = (u, t) => safe(u) ? '<a href="' + esc(safe(u)) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : esc(t);
+const fmtTime = (ts) => new Date(ts).toLocaleTimeString('en-US', {timeZone: TZ, hour: 'numeric', minute: '2-digit'});
+const fmtShort = (ts) => fmtTime(ts).replace(':00', '').replace(' AM', 'a').replace(' PM', 'p');
+const fmt24 = (ts) => new Date(ts).toLocaleTimeString('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
+const dayKey = (ts) => new Date(ts).toLocaleDateString('en-CA', {timeZone: TZ});
+const dayName = (ts) => new Date(ts).toLocaleDateString('en-US', {timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric'}).toUpperCase();
+const dow = (ts) => new Date(ts).toLocaleDateString('en-US', {timeZone: TZ, weekday: 'short'}).toUpperCase();
+const dnum = (ts) => new Date(ts).toLocaleDateString('en-US', {timeZone: TZ, day: 'numeric'});
+const laMin = (ts) => { const p = new Intl.DateTimeFormat('en-US', {timeZone: TZ, hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23'}).formatToParts(new Date(ts)); const g = (t) => +p.find((x) => x.type === t).value; return g('hour') * 60 + g('minute') + g('second') / 60; };
+const ago = (ts) => { const m = Math.round((Date.now() - new Date(ts)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 1440 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
+const hms = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(x).padStart(2, '0'); };
+const dur = (min) => { min = Math.max(0, Math.round(min)); const h = Math.floor(min / 60), m = min % 60; return h ? h + 'h' + (m ? ' ' + m + 'm' : '') : m + 'm'; };
+const led = (id, s, txt) => { const l = $('l' + id); if (l) l.className = 'led ' + s; if (txt != null) T('b' + id, txt); };
+const JUNK_LABELS = ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS', 'SPAM'];
+const JUNK_FROM = /no-?reply|notifications?@|newsletter|marketing|mailer|news@|updates@|hello@|info@|support@|digest|autorespond|admission/i;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let ev = [], calOk = false, mailRows = [], codeRows = [], brief = null, doneIds = new Set(), db = null, mcp = null, sample = null, briefing = false;
+const got = {cal: false, mail: false, code: false};
+const synced = {cal: 0, mail: 0, code: 0}, errs = {};
+
+/* ---------- derived: what the views read ---------- */
+const KINDS = [
+  ['school', /school|class|period|exam|test|quiz|counsel|college|sat\b|act\b|ap /i],
+  ['sport', /soccer|practice|game|match|training|gym|run\b|lift/i],
+  ['meet', /meet|call|sync|1:1|interview|demo|with /i],
+];
+const kind = (e) => (KINDS.find(([, r]) => r.test(e.title)) || ['other'])[0];
+const timedToday = () => { const t = dayKey(Date.now()); return ev.filter((e) => !e.allDay && !e.free && dayKey(e.s) === t); };
+function nowNext() {
+  const now = Date.now(), timed = ev.filter((e) => !e.allDay && !e.free);
+  return {now, cur: timed.find((e) => e.s <= now && e.e > now), nxt: timed.find((e) => e.s > now)};
+}
+function busyIn(k, from, to) {
+  const busy = ev.filter((e) => !e.allDay && !e.free && dayKey(e.s) === k).map((e) => [Math.max(from, laMin(e.s)), Math.min(to, dayKey(e.e) === k ? laMin(e.e) : 1440)]).filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  const out = []; for (const [a, b] of busy) { const l = out[out.length - 1]; if (l && a <= l[1]) l[1] = Math.max(l[1], b); else out.push([a, b]); }
+  return out;
+}
+function freeHours() {
+  const now = Date.now(), st = Math.max(laMin(now), 420), en = 1380;
+  if (st >= en) return 0;
+  const used = busyIn(dayKey(now), st, en).reduce((s, [a, b]) => s + b - a, 0);
+  return Math.max(0, (en - st - used) / 60);
+}
+/* open blocks of 20+ minutes left today, between 7 AM and 11 PM */
+function freeWindows() {
+  const now = Date.now(), st = Math.max(Math.ceil(laMin(now)), 420), en = 1380, out = [];
+  if (st >= en) return out;
+  let cur = st; for (const [a, b] of busyIn(dayKey(now), st, en)) { if (a - cur >= 20) out.push([cur, a]); cur = Math.max(cur, b); }
+  if (en - cur >= 20) out.push([cur, en]);
+  return out;
+}
+const minLabel = (m) => { const h = Math.floor(m / 60) % 24, mm = Math.round(m % 60); return (h % 12 || 12) + (mm ? ':' + String(mm).padStart(2, '0') : '') + (h < 12 ? ' AM' : ' PM'); };
+/* overlapping events in the next 7 days */
+function conflicts() {
+  const t = ev.filter((e) => !e.allDay && !e.free && e.e > Date.now()), out = [];
+  for (let i = 0; i < t.length; i++) for (let j = i + 1; j < t.length && t[j].s < t[i].e; j++) out.push([t[i], t[j]]);
+  return out;
+}
+function bookedHours(k) { return busyIn(k, 0, 1440).reduce((s, [a, b]) => s + b - a, 0) / 60; }
+function shipStreak() {
+  const days = new Set(codeRows.map((r) => dayKey(r.date))); let n = 0, t = Date.now();
+  if (!days.has(dayKey(t))) t -= 864e5;
+  while (days.has(dayKey(t)) && n < 30) { n++; t -= 864e5; }
+  return n;
+}
+function shipDays() { const out = []; for (let i = 6; i >= 0; i--) { const t = Date.now() - i * 864e5, k = dayKey(t); out.push({k, l: i === 0 ? 'TDY' : dow(t), n: codeRows.filter((r) => dayKey(r.date) === k).length}); } return out; }
+const dayProgress = () => Math.min(1, Math.max(0, (laMin(Date.now()) - 420) / (1380 - 420)));
+function tomorrowFirst() { const k = dayKey(Date.now() + 864e5); return ev.find((e) => !e.allDay && !e.free && dayKey(e.s) === k); }
+function weekDays() { const out = []; for (let d = 0; d < 7; d++) { const ts = Date.now() + d * 864e5, k = dayKey(ts); out.push({d, ts, k, l: d === 0 ? 'TDY' : dow(ts), n: dnum(ts), ev: ev.filter((e) => !e.allDay && !e.free && dayKey(e.s) === k), all: ev.filter((e) => e.allDay && dayKey(e.s) === k), hrs: bookedHours(k)}); } return out; }
+function upcoming(n) { const now = Date.now(); return ev.filter((e) => !e.free && (e.allDay ? dayKey(e.s) >= dayKey(now) : e.e > now)).slice(0, n); }
+function openTasks() { return brief ? (brief.actions || []).filter((a) => !doneIds.has(aid(a))) : []; }
+function tasksSorted() { return (brief?.actions || []).slice().sort((a, b) => doneIds.has(aid(a)) - doneIds.has(aid(b))); }
+function metrics() {
+  const t = dayKey(Date.now());
+  return {
+    events: calOk ? ev.filter((e) => dayKey(e.s) === t && !e.free).length : null,
+    left: calOk ? timedToday().filter((e) => e.s > Date.now()).length : null,
+    free: calOk ? freeHours() : null,
+    open: brief ? openTasks().length : null,
+    total: brief ? (brief.actions || []).length : null,
+    mail: got.mail ? visibleMail().length : null,
+    ships: got.code ? codeRows.filter((r) => Date.now() - new Date(r.date) < 7 * 864e5).length : null,
+    streak: got.code ? shipStreak() : null,
+  };
+}
+function tickerItems() { return brief ? [...(brief.ticker || []), ...openTasks().map((a) => 'Task: ' + a.text)] : []; }
+const initials = (s) => (String(s).match(/\b\w/g) || ['?']).slice(0, 2).join('').toUpperCase();
+
+/* alerts: offline, feed errors, calendar clashes, something starting soon */
+function alerts() {
+  const out = [];
+  if (!navigator.onLine) out.push({lvl: 'warn', t: 'Offline. Showing last data'});
+  for (const k of ['cal', 'mail', 'code']) if (errs[k]) out.push({lvl: 'bad', t: errs[k]});
+  for (const [a, b] of conflicts().slice(0, 2)) out.push({lvl: 'warn', t: 'Clash ' + dow(b.s) + ' ' + fmtTime(b.s) + ': ' + a.title + ' and ' + b.title});
+  if (calOk) { const {nxt, cur} = nowNext(); if (!cur && nxt && nxt.s - Date.now() < 15 * 60e3) out.push({lvl: 'info', t: nxt.title + ' in ' + dur((nxt.s - Date.now()) / 60000)}); }
+  return out;
+}
+function refreshAlerts() { if (typeof renderAlerts === 'function') renderAlerts(alerts()); }
+/* one status line at a time, swapped every 7 seconds */
+let rotI = 0, rotT = null, rotItems = [];
+function setRotator(items) { rotItems = items; rotI = 0; if (!rotT) rotT = setInterval(rotStep, 7000); rotStep(); }
+function rotStep() { const el = $('rail'); if (!el || !rotItems.length) return; const i = rotI++ % rotItems.length; el.classList.remove('in'); void el.offsetWidth; el.textContent = rotItems[i]; el.classList.add('in'); T('railN', String(i + 1).padStart(2, '0') + ' / ' + String(rotItems.length).padStart(2, '0')); }
+
+/* ---------- clock ---------- */
+function clockParts() {
+  const d = new Date(), p = new Intl.DateTimeFormat('en-US', {timeZone: TZ, hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true}).formatToParts(d);
+  const g = (t) => p.find((x) => x.type === t)?.value || '';
+  return {h: g('hour'), m: g('minute'), s: g('second'), ap: g('dayPeriod'), sec: +g('second'),
+    date: d.toLocaleDateString('en-US', {timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric'}),
+    wd: d.toLocaleDateString('en-US', {timeZone: TZ, weekday: 'long'}), md: d.toLocaleDateString('en-US', {timeZone: TZ, month: 'long', day: 'numeric'})};
+}
+function tick() { renderClock(clockParts()); if (calOk) renderNext(nowNext()); }
+let lastMin = -1;
+function minuteTick() { const m = Math.floor(laMin(Date.now())); if (m !== lastMin) { lastMin = m; renderDial(); renderGauges(); checkStale(); nightCheck(); refreshAlerts(); } }
+
+/* ---------- calendar feed ---------- */
+function onCal(e) {
+  if (e.type === 'error') { led('Cal', 'err', 'ERR'); errs.cal = errCopy('Google Calendar', e.error); if (!calOk) showErr('cal', errs.cal); refreshAlerts(); return; }
+  errs.cal = null;
+  ev = ((e.result.payload && e.result.payload.events) || []).map((x) => ({
+    id: x.id, title: x.summary || '(no title)', link: x.htmlLink,
+    s: +new Date(x.start?.dateTime || (x.start?.date + 'T00:00:00')), e: +new Date(x.end?.dateTime || (x.end?.date + 'T00:00:00')),
+    allDay: !x.start?.dateTime, free: x.transparency === 'transparent',
+  })).sort((a, b) => a.s - b.s);
+  calOk = got.cal = true; led('Cal', 'on', String(ev.length));
+  const st = e.result.cache?.storedAt || Date.now(); synced.cal = st;
+  T('calStamp', 'Synced ' + fmtTime(st)); T('stamp', 'Synced ' + fmtTime(st));
+  tick(); renderDial(); renderHeat(); renderGauges(); refreshAlerts(); maybeBrief();
+}
+
+/* ---------- mail feed ---------- */
+function onMail(e) {
+  if (e.type === 'error') { led('Mail', 'err', 'ERR'); errs.mail = errCopy('Gmail', e.error); if (!got.mail) showErr('mail', errs.mail); refreshAlerts(); return; }
+  errs.mail = null;
+  mailRows = ((e.result.payload && e.result.payload.threads) || []).map((t) => {
+    const m = (t.messages || [])[0] || {};
+    const n = (m.addressDisplayNames || []).find((a) => a.emailAddress === m.sender);
+    return {id: String(t.id), from: n?.displayName || m.sender || '', addr: m.sender || '', subj: m.subject || '(no subject)', snip: (m.snippet || '').slice(0, 160), date: m.date, labels: m.labelIds || [], link: t.viewUrl};
+  }).filter((r) => !r.labels.some((l) => JUNK_LABELS.includes(l)) && !JUNK_FROM.test(r.addr));
+  got.mail = true; synced.mail = Date.now(); led('Mail', 'on'); renderMail(); renderGauges(); maybeBrief();
+}
+function visibleMail() {
+  if (!brief || !Array.isArray(brief.mail_keep)) return mailRows;
+  const keep = new Set(brief.mail_keep.map(String)), seen = new Set((brief.seen || []).map(String));
+  return mailRows.filter((r) => keep.has(r.id) || !seen.has(r.id));
+}
+
+/* ---------- ops feed ---------- */
+function onCode(e) {
+  if (e.type === 'error') { led('Ops', 'err', 'ERR'); errs.code = errCopy('Gmail', e.error); if (!got.code) showErr('code', errs.code); refreshAlerts(); return; }
+  errs.code = null;
+  codeRows = ((e.result.payload && e.result.payload.threads) || []).map((t) => {
+    const m = (t.messages || [])[0] || {};
+    const s = (m.subject || '').replace(/^Re:\s*/, '');
+    const hit = s.match(/^\[([^\]]+)\]\s*(.*?)(?:\s*\((?:PR|Issue) #(\d+)\))?$/);
+    return {repo: hit ? hit[1].split('/').pop() : 'github', title: hit ? hit[2] : s, pr: hit && hit[3] ? hit[3] : '', date: m.date, link: t.viewUrl};
+  });
+  got.code = true; synced.code = Date.now(); led('Ops', 'on', String(codeRows.length)); renderChart(); renderOps(); renderGauges(); maybeBrief();
+}
+function opsFallback() {
+  const by = {}; for (const r of codeRows) (by[r.repo] ||= new Set()).add(r.pr ? '#' + r.pr + ' ' + r.title : r.title);
+  return Object.keys(by).map((n) => ({project: n, update: [...by[n]][0], n: by[n].size}));
+}
+function opsRows() {
+  const counts = {}; for (const r of codeRows) counts[r.repo.toLowerCase()] = (counts[r.repo.toLowerCase()] || 0) + 1;
+  if (brief && Array.isArray(brief.ops) && brief.ops.length) return brief.ops.map((o) => ({project: String(o.project), update: String(o.update || ''), n: counts[String(o.project).split('/').pop().toLowerCase()] || 0}));
+  return got.code ? opsFallback() : null;
+}
+
+/* ---------- AI brief (prompt and shape unchanged) ---------- */
+const aid = (a) => String(a.id || a.text || 'task').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 60);
+function hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
+async function maybeBrief(force) {
+  if (!got.cal || !got.mail || !got.code || briefing) return;
+  const key = hash(ev.map((e) => e.id).join() + '|' + mailRows.map((r) => r.id).join() + '|' + codeRows.length);
+  if (!force && brief && (brief.key === key || Date.now() - (brief.at || 0) < 30 * 60e3)) return;
+  if (!sample) { if (!brief) aiMsg('Open this page in Claude to turn on the AI.'); return; }
+  briefing = true; led('Ai', 'busy', 'RUN'); document.documentElement.dataset.briefing = '1';
+  const today = new Date().toLocaleDateString('en-US', {timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
+  const prompt = 'You are the operations brain for Yash, a high school senior in San Diego who builds software and startups, plays soccer, and is applying to college. Now: ' + today + ', ' + fmtTime(Date.now()) + ' Pacific.\n\nCALENDAR (next 7 days):\n'
+    + ev.filter((e) => !e.free).map((e) => '- ' + dayName(e.s) + ' ' + (e.allDay ? 'all day' : fmtTime(e.s)) + ': ' + e.title).join('\n')
+    + '\n\nUNREAD MAIL (id | from | subject | snippet):\n' + mailRows.map((r) => r.id + ' | ' + r.from + ' <' + r.addr + '> | ' + r.subj + ' | ' + r.snip).join('\n')
+    + '\n\nGITHUB ACTIVITY (7 days):\n' + codeRows.slice(0, 40).map((r) => '- [' + r.repo + '] ' + r.title + (r.pr ? ' (#' + r.pr + ')' : '') + ' ' + dayKey(r.date)).join('\n')
+    + '\n\nReply with only JSON: {"headline":"one sharp sentence on what today is about","actions":[{"id":"short-kebab-id","text":"concrete task, imperative, under 12 words","area":"school|build|apps|life|money","due":"YYYY-MM-DD or empty","why":"under 12 words"}],"mail_keep":["ids of threads a real person wrote or that need Yash to act"],"mail_why":{"<id>":"what it needs from him, under 10 words"},"ops":[{"project":"repo or project","update":"one line on what shipped or changed"}],"ticker":["4 to 6 short status lines for a news ticker"]}\n'
+    + 'Rules: 3 to 6 actions only from the data above. Drop marketing, receipts, automated notices, college brochures and waitlist confirmations from mail_keep. Max 5 ops. Keep ids stable for the same task. No hyphens or em dashes in any text. Never invent facts.';
+  try {
+    const o = await sample.json(prompt, {cache: {gcTime: 30 * 60e3}});
+    if (!o || typeof o !== 'object') throw {code: 'invalid_json'};
+    brief = {key, at: Date.now(), headline: String(o.headline || ''), actions: Array.isArray(o.actions) ? o.actions.slice(0, 6) : [], mail_keep: Array.isArray(o.mail_keep) ? o.mail_keep.map(String) : [], mail_why: o.mail_why && typeof o.mail_why === 'object' ? o.mail_why : {}, ops: Array.isArray(o.ops) ? o.ops.slice(0, 5) : [], ticker: Array.isArray(o.ticker) ? o.ticker.slice(0, 6).map(String) : [], seen: mailRows.map((r) => r.id)};
+    if (db) db.doc('brief/latest').set(brief).catch(() => {});
+    led('Ai', 'on', 'OK'); paintBrief();
+  } catch (err) {
+    led('Ai', 'err', 'ERR');
+    if (!brief) aiMsg(err && err.code === 'not_granted' ? 'AI is off. Allow Claude for this page to turn it on.' : err && err.code === 'rate_limited' ? 'AI is busy. It retries on the next scan.' : 'AI brief did not come through. Press rescan.');
+  } finally { briefing = false; delete document.documentElement.dataset.briefing; }
+}
+function paintBrief() { if (!brief) return; renderBrief(); renderMail(); renderOps(); renderGauges(); }
+document.addEventListener('change', async (e) => {
+  const box = e.target.closest('[data-task-box]'); if (!box) return;
+  const id = box.closest('[data-id]').dataset.id;
+  if (box.checked) doneIds.add(id); else doneIds.delete(id);
+  paintBrief();
+  if (db) { try { if (box.checked) await db.doc('done/' + id).set({at: new Date().toISOString()}); else await db.doc('done/' + id).delete(); } catch {} }
+});
+
+/* ---------- agents ---------- */
+function sortAgents(rows) {
+  const rank = {blocked: 0, working: 1, done: 2};
+  return rows.sort((a, b) => (rank[a.status] ?? 1) - (rank[b.status] ?? 1) || String(b.updated || '').localeCompare(String(a.updated || '')));
+}
+
+function errCopy(srv, err) {
+  const c = err && err.code;
+  if (c === 'needs_reauth') return 'Reconnect ' + srv + ' in claude.ai Settings, Connectors.';
+  if (c === 'server_not_connected') return 'Add ' + srv + ' in claude.ai Settings, Connectors.';
+  if (c === 'not_in_manifest' || c === 'approval_required') return srv + ' access is off. Press rescan to allow it.';
+  return srv + ' link dropped. Retrying next scan.';
+}
+
+/* ---------- wall features: stale data, night mode, OLED care, keys ---------- */
+function checkStale() {
+  if (!mcp) return;
+  for (const [k, id] of [['cal', 'Cal'], ['mail', 'Mail'], ['code', 'Ops']]) { const l = $('l' + id); if (synced[k] && Date.now() - synced[k] > 15 * 60e3 && l && l.classList.contains('on')) l.className = 'led warn'; }
+}
+let nightForced = null;
+function nightCheck() {
+  const m = laMin(Date.now()), auto = m >= 1380 || m < 360;
+  const on = nightForced == null ? auto : nightForced;
+  document.documentElement.toggleAttribute('data-night', on);
+  T('nightBtn', on ? 'Day' : 'Night');
+}
+function toggleNight() { const on = document.documentElement.hasAttribute('data-night'); nightForced = !on; nightCheck(); }
+/* tiny drift every 3 minutes so static rules never burn into the OLED */
+let shiftI = 0;
+function pixelShift() { const p = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]][shiftI++ % 9]; document.documentElement.style.setProperty('--sx', p[0] + 'px'); document.documentElement.style.setProperty('--sy', p[1] + 'px'); }
+
+const FIVE = 5 * 60e3;
+const CAL = ['Google Calendar', 'list_events', {orderBy: 'startTime', pageSize: 60}];
+const MAIL = ['Gmail', 'search_threads', {query: 'in:inbox newer_than:3d -category:promotions -category:social -category:forums', view: 'THREAD_VIEW_SUMMARY', pageSize: 30}];
+const CODE = ['Gmail', 'search_threads', {query: 'from:notifications@github.com newer_than:7d', view: 'THREAD_VIEW_SUMMARY', pageSize: 50}];
+
+/* PREVIEW MODE: outside Claude (plain browser, local dev) there is no mcp/db/sample, so feed realistic sample data */
+function mockFeeds() {
+  const day = 864e5, base = new Date(); base.setMinutes(0, 0, 0);
+  const at = (d, h, m = 0) => { const t = new Date(base.getTime() + d * day); t.setHours(h, m, 0, 0); return t.toISOString(); };
+  const evs = [];
+  for (let d = 0; d < 7; d++) {
+    if (d % 7 < 5) evs.push({id: 's' + d, summary: 'School', start: {dateTime: at(d, 9, 46)}, end: {dateTime: at(d, 15, 35)}});
+    evs.push({id: 'p' + d, summary: 'Soccer practice', start: {dateTime: at(d, 19)}, end: {dateTime: at(d, 21)}});
+  }
+  evs.push({id: 'v1', summary: 'VR meeting with Eddie', start: {dateTime: at(0, 16)}, end: {dateTime: at(0, 16, 30)}});
+  evs.push({id: 'c1', summary: 'College counselor call', start: {dateTime: at(1, 15)}, end: {dateTime: at(1, 15, 30)}});
+  evs.push({id: 'o1', summary: 'Office hours (free)', start: {dateTime: at(0, 10, 55)}, end: {dateTime: at(0, 11, 30)}, transparency: 'transparent'});
+  const th = (id, from, addr, subj, snip, hAgo, labels = ['INBOX', 'CATEGORY_PERSONAL']) => ({id, viewUrl: 'https://mail.google.com', messages: [{sender: addr, subject: subj, snippet: snip, date: new Date(Date.now() - hAgo * 36e5).toISOString(), labelIds: labels, addressDisplayNames: [{emailAddress: addr, displayName: from}]}]});
+  const mail = {threads: [
+    th('m1', 'Eddie Park', 'eddie@promx.ai', 'Tuesday VR session', 'Can you bring the Quest build so we can walk through it', 2),
+    th('m2', 'Reshma Shanbhag', 'resh@gmail.com', 'FAFSA folder', 'Shared the folder, need your signature page by Friday', 5),
+    th('m3', 'Coach Ramirez', 'coach@school.org', 'Saturday lineup', 'Arrive 45 min early, bring both kits', 20),
+  ]};
+  const gh = (id, repo, title, pr, hAgo) => ({id, viewUrl: 'https://github.com', messages: [{sender: 'notifications@github.com', subject: '[YashPatil321/' + repo + '] ' + title + (pr ? ' (PR #' + pr + ')' : ''), date: new Date(Date.now() - hAgo * 36e5).toISOString()}]});
+  const code = {threads: [gh('g1', 'SolidHauzWeb', 'Page Manager: add /process', 152, 3), gh('g2', 'SolidHauzWeb', 'Designer production ready', 151, 4), gh('g3', 'SolidHauzWeb', 'Machine visuals across the site', 150, 28), gh('g4', 'ocs_backend', 'Broker retry logic', 41, 50), gh('g5', 'vr-game', 'Hand tracking prototype', 12, 75), gh('g6', 'SolidHauzWeb', 'New /process page with 3D CNC', 149, 100)]};
+  onCal({type: 'data', result: {payload: {events: evs}}});
+  onMail({type: 'data', result: {payload: mail}});
+  onCode({type: 'data', result: {payload: code}});
+  if (!brief) {
+    brief = {key: 'mock', at: Date.now(), headline: 'Light school day, VR demo with Eddie at 4, practice tonight.', seen: ['m1', 'm2', 'm3'], mail_keep: ['m1', 'm2', 'm3'],
+      mail_why: {m1: 'Bring the Quest build Tuesday', m2: 'Sign FAFSA page by Friday', m3: 'Arrive early Saturday'},
+      actions: [{id: 'quest-build', text: 'Charge Quest and load the latest VR build', area: 'build', why: 'Demo with Eddie at 4'}, {id: 'fafsa', text: 'Sign the FAFSA page in the shared folder', area: 'apps', due: '', why: 'Reshma needs it by Friday'}, {id: 'pr-152', text: 'Review and merge PR 152 on SolidHauzWeb', area: 'build', why: 'Process page is waiting'}],
+      ops: [{project: 'SolidHauzWeb', update: 'Shipped the process page, designer is production ready'}, {project: 'ocs_backend', update: 'Broker retries landed'}, {project: 'vr-game', update: 'Hand tracking prototype started'}],
+      ticker: ['Preview data, open in Claude for your real feed', 'Three builds shipped this week', 'Practice 7 PM']};
+    led('Ai', 'on', 'MOCK'); paintBrief();
+  }
+}
+
+async function start() {
+  nightCheck(); tick(); renderDial(); renderGauges(); renderHeat();
+  setInterval(tick, 1000); setInterval(minuteTick, 5000); setInterval(pixelShift, 180e3);
+  const use = (n) => (window.claude && claude.use) ? claude.use(n).catch(() => null) : Promise.resolve(null);
+  [mcp, db, sample] = await Promise.all([use('mcp'), use('db'), use('sample')]);
+  if (db) {
+    try { const d = await db.doc('brief/latest').get(); if (d.exists) { brief = d.data(); led('Ai', 'on', 'OK'); paintBrief(); } } catch {}
+    db.collection('done').onSnapshot((s) => { doneIds = new Set(s.docs.map((d) => d.id)); paintBrief(); }, () => {});
+    db.collection('agents').onSnapshot((s) => renderAgents(sortAgents(s.docs.map((d) => ({id: d.id, ...d.data()})))), () => renderAgents([], 'Agent board offline.'));
+  } else renderAgents([], 'Open in Claude to see agents.');
+  if (!mcp) { mockFeeds(); T('stamp', 'Preview data'); document.documentElement.dataset.preview = '1'; return; }
+  mcp.watchTool(...CAL, onCal, {refetchInterval: FIVE});
+  mcp.watchTool(...MAIL, onMail, {refetchInterval: FIVE});
+  mcp.watchTool(...CODE, onCode, {refetchInterval: FIVE});
+}
+function rescan() {
+  if (!mcp) { document.documentElement.dataset.scan = '1'; setTimeout(() => delete document.documentElement.dataset.scan, 900); return; }
+  led('Cal', 'busy'); led('Mail', 'busy'); led('Ops', 'busy');
+  for (const [srv, tool, input, fn] of [[...CAL, onCal], [...MAIL, onMail], [...CODE, onCode]]) mcp.callTool(srv, tool, input, {cache: {staleTime: 0, gcTime: FIVE, refresh: true}}).then((result) => fn({type: 'data', result})).catch((error) => fn({type: 'error', error}));
+  setTimeout(() => maybeBrief(true), 5000);
+}
+let lock = null;
+async function wake() { try { if (!lock && navigator.wakeLock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } } catch {} }
+async function fullscreen() {
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch {}
+  wake(); wantLock = true;
+}
+let wantLock = false;
+document.addEventListener('visibilitychange', () => { if (wantLock && document.visibilityState === 'visible') wake(); });
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cmd]'); if (!b) return;
+  ({rescan, full: fullscreen, night: toggleNight})[b.dataset.cmd]?.();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || /input|textarea/i.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase(); if (k === 'r') rescan(); else if (k === 'f') fullscreen(); else if (k === 'n') toggleNight();
+});
+const netState = () => { document.documentElement.toggleAttribute('data-offline', !navigator.onLine); refreshAlerts(); };
+addEventListener('online', netState); addEventListener('offline', netState); netState();
+setTimeout(() => $('boot')?.classList.add('gone'), reduced ? 0 : 900);
+
+
+/* ================= VIEW: GLASS COCKPIT ================= */
+const KC = {school: 'var(--k-school)', sport: 'var(--k-sport)', meet: 'var(--k-meet)', other: 'var(--k-other)'};
+const up = (s) => String(s).toUpperCase();
+
+function renderClock(c) {
+  T('hm', c.h + ':' + c.m); T('ss', c.s); T('ap', c.ap); T('date', c.wd + ' ' + c.md);
+  T('utc', 'UTC ' + new Date().toISOString().slice(11, 16) + ' · PT · DAY ' + Math.round(dayProgress() * 100) + '%');
+}
+function renderNext({now, cur, nxt}) {
+  const r = document.documentElement;
+  r.toggleAttribute('data-soon', !cur && !!nxt && nxt.s - now < 10 * 60e3);
+  if (cur) {
+    T('nlbl', 'IN PROGRESS'); T('nwhat', cur.title); T('nwhen', 'END ' + fmtTime(cur.e) + (nxt ? '  ›  ' + up(nxt.title) : ''));
+    T('cd', hms(cur.e - now)); $('prog').hidden = false; $('progi').style.width = 'calc(' + ((now - cur.s) / (cur.e - cur.s) * 100).toFixed(1) + '% - 2px)';
+    T('fNow', cur.title); T('fNowB', 'END ' + fmtTime(cur.e) + ' · ' + dur((cur.e - now) / 6e4) + ' LEFT');
+  } else {
+    $('prog').hidden = true; T('fNow', 'OPEN'); T('fNowB', 'NOTHING IN PROGRESS');
+    if (nxt) { T('nlbl', 'NEXT EVENT'); T('nwhat', nxt.title); T('nwhen', (dayKey(nxt.s) === dayKey(now) ? 'TODAY' : dayName(nxt.s)) + ' · ' + fmtTime(nxt.s)); T('cd', hms(nxt.s - now)); }
+    else { T('nlbl', 'ALL CLEAR'); T('nwhat', 'Nothing scheduled'); T('nwhen', 'OPEN WEEK'); T('cd', ''); }
+  }
+  if (nxt) { T('fNxt', nxt.title); T('fNxtB', (dayKey(nxt.s) === dayKey(now) ? '' : dow(nxt.s) + ' ') + fmtTime(nxt.s) + ' · T ' + hms(nxt.s - now)); } else { T('fNxt', 'NONE'); T('fNxtB', ''); }
+  const p = $('tpRd'); if (p) p.textContent = fmt24(now);
+}
+
+/* time tape: 3 hours behind, 5 ahead, now fixed at 3/8 down */
+const BACK = 3 * 36e5, AHEAD = 5 * 36e5, SPAN = BACK + AHEAD;
+function renderDial() {
+  const now = Date.now(), t0 = now - BACK, y = (ts) => ((ts - t0) / SPAN * 100);
+  let s = '<div class="sc"></div>';
+  const q = 15 * 6e4; for (let ts = Math.ceil(t0 / q) * q; ts <= t0 + SPAN; ts += q) {
+    const m = Math.round(laMin(ts)), hr = m % 60 === 0, half = m % 30 === 0;
+    s += '<div class="tk" style="top:' + y(ts).toFixed(2) + '%;left:' + (hr ? '3.4rem' : half ? '3.8rem' : '4.05rem') + ';width:' + (hr ? '1rem' : half ? '.6rem' : '.35rem') + '"></div>';
+    if (hr) { s += '<span class="tl" style="top:' + y(ts).toFixed(2) + '%;right:auto;left:.5rem">' + fmt24(ts) + '</span>'; if (m === 0) s += '<div class="day" style="top:' + y(ts).toFixed(2) + '%"><b>' + dow(ts) + ' ' + dnum(ts) + '</b></div>'; }
+  }
+  if (calOk) {
+    ev.filter((e) => !e.allDay && !e.free && e.e > t0 && e.s < t0 + SPAN).forEach((e) => {
+      const a = Math.max(0, y(e.s)), b = Math.min(100, y(e.e)), hpx = (b - a) / 100 * ($('dial').clientHeight || 600);
+      s += '<div class="bar' + (e.e < now ? ' past' : '') + (hpx < 34 ? ' thin' : '') + (hpx < 14 ? ' tiny' : '') + '" style="--kc:' + KC[kind(e)] + ';top:' + a.toFixed(2) + '%;height:' + (b - a).toFixed(2) + '%" title="' + esc(e.title + ' ' + fmtTime(e.s)) + '"><b>' + esc(e.title) + '</b><span>' + esc(fmtShort(e.s) + ' to ' + fmtShort(e.e)) + '</span></div>';
+    });
+    const dk = dayKey(now), base = now - laMin(now) * 6e4;
+    freeWindows().forEach(([a, b]) => { const ya = y(base + a * 6e4), yb = Math.min(100, y(base + b * 6e4)); if (yb > 0 && ya < 100) s += '<div class="opn" style="top:' + Math.max(0, ya).toFixed(2) + '%;height:' + (yb - Math.max(0, ya)).toFixed(2) + '%" title="Open ' + minLabel(a) + ' to ' + minLabel(b) + '"></div>'; });
+    void dk;
+  }
+  s += '<div class="ptr" style="top:' + (BACK / SPAN * 100) + '%"><span class="nowl">NOW</span><div class="rd" id="tpRd">' + fmt24(now) + '</div></div>';
+  $('dial').innerHTML = s;
+  if (calOk) { const later = ev.filter((e) => !e.allDay && !e.free && e.s > now).slice(1, 5); $('wpt').innerHTML = later.length ? '<li style="display:block"><span class="l">THEN</span></li>' + later.map((e) => '<li style="--kc:' + KC[kind(e)] + '"><span class="t">' + (dayKey(e.s) === dayKey(now) ? '' : dow(e.s) + ' ') + esc(fmtShort(e.s)) + '</span><i></i><span>' + A(e.link, e.title) + '</span></li>').join('') : ''; }
+  const fw = calOk ? freeWindows() : [];
+  if (calOk) { T('fFree', freeHours().toFixed(1) + ' H'); T('fFreeB', fw.length ? 'NEXT ' + minLabel(fw[0][0]) + ' · ' + dur(fw[0][1] - fw[0][0]) : 'NO OPEN BLOCKS'); }
+}
+
+/* EICAS gauges */
+function arcG(label, val, max, shown, caution) {
+  const f = val == null ? 0 : Math.min(1, val / max), a0 = 210, sw = 240, r = 38, cx = 50, cy = 52;
+  const P = (deg) => { const a = (a0 - deg) * Math.PI / 180; return [cx + r * Math.cos(a), cy - r * Math.sin(a)]; };
+  const path = (d0, d1) => { const [x1, y1] = P(d0), [x2, y2] = P(d1); return 'M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + 'A' + r + ' ' + r + ' 0 ' + (d1 - d0 > 180 ? 1 : 0) + ' 1 ' + x2.toFixed(1) + ' ' + y2.toFixed(1); };
+  let t = '<path d="' + path(0, sw) + '" fill="none" stroke="var(--ink2)" stroke-width="1.6"/>';
+  for (let i = 0; i <= 4; i++) { const d = sw * i / 4, [x1, y1] = P(d), a = (a0 - d) * Math.PI / 180; t += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + (cx + (r - 6) * Math.cos(a)).toFixed(1) + '" y2="' + (cy - (r - 6) * Math.sin(a)).toFixed(1) + '" stroke="var(--ink2)" stroke-width="1.6"/>'; }
+  if (caution != null) { t += '<path d="' + path(sw * caution, sw) + '" fill="none" stroke="var(--amb)" stroke-width="3.5"/>'; }
+  const col = caution != null && f >= caution ? 'var(--amb)' : 'var(--grn)';
+  if (val != null) { if (f > 0) t += '<path d="' + path(0, sw * f) + '" fill="none" stroke="' + col + '" stroke-width="7" opacity=".28"/>'; const [nx, ny] = P(sw * f); t += '<line x1="' + cx + '" y1="' + cy + '" x2="' + nx.toFixed(1) + '" y2="' + ny.toFixed(1) + '" stroke="' + col + '" stroke-width="2.6" stroke-linecap="round"/>'; }
+  t += '<rect x="52" y="54" width="44" height="22" fill="#000" stroke="var(--ink2)" stroke-width="1.2"/><text x="92" y="70.5" text-anchor="end" font-family="B612" font-size="15" font-weight="700" fill="' + (val == null ? 'var(--dim)' : col) + '">' + esc(shown) + '</text>';
+  return '<div class="gg"><svg viewBox="0 0 100 82" role="img" aria-label="' + esc(label + ' ' + shown) + '">' + t + '</svg><span class="gl">' + label + '</span></div>';
+}
+function renderGauges() {
+  const m = metrics(), v = (x, d) => x == null ? '--' : d ? x.toFixed(d) : String(x);
+  $('gs').innerHTML = arcG('Events', m.events, 8, v(m.events), .75) + arcG('Free hrs', m.free, 16, v(m.free, 1)) + arcG('Tasks', m.open, 6, v(m.open), .67) + arcG('Mail', m.mail, 10, v(m.mail), .7);
+  $('sub').innerHTML = '<div>LEFT TODAY<b>' + v(m.left) + '</b></div><div>SHIPS 7D<b>' + v(m.ships) + '</b></div><div>STREAK<b>' + v(m.streak) + 'D</b></div><div>CLASHES<b' + (calOk && conflicts().length ? ' class="am"' : '') + '>' + (calOk ? conflicts().length : '--') + '</b></div>';
+}
+function renderHeat() {
+  if (!calOk) { $('heat').innerHTML = '<span class="wait">ACQ</span>'; return; }
+  const max = 12, dp = dayProgress();
+  $('heat').innerHTML = weekDays().map((d) => '<div class="' + (d.d === 0 ? 'td' : '') + '"><span class="v' + (d.hrs >= 8 ? ' hi' : '') + '">' + d.hrs.toFixed(1) + '</span><span class="s"><u style="bottom:' + (8 / max * 100) + '%"></u><i style="height:calc(' + Math.min(100, d.hrs / max * 100).toFixed(1) + '% - 2px)"></i>' + (d.d === 0 ? '' : '') + '</span><span class="d">' + d.l + '</span></div>').join('');
+  void dp;
+}
+
+function renderMail() {
+  if (!got.mail) return;
+  const rows = visibleMail(), why = (brief && brief.mail_why) || {};
+  T('bMail', String(rows.length)); T('mailStamp', (brief ? 'AI FILTERED · ' : '') + rows.length + ' FOR YOU');
+  $('mailList').innerHTML = rows.length ? rows.slice(0, 8).map((r) => '<li><span class="f"><span>FROM</span>' + esc(r.from) + '</span><span class="a">' + (r.date ? ago(r.date) : '') + '</span><span class="s">' + A(r.link, why[r.id] || r.subj) + '</span></li>').join('') : '<li class="empty">NO MESSAGES. INBOX CLEAR.</li>';
+}
+function renderChart() {
+  if (!got.code) return;
+  const d = shipDays(), max = Math.max(1, ...d.map((x) => x.n));
+  $('chart').innerHTML = d.map((x) => '<div><i class="' + (x.n ? '' : 'z') + '" style="height:' + (x.n / max * 100) + '%" title="' + x.n + '"></i></div>').join('');
+  $('chartL').innerHTML = d.map((x) => '<span>' + x.l.charAt(0) + '</span>').join('');
+}
+function renderOps() {
+  const rows = opsRows(); if (!rows) return;
+  $('opsList').innerHTML = rows.length ? rows.map((o) => '<li><b>' + esc(o.project) + (o.n ? '<em>' + o.n + ' UPD</em>' : '') + '</b>' + esc(o.update) + '</li>').join('') : '<li class="empty">NO BUILD ACTIVITY.</li>';
+}
+function renderBrief() {
+  $('headline').textContent = brief.headline || 'No brief yet.';
+  T('aiStamp', 'INFO ' + String.fromCharCode(65 + (Math.floor((brief.at || 0) / 18e5) % 26)) + ' · ' + up(ago(brief.at)) + (ago(brief.at) === 'now' ? '' : ' AGO'));
+  const acts = tasksSorted();
+  $('actions').innerHTML = acts.length ? acts.map((a) => { const id = aid(a), d = doneIds.has(id); return '<li class="ci' + (d ? ' done' : '') + '" data-id="' + esc(id) + '"><label><input class="box" type="checkbox" data-task-box aria-label="Complete: ' + esc(a.text) + '"' + (d ? ' checked' : '') + '><div><div class="row"><span class="tx">' + esc(a.text) + '</span><span class="dots"></span><span class="ar">' + esc(up(a.area || 'task')) + '</span></div><div class="why">' + esc(a.why || '') + (a.due ? ' <span class="due">DUE ' + esc(String(a.due).slice(5).replace('-', '/')) + '</span>' : '') + '</div></div></label></li>'; }).join('') : '<li class="empty">CHECKLIST COMPLETE</li>';
+  const open = openTasks().length;
+  $('tsum').innerHTML = open ? open + ' OPEN · ' + (acts.length - open) + ' DONE' : '<b>CHECKLIST COMPLETE</b>';
+  const items = tickerItems(); if (items.length) setRotator(items);
+}
+function aiMsg(t) { $('headline').textContent = t; if (!brief) $('actions').innerHTML = '<li class="empty">' + esc(t) + '</li>'; }
+function renderAgents(rows, msg) {
+  if (msg) { $('agentList').innerHTML = '<li class="empty' + (/offline/i.test(msg) ? ' bad' : '') + '">' + esc(msg) + '</li>'; return; }
+  $('agentList').innerHTML = rows.length ? rows.slice(0, 5).map((r) => { const st = String(r.status || 'working'); return '<li><span class="s ' + esc(st) + '">' + esc(up(st)) + '</span><div class="nm">' + esc(r.name) + '</div>' + (r.note ? '<div class="nt">' + esc(r.note) + '</div>' : '') + '</li>'; }).join('') : '<li class="empty">NO AGENTS REPORTING</li>';
+}
+function showErr(feed, msg) {
+  if (feed === 'cal') { T('nlbl', 'CAL FAULT'); T('nwhat', msg); }
+  else if (feed === 'mail') $('mailList').innerHTML = '<li class="empty bad">' + esc(msg) + '</li>';
+  else $('opsList').innerHTML = '<li class="empty bad">' + esc(msg) + '</li>';
+}
+function renderAlerts(list) {
+  const top = list.find((a) => a.lvl === 'bad') || list.find((a) => a.lvl === 'warn') || list[0];
+  $('caut').dataset.lvl = top ? top.lvl : 'ok';
+  T('cautT', top ? up(top.t) + (list.length > 1 ? '  +' + (list.length - 1) : '') : 'NO CAUTIONS');
+}
+new ResizeObserver(() => { if (calOk) renderDial(); }).observe($('dial'));
+
+start();
+}
+</script>
+</body>
+</html>
