@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SACS Pickleball Tournament Flyer</title>
+<style>
+  @font-face { font-family: 'Rozha One'; src: url('rozha-one-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 800; font-style: italic; src: url('barlow-condensed-latin-800-italic.woff2') format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 700; font-style: normal; src: url('barlow-condensed-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 400; src: url('inter-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 600; src: url('inter-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 700; src: url('inter-latin-700-normal.woff2') format('woff2'); }
+  @page { size: 8.5in 11in; margin: 0; }
+  :root {
+    --plum: #1c0a2e;
+    --plum-2: #2a1145;
+    --gold: #ffb81c;
+    --rani: #c2185b;
+    --cream: #fbf6ee;
+    --muted: #cdbfdc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 8.5in; height: 11in; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--plum);
+    color: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page {
+    position: relative;
+    width: 8.5in;
+    height: 11in;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background:
+      radial-gradient(5in 4in at 100% 100%, rgba(194, 24, 91, 0.35), transparent 70%),
+      radial-gradient(4in 3in at 0% 60%, rgba(255, 184, 28, 0.12), transparent 70%),
+      var(--plum);
+  }
+  .photo {
+    position: relative;
+    height: 2.95in;
+    flex: none;
+  }
+  .photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 45%;
+    display: block;
+  }
+  .photo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(28, 10, 46, 0.05) 0%, rgba(28, 10, 46, 0.2) 38%, rgba(28, 10, 46, 0.88) 66%, var(--plum) 92%);
+  }
+  .garland {
+    position: absolute;
+    top: 0.22in;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    justify-content: space-around;
+  }
+  .garland span {
+    width: 0.2in;
+    height: 0.2in;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, #ffd36b 0 28%, var(--gold) 30% 62%, #e08a00 64%);
+    box-shadow: 0 0 0 0.03in rgba(0, 0, 0, 0.15);
+  }
+  .content {
+    position: relative;
+    z-index: 3;
+    margin-top: -0.95in;
+    padding: 0 0.65in;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .eyebrow {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 15pt;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  h1 { line-height: 0.92; margin-top: 0.06in; }
+  h1 .sacs {
+    display: block;
+    font-family: 'Rozha One', serif;
+    font-weight: 400;
+    font-size: 54pt;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+  }
+  h1 .rest {
+    display: block;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-style: italic;
+    font-size: 47pt;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+  }
+  h1 .rest em { font-style: italic; color: var(--gold); }
+  .lede {
+    margin-top: 0.12in;
+    font-size: 13pt;
+    font-weight: 600;
+    color: #e6dcf0;
+    max-width: 7.2in;
+  }
+  .facts {
+    margin-top: 0.22in;
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 0.12in 0.35in;
+    padding: 0.18in 0.28in;
+    border-radius: 0.18in;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
+  .facts dt {
+    font-size: 8.5pt;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .facts dd {
+    margin-top: 0.03in;
+    font-size: 15pt;
+    font-weight: 700;
+  }
+  .prize {
+    margin-top: 0.18in;
+    display: flex;
+    align-items: center;
+    gap: 0.18in;
+    padding: 0.12in 0.26in;
+    border-radius: 0.16in;
+    border: 3px solid var(--gold);
+    background: rgba(255, 184, 28, 0.1);
+  }
+  .prize svg { width: 0.55in; height: 0.55in; flex: none; }
+  .prize b {
+    display: block;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-style: italic;
+    font-size: 26pt;
+    line-height: 1;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .prize span { font-size: 12pt; font-weight: 600; color: #fff; }
+  .bottom {
+    margin-top: auto;
+    margin-bottom: 0.92in;
+    display: flex;
+    align-items: center;
+    gap: 0.4in;
+  }
+  .qr {
+    flex: none;
+    width: 2.95in;
+    height: 2.95in;
+    padding: 0.16in;
+    border-radius: 0.2in;
+    background: #fff;
+    box-shadow: 0 0 0 0.06in var(--gold);
+  }
+  .qr img { width: 100%; height: 100%; display: block; }
+  .cta h2 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    font-style: italic;
+    font-size: 40pt;
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+  .cta h2 em { color: var(--gold); font-style: italic; }
+  .cta p { margin-top: 0.1in; font-size: 12pt; font-weight: 600; color: #e6dcf0; line-height: 1.45; }
+  .cta .url {
+    margin-top: 0.12in;
+    font-size: 11pt;
+    font-weight: 700;
+    color: var(--gold);
+    word-break: break-all;
+  }
+  .footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0.16in 0.65in;
+    background: var(--gold);
+    color: var(--plum);
+    font-size: 10.25pt;
+    font-weight: 700;
+    display: flex;
+    justify-content: center;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="photo">
+      <img src="sacs-cast.webp" alt="" />
+      <div class="garland"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div class="content">
+      <div class="eyebrow">South Asian Culture Show presents</div>
+      <h1>
+        <span class="sacs">SACS</span>
+        <span class="rest">Pickleball <em>Tournament</em></span>
+      </h1>
+      <p class="lede">A doubles tournament supporting SACS and the Akshaya Patra Foundation.</p>
+
+      <dl class="facts">
+        <div><dt>When</dt><dd>Sunday, November 29 · 11am–3pm</dd></div>
+        <div><dt>Registration</dt><dd>$20 per player</dd></div>
+        <div><dt>Divisions</dt><dd>Adults · Kids/Teens</dd></div>
+        <div><dt>Format</dt><dd>Doubles · 3+ games</dd></div>
+      </dl>
+
+      <div class="prize">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ffb81c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0z" fill="#ffb81c"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8M9 17h6"/></svg>
+        <div><b>Prizes for the winners!</b><span>Top teams in Adults and Kids/Teens take home prizes</span></div>
+      </div>
+
+      <div class="bottom">
+        <div class="qr"><img src="qr.svg" alt="QR code to register" /></div>
+        <div class="cta">
+          <h2>Scan to <em>register</em></h2>
+          <p>Each player signs up on their own, then joins their partner. No partner? We’ll match you.<br />Not playing? Scan to make a donation.</p>
+          <div class="url">pickleball-tournament-jet.vercel.app</div>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <span>Hosted by the South Asian Culture Show · A portion of proceeds supports the Akshaya Patra Foundation</span>
+    </div>
+  </div>
+</body>
+</html>
