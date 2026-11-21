@@ -65,7 +65,7 @@ MORNING_BRIEF_BEFORE = 12    # on a clap wake before this hour, read a short bri
 CONNECTOR_TOOLS = "mcp__claude_ai_Google_Calendar,mcp__claude_ai_Gmail"
 # Voice can search, read your calendar and mail, and write new files only inside notes/. Never add Bash.
 ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
-SPOTIFY_CLIENT_ID = ""       # optional, from developer.spotify.com. Then run --spotify-login once
+SPOTIFY_CLIENT_ID = "9168fe0d1873402497e1738a923b9a76"       # optional, from developer.spotify.com. Then run --spotify-login once
 NTFY_TOPIC = ""              # optional: phone push on clap. Install the ntfy app on your iPhone, subscribe to a long random topic, paste it here
 # your cloud Claude Code sessions, through the claude.ai Claude Code Remote connector (run --doctor to confirm the name)
 SESSIONS_TOOLS = "mcp__claude_ai_Claude_Code_Remote__list_sessions,mcp__claude_ai_Claude_Code_Remote__get_session,mcp__claude_ai_Claude_Code_Remote__list_events"
