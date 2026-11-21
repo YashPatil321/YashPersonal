@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><title>SACS Pickleball Flyer (Prizes)</title>
+<style>
+  @font-face { font-family: 'Rozha One'; src: url('rozha-one-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 800; font-style: italic; src: url('barlow-condensed-latin-800-italic.woff2') format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 700; src: url('barlow-condensed-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 400; src: url('inter-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 600; src: url('inter-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Inter'; font-weight: 700; src: url('inter-latin-700-normal.woff2') format('woff2'); }
+  @page { size: 8.5in 11in; margin: 0; }
+  :root { --plum: #1c0a2e; --plum-2: #4b1d7a; --gold: #ffb81c; --rani: #c2185b; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 8.5in; height: 11in; background: #fff; color: #111; font-family: 'Inter', sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; text-rendering: geometricPrecision; }
+  .page { width: 8.5in; height: 11in; display: flex; flex-direction: column; align-items: center; text-align: center; }
+
+  /* Bold top band, like the original */
+  .band { width: 100%; background: var(--plum); color: #fff; padding: 0.3in 0.5in 0.32in; position: relative;
+    background-image: radial-gradient(3.5in 2in at 100% 100%, rgba(194, 24, 91, 0.45), transparent 70%); }
+  .garland { display: flex; justify-content: space-between; padding: 0 0.1in; }
+  .garland span { width: 0.15in; height: 0.15in; border-radius: 50%; background: var(--gold); }
+  .art { margin-top: 0.18in; display: flex; justify-content: center; align-items: center; gap: 0.3in; }
+  .art svg { width: 0.85in; height: 0.85in; }
+  .eyebrow { margin-top: 0.14in; font-family: 'Barlow Condensed'; font-weight: 700; font-size: 13pt; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
+  h1 { line-height: 0.9; margin-top: 0.02in; }
+  h1 .sacs { display: block; font-family: 'Rozha One', serif; font-weight: 400; font-size: 56pt; color: var(--gold); }
+  h1 .rest { display: block; font-family: 'Barlow Condensed'; font-weight: 800; font-style: italic; font-size: 52pt; text-transform: uppercase; }
+  h1 .rest em { font-style: italic; color: var(--gold); }
+  .fund { margin-top: 0.12in; display: inline-block; padding: 0.03in 0.28in; background: var(--gold); color: var(--plum);
+    font-family: 'Barlow Condensed'; font-weight: 800; font-style: italic; font-size: 26pt; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 0.08in; }
+
+  .body { flex: 1; width: 100%; padding: 0.22in 0.6in 0; display: flex; flex-direction: column; align-items: center; }
+  .facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.1in 0.35in; font-size: 14pt; font-weight: 700; }
+  .facts span { display: inline-flex; align-items: center; gap: 0.08in; }
+  .facts svg { width: 0.26in; height: 0.26in; stroke: var(--plum-2); }
+  .prize { margin-top: 0.18in; display: flex; align-items: center; gap: 0.16in; padding: 0.1in 0.3in; border: 3px solid var(--gold); border-radius: 0.14in; }
+  .prize svg { width: 0.5in; height: 0.5in; flex: none; }
+  .prize b { display: block; font-family: 'Barlow Condensed'; font-weight: 800; font-style: italic; font-size: 24pt; text-transform: uppercase; color: var(--rani); line-height: 1; }
+  .prize span { font-size: 11.5pt; font-weight: 600; }
+  .qrrow { margin: auto 0; display: flex; align-items: center; gap: 0.35in; text-align: left; }
+  .qr { flex: none; width: 3.5in; height: 3.5in; padding: 0.12in; border: 4px solid var(--plum-2); border-radius: 0.18in; }
+  .qr img { width: 100%; height: 100%; display: block; }
+  .scan { font-family: 'Barlow Condensed'; font-weight: 800; font-style: italic; font-size: 38pt; text-transform: uppercase; line-height: 0.95; color: var(--plum); }
+  .scan em { color: var(--rani); font-style: italic; }
+  .sub { margin-top: 0.1in; font-size: 12pt; font-weight: 600; line-height: 1.45; }
+  .url { margin-top: 0.1in; font-size: 11pt; font-weight: 700; color: var(--plum-2); }
+  .footer { margin-top: auto; width: 100%; padding: 0.1in 0.6in; border-top: 4px solid var(--gold); font-size: 10.25pt; font-weight: 700; white-space: nowrap; }
+</style></head>
+<body><div class="page">
+  <div class="band">
+    <div class="garland" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="art" aria-hidden="true">
+      <svg viewBox="0 0 100 100" fill="none" stroke="#ffb81c" stroke-width="5" stroke-linejoin="round" stroke-linecap="round">
+        <rect x="22" y="6" width="56" height="62" rx="26" transform="rotate(-30 50 37)"/><path d="M57 63 L74 92" stroke-width="12"/>
+        <g fill="#ffb81c" stroke="none"><circle cx="42" cy="30" r="3"/><circle cx="54" cy="24" r="3"/><circle cx="48" cy="40" r="3"/></g>
+      </svg>
+      <svg viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="5">
+        <circle cx="50" cy="50" r="40"/>
+        <g fill="#fff" stroke="none"><circle cx="50" cy="28" r="5"/><circle cx="32" cy="42" r="5"/><circle cx="68" cy="42" r="5"/><circle cx="40" cy="64" r="5"/><circle cx="60" cy="64" r="5"/><circle cx="50" cy="48" r="5"/></g>
+      </svg>
+      <svg viewBox="0 0 100 100" fill="none" stroke="#ffb81c" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" style="transform: scaleX(-1)">
+        <rect x="22" y="6" width="56" height="62" rx="26" transform="rotate(-30 50 37)"/><path d="M57 63 L74 92" stroke-width="12"/>
+        <g fill="#ffb81c" stroke="none"><circle cx="42" cy="30" r="3"/><circle cx="54" cy="24" r="3"/><circle cx="48" cy="40" r="3"/></g>
+      </svg>
+    </div>
+    <div class="eyebrow">South Asian Culture Show presents</div>
+    <h1><span class="sacs">SACS</span><span class="rest">Pickleball <em>Tournament</em></span></h1>
+    <div class="fund">Fundraiser</div>
+  </div>
+
+  <div class="body">
+    <div class="facts">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Sun, Nov 29 · 11am–3pm</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .9-3 2.2 0 3 6 1.6 6 4.6 0 1.3-1.3 2.2-3 2.2-1.5 0-2.6-.6-3.1-1.6M12 6.5v11"/></svg>$20 per player</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M2.5 20c.5-3.5 2.8-5.5 5.5-5.5s5 2 5.5 5.5M14 15.2c.9-.5 1.9-.7 3-.7 2.3 0 4 1.7 4.5 4.5"/></svg>Adults · Kids/Teens</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>Doubles · 3+ games</span>
+    </div>
+
+    <div class="prize">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#c2185b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0z" fill="#ffb81c" stroke="#c2185b"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8M9 17h6"/></svg>
+      <div><b>Prizes for the winners!</b><span>Top teams in Adults and Kids/Teens take home prizes</span></div>
+    </div>
+
+    <div class="qrrow">
+      <div class="qr"><img src="qr-bw.svg" alt="QR code to register" /></div>
+      <div>
+        <div class="scan">Scan to<br /><em>register</em></div>
+        <div class="sub">Each player signs up on their own,<br />then joins their partner.<br />Not playing? Scan to donate.</div>
+        <div class="url">pickleball-tournament-jet.vercel.app</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Hosted by the South Asian Culture Show · A portion of proceeds supports the Akshaya Patra Foundation</div>
+</div></body></html>
