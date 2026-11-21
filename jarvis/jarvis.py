@@ -49,6 +49,7 @@ import jarvis_screen
 MIC_DEVICE = None            # None = find the Focusrite by name. Or put a number from --devices
 MIC_NAME_HINTS = ["focusrite", "scarlett"]
 MIC_CHANNEL = 0              # Focusrite input 1 = 0, input 2 = 1
+MIC_GAIN = 1.0               # software boost for a quiet mic (your Scarlett likes about 6)
 SPEAKER_DEVICE = None        # None = Windows default output
 WAKE_WORD = "hey_jarvis"     # built in options: hey_jarvis, alexa, hey_mycroft
 WAKE_THRESHOLD = 0.5         # raise to 0.6 or 0.7 if it triggers by accident
@@ -70,12 +71,27 @@ CONNECTOR_TOOLS = "mcp__claude_ai_Google_Calendar,mcp__claude_ai_Gmail"
 # Voice can search, read your calendar and mail, and write new files only inside notes/. Never add Bash.
 ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 SPOTIFY_CLIENT_ID = "9168fe0d1873402497e1738a923b9a76"       # optional, from developer.spotify.com. Then run --spotify-login once
+AUTO_UPDATE_HOUR = 4         # restart into new code around 4 AM when an update is waiting. None = off
 ORB = True                   # the little dot ring in the corner that shows when Jarvis is listening
 NTFY_TOPIC = ""              # optional: phone push on clap. Install the ntfy app on your iPhone, subscribe to a long random topic, paste it here
 # your cloud Claude Code sessions, through the claude.ai Claude Code Remote connector (run --doctor to confirm the name)
 SESSIONS_TOOLS = "mcp__claude_ai_Claude_Code_Remote__list_sessions,mcp__claude_ai_Claude_Code_Remote__get_session,mcp__claude_ai_Claude_Code_Remote__list_events"
 SESSIONS_SEND = "mcp__claude_ai_Claude_Code_Remote__send_message"
 # -----------------------------------------------------------
+
+# Your own settings live in local_settings.py, which updates never overwrite.
+try:
+    import local_settings as _local
+    _mine = {k: v for k, v in vars(_local).items() if k.isupper()}
+except ImportError:
+    _mine = {}
+globals().update(_mine)
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen):
+    for _k, _v in _mine.items():
+        if hasattr(_mod, _k):
+            setattr(_mod, _k, _v)
+if "CONNECTOR_TOOLS" in _mine and "ALLOWED_TOOLS" not in _mine:
+    ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 
 RATE = 16000
 FRAME = 1280   # 80 ms, what openWakeWord expects
@@ -150,7 +166,7 @@ class Mic:
         ch = MIC_CHANNEL + 1
 
         def cb_direct(indata, frames, t, status):
-            audio_q.put(indata[:, MIC_CHANNEL].copy())
+            audio_q.put(boost(indata[:, MIC_CHANNEL].copy()))
 
         try:
             self.stream = sd.InputStream(samplerate=RATE, channels=ch, dtype="int16", blocksize=FRAME,
@@ -163,7 +179,7 @@ class Mic:
             log(f"mic refused 16 kHz ({e}); opening at {sr} Hz and resampling")
 
             def cb_resample(indata, frames, t, status):
-                audio_q.put(resample(indata[:, MIC_CHANNEL], FRAME))
+                audio_q.put(boost(resample(indata[:, MIC_CHANNEL], FRAME)))
 
             self.stream = sd.InputStream(samplerate=sr, channels=ch, dtype="int16", blocksize=block,
                                          device=self.device, callback=cb_resample)
@@ -174,6 +190,12 @@ class Mic:
         if self.stream:
             self.stream.stop()
             self.stream.close()
+
+
+def boost(x):
+    if MIC_GAIN == 1.0:
+        return x
+    return np.clip(x.astype(np.float32) * MIC_GAIN, -32768, 32767).astype(np.int16)
 
 
 def drain_mic():
@@ -436,6 +458,29 @@ def _dur(secs):
     return f"{m} minute" + ("s" if m != 1 else "") if m < 60 else f"{m // 60} hour" + ("s" if m // 60 != 1 else "") + (f" {m % 60} minutes" if m % 60 else "")
 
 
+def update_waiting():
+    try:
+        r = subprocess.run([sys.executable, os.path.join(WORKDIR, "update.py"), "--check"], capture_output=True, timeout=180,
+                           creationflags=0x08000000 if IS_WIN else 0)
+        return r.returncode == 10
+    except Exception as e:
+        log(f"update check failed: {e}")
+        return False
+
+
+def nightly_update_watch(jarvis):
+    """Once a night at AUTO_UPDATE_HOUR, if new code is waiting, ask the main loop to restart into it."""
+    done_day = None
+    while True:
+        time.sleep(600)
+        lt = time.localtime()
+        if AUTO_UPDATE_HOUR is not None and lt.tm_hour == AUTO_UPDATE_HOUR and done_day != lt.tm_yday:
+            done_day = lt.tm_yday
+            if update_waiting():
+                log("update waiting, restarting into it")
+                jarvis.restart_for_update = True
+
+
 def push_phone(text):
     """Optional iPhone notification through ntfy (free app). Only a short status line is sent."""
     try:
@@ -459,6 +504,8 @@ def route(text):
         return ("confirm", True)
     if re.fullmatch(r"(no|nope|cancel|never ?mind|don't)", t):
         return ("confirm", False)
+    if re.fullmatch(r"(update yourself|check for updates|update jarvis|install updates?|get the latest version)", t):
+        return ("update", None)
     if re.search(r"\b(what are|how are|status of|check on) my (claude )?(cloud )?(sessions|agents)( doing)?\b|\bsession status\b", t):
         return ("sessions", None)
     cc = jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
@@ -786,6 +833,7 @@ class Jarvis:
         self.last_brief_day = None
         self.quiet_until = 0.0
         self.pending = None
+        self.restart_for_update = False
 
     def later(self, secs, text):
         def fire():
@@ -845,7 +893,13 @@ class Jarvis:
                 say("Cancelled.")
             return True
         self.pending = None
-        if action == "time":
+        if action == "update":
+            if update_waiting():
+                say("Updating. Back in a few seconds.")
+                self.restart_for_update = True
+            else:
+                say("I'm already on the latest version.")
+        elif action == "time":
             say("It's " + time.strftime("%I:%M %p").lstrip("0") + ".")
         elif action == "timer":
             self.later(arg, "Timer done.")
@@ -1059,8 +1113,12 @@ def main():
         jarvis_orb.send("idle")
         log(f"listening for '{WAKE_WORD.replace('_', ' ')}'" + (" and double claps" if CLAP_WAKE else "") + f" (room noise {noise:.0f})")
 
+        threading.Thread(target=nightly_update_watch, args=(jarvis,), daemon=True).start()
         while True:
             frame = audio_q.get()
+            if jarvis.restart_for_update:
+                jarvis_orb.send("quit")
+                return 3   # start.bat pulls the new code and starts again
             if time.time() < jarvis.quiet_until:
                 continue
             if CLAP_WAKE and claps.feed(frame):
@@ -1106,6 +1164,6 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main() or 0)
     except KeyboardInterrupt:
         pass

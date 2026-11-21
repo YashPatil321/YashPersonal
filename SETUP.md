@@ -31,6 +31,12 @@ need merging into your copy.
    work after you walk in), and walk you through the tests: "what was I working on", "open claude
    code in jarvis", a timer, and a full clap wake.
 
+### Updates are automatic after this
+- Jarvis pulls the newest code every time it starts, and at 4 AM restarts itself into anything new.
+- Say "hey jarvis, update yourself" to get a change right away.
+- Your own settings live in `C:\jarvis\local_settings.py` and are never overwritten.
+- HQ and the day plan update on every screen by themselves when they're republished.
+
 ## 2. iPad: make it a wall screen (5 minutes)
 
 1. Plug it in on the stand.

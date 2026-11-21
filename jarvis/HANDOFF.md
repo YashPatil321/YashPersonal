@@ -27,6 +27,16 @@ Then run `--spotify-login` (the login now asks for liked songs and playlists too
    `threading.Thread(target=lambda: jarvis_room.start_music(self.pc, self.spotify, log), daemon=True).start()`.
    The scene must open a FRESH HQ window each time: that load is what wakes HQ on the iPad.
 
+## 2b. Auto updates (do this as part of the merge)
+- Make sure the repo is cloned at `C:\yash-system` (branch claude/hopeful-bohr-1ramsu). `update.py` pulls it.
+- Create `C:\jarvis\local_settings.py` from `local_settings.example.py` and move every hardware value there
+  (MIC_DEVICE, MIC_CHANNEL, MIC_GAIN = the 6x gain, SPEAKER_DEVICE, CLAP_LEVEL, WAKE_THRESHOLD, any tiling numbers).
+  After that, take the repo `jarvis.py` as is: updates overwrite code files but never local_settings.py, CLAUDE.md or notes/.
+- Point the "Jarvis" scheduled task at `C:\jarvis\start.bat` (minimized). start.bat runs update.py before every
+  launch and restarts into new code when Jarvis exits with code 3 (nightly at 4 AM or "hey jarvis, update yourself").
+- If the local tiling function isn't covered by `jarvis_screen.LAYOUTS["room"]`, port its zones into that layout
+  (as fractions of the work area) so it survives updates.
+
 ## 3. Windows power (so walk in wake works)
 A sleeping PC can't hear. keep_awake() stops sleep while Jarvis runs. Also set it in Windows:
 `powercfg /change standby-timeout-ac 0` and `powercfg /change monitor-timeout-ac 10`.
