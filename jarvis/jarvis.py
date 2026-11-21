@@ -72,6 +72,9 @@ CONNECTOR_TOOLS = "mcp__claude_ai_Google_Calendar,mcp__claude_ai_Gmail"
 ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 SPOTIFY_CLIENT_ID = "9168fe0d1873402497e1738a923b9a76"       # optional, from developer.spotify.com. Then run --spotify-login once
 AUTO_UPDATE_HOUR = 4         # restart into new code around 4 AM when an update is waiting. None = off
+BROWSER = "chrome"           # chrome or edge, for HQ and every site Jarvis opens
+BROWSER_PROFILE = ""         # Chrome profile folder like "Profile 1". Empty = find it from BROWSER_ACCOUNT
+BROWSER_ACCOUNT = ""         # the email of the profile to use. Empty = your personal @gmail.com profile, never the school one
 ORB = True                   # the little dot ring in the corner that shows when Jarvis is listening
 NTFY_TOPIC = ""              # optional: phone push on clap. Install the ntfy app on your iPhone, subscribe to a long random topic, paste it here
 # your cloud Claude Code sessions, through the claude.ai Claude Code Remote connector (run --doctor to confirm the name)
@@ -393,14 +396,14 @@ class PC:
             webbrowser.open(target)
 
     def open_url(self, url, app_window=False):
+        """Opens in your personal browser profile, not whatever Windows thinks is the default."""
         log(f"open {url}")
-        if IS_WIN and app_window:
-            for exe in (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-                        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"):
-                if os.path.exists(exe):
-                    subprocess.Popen([exe, "--app=" + url, "--start-fullscreen"])
-                    return
+        exe, prof = browser_exe(), browser_profile()
+        if IS_WIN and exe:
+            args = [exe] + (["--profile-directory=" + prof] if prof else [])
+            args += ["--app=" + url, "--start-fullscreen"] if app_window else ["--new-window" if app_window is None else "", url]
+            subprocess.Popen([a for a in args if a])
+            return
         import webbrowser
         webbrowser.open(url)
 
@@ -456,6 +459,43 @@ def _dur(secs):
         return f"{secs} seconds"
     m = secs // 60
     return f"{m} minute" + ("s" if m != 1 else "") if m < 60 else f"{m // 60} hour" + ("s" if m // 60 != 1 else "") + (f" {m % 60} minutes" if m % 60 else "")
+
+
+BROWSERS = {
+    "chrome": [r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+               os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe")],
+    "edge": [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"],
+}
+USER_DATA = {"chrome": r"%LOCALAPPDATA%\Google\Chrome\User Data", "edge": r"%LOCALAPPDATA%\Microsoft\Edge\User Data"}
+
+
+def browser_exe():
+    return next((p for p in BROWSERS.get(BROWSER, []) if os.path.exists(p)), None)
+
+
+def browser_profiles(local_state_path=None):
+    """[(folder, name, email)] from the browser's own Local State file."""
+    path = local_state_path or os.path.join(os.path.expandvars(USER_DATA.get(BROWSER, "")), "Local State")
+    try:
+        with open(path, encoding="utf-8") as f:
+            cache = json.load(f).get("profile", {}).get("info_cache", {})
+    except Exception:
+        return []
+    return [(d, i.get("name", ""), (i.get("user_name") or "").lower()) for d, i in cache.items()]
+
+
+def browser_profile(local_state_path=None):
+    """The profile to open: the one you named, else the one signed in as BROWSER_ACCOUNT,
+    else the only personal gmail.com profile, so the school account never opens HQ."""
+    if BROWSER_PROFILE:
+        return BROWSER_PROFILE
+    profs = browser_profiles(local_state_path)
+    if BROWSER_ACCOUNT:
+        hit = next((d for d, _, e in profs if e == BROWSER_ACCOUNT.lower()), None)
+        if hit:
+            return hit
+    personal = [d for d, _, e in profs if e.endswith("@gmail.com")]
+    return personal[0] if len(personal) == 1 else None
 
 
 def update_waiting():
@@ -939,7 +979,7 @@ class Jarvis:
             say(f"Send to the {name} session: {msg}. Say yes to send.")
             return True
         if action in ("snap", "maximize", "minimize", "focus", "layout", "keys", "type"):
-            jarvis_screen.ScreenControl(say, pc.launch).handle(action, arg)
+            jarvis_screen.ScreenControl(say, pc.launch, open_url=pc.open_url).handle(action, arg)
             return True
         if action.startswith(("cc_", "chat_", "claude_")):
             jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude()).handle(action, arg)
@@ -1005,7 +1045,10 @@ class Jarvis:
             pc.open_url(SITES[arg], app_window=(arg == "hq" and HQ_FULLSCREEN))
             say("Opening " + ("HQ" if arg == "hq" else arg) + ".")
         elif action == "app":
-            pc.launch(APPS[arg])
+            if arg in ("chrome", "edge"):
+                pc.open_url("about:blank", app_window=None)
+            else:
+                pc.launch(APPS[arg])
             say("Opening " + arg + ".")
         return True
 
@@ -1071,6 +1114,12 @@ def levels():
 
 
 def main():
+    if "--profiles" in sys.argv:
+        pick = browser_profile()
+        for d, n, e in browser_profiles():
+            print(("-> " if d == pick else "   ") + f"{d:12} {n:20} {e}")
+        print("\nJarvis opens: " + (pick or "the browser default (set BROWSER_PROFILE in local_settings.py)"))
+        return
     if "--devices" in sys.argv:
         sd = _sd()
         mic, _ = resolve_devices()

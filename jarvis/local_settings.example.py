@@ -16,3 +16,6 @@
 # CORNER = "bottom right"        # where the orb sits
 # AUTO_UPDATE_HOUR = 4           # nightly update check, 24h clock. None to turn off
 # PROJECT_ALIASES = {"jarvis": r"C:\jarvis", "solidhauz": r"C:\code\SolidHauzWeb"}
+# BROWSER = "chrome"             # or "edge"
+# BROWSER_ACCOUNT = "you@gmail.com"   # the profile HQ and sites open in. Run: python jarvis.py --profiles
+# BROWSER_PROFILE = "Profile 1"  # or name the profile folder directly

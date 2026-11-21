@@ -229,14 +229,16 @@ def clean_typing(text):
 
 
 class ScreenControl:
-    def __init__(self, say, launch, screen=None):
-        self.say, self.launch, self.s = say, launch, screen or Screen()
+    def __init__(self, say, launch, screen=None, open_url=None):
+        self.say, self.launch, self.s, self.open_url = say, launch, screen or Screen(), open_url
 
     def _win(self, app, open_if_missing=False):
         h = self.s.find(app)
         if not h and open_if_missing:
             target = {"hq": None, "vs code": "code", "vscode": "code", "browser": "chrome"}.get(app, app)
-            if target:
+            if target in ("chrome", "msedge", "edge") and self.open_url:
+                self.open_url("about:blank", app_window=None)
+            elif target:
                 self.launch("spotify:" if target == "spotify" else target)
                 for _ in range(20):
                     time.sleep(0.5)
