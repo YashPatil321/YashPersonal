@@ -39,8 +39,7 @@ body .dz{font-family:var(--fd);font-weight:900;font-variation-settings:"ROND" 10
 .app{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:var(--gap);padding:var(--gap);padding-bottom:calc(var(--gap) + 2.4rem);transform:translate(var(--sx,0),var(--sy,0));transition:transform 2s;
   grid-template-areas:
    "fma fma fma fma fma fma fma fma fma fma fma fma"
-   "time time time ring ring ring nav nav nav brief brief brief"
-   "today today today today today week week week nums nums nums nums"
+   "time time time now now now now now agenda agenda agenda agenda"
    "chk chk chk mail mail mail shop shop shop ops ops ops"}
 .mod{background:var(--mod);border-radius:var(--r);padding:var(--pad);display:flex;flex-direction:column;overflow:hidden;position:relative}
 .lb{display:flex;align-items:center;gap:.6rem;font:500 .74rem/1 var(--fm);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin-bottom:.85rem;flex:none}
@@ -52,10 +51,10 @@ body .dz{font-family:var(--fd);font-weight:900;font-variation-settings:"ROND" 10
 @media(prefers-reduced-motion:no-preference){.ld i{animation:ld 1.2s infinite}.ld i:nth-child(2){animation-delay:.2s}.ld i:nth-child(3){animation-delay:.4s}@keyframes ld{30%{background:var(--ink2)}}}
 .fade{-webkit-mask-image:linear-gradient(#000 calc(100% - 1.6rem),transparent);mask-image:linear-gradient(#000 calc(100% - 1.6rem),transparent)}
 .glyph{display:block}
-.glyph circle{fill:currentColor}
+.glyph path,.glyph rect,.glyph circle{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 
 /* ===== FMA: status strip ===== */
-.fma{grid-area:fma;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.5fr) auto;background:var(--mod);border-radius:var(--r);overflow:hidden}
+.fma{grid-area:fma;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1.6fr) auto;background:var(--mod);border-radius:var(--r);overflow:hidden}
 .fma>div{padding:.7rem 1rem;display:flex;flex-direction:column;justify-content:center;gap:.32rem;position:relative;min-height:4rem}
 .fma>div+div::before{content:"";position:absolute;left:0;top:.8rem;bottom:.8rem;border-left:1px solid var(--line)}
 .fma .l{font:500 .64rem/1 var(--fm);letter-spacing:.12em;color:var(--mute);display:flex;align-items:center;gap:.4rem}
@@ -143,6 +142,47 @@ html[data-briefing] .brief .lb .rt::before{content:"updating, "}
 .meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;border-top:1px solid color-mix(in srgb,var(--cardInk) 16%,transparent);flex:none}
 .meta div{font:500 .64rem/1.2 var(--fm);letter-spacing:.06em;text-transform:uppercase;color:var(--cardMute);padding-top:.65rem}
 .meta b{display:block;font-size:1.75rem;line-height:1;color:var(--cardInk);margin-top:.35rem;letter-spacing:0}
+
+/* ===== now: ring + next + brief ===== */
+.now{grid-area:now;gap:.9rem}
+.nw{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(.8rem,1.6vw,2rem);align-items:center;flex:1;min-height:0}
+.nw .rw{aspect-ratio:1;max-height:100%;min-height:0;width:100%;max-width:19rem;justify-self:center}
+.nw .rw>svg{max-height:none}
+.nw .rc .gl svg{width:clamp(2.4rem,3.2vw,3.6rem)}
+.nt{display:flex;flex-direction:column;gap:.35rem;min-width:0}
+.nt .k{font:500 .74rem/1 var(--fm);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+html[data-live] .nt .k{color:var(--hot2)}
+.nt .cd{font-size:clamp(2.8rem,4.2vw,5.6rem);line-height:.95;margin:.15rem 0}
+.nt .cd small{font:500 .9rem var(--fm);color:var(--mute);margin-left:.2rem;letter-spacing:0}
+html[data-soon] .nt .cd{color:var(--amb)}
+.nt .w{font:600 clamp(1.3rem,1.6vw,2.1rem)/1.12 var(--f);letter-spacing:-.02em;text-wrap:balance}
+.nt .wh{font:400 .9rem/1.3 var(--fm);color:var(--ink2)}
+.now .brief{grid-area:auto;background:none;color:var(--ink);border-radius:0;border-top:1px solid var(--line);padding:.8rem 0 0;flex:none}
+.now .brief .bl{display:flex;gap:.6rem;font:500 .66rem/1 var(--fm);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-bottom:.4rem}
+.now .brief .bl span{text-transform:none;letter-spacing:0;color:var(--dim)}
+html[data-briefing] .brief .bl::after{content:"updating";color:var(--hot2);text-transform:none;letter-spacing:0}
+.now .brief p{margin:0;font:500 clamp(1rem,1.1vw,1.35rem)/1.35 var(--f);color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.now .meta{grid-template-columns:repeat(3,minmax(0,1fr));border-top-color:var(--line)}
+.now .meta div{color:var(--mute)}
+.now .meta b{color:var(--ink);font-size:1.6rem}
+body .now .meta b.dz,body .cash b.dz{font-family:var(--f);font-weight:600;font-variation-settings:normal;letter-spacing:-.03em}
+body .cash b.dz{font-size:clamp(2rem,2.4vw,3rem)}
+/* ===== agenda ===== */
+.agenda{grid-area:agenda;gap:.2rem}
+.agenda .dbar i{background:var(--off)}.agenda .dbar i.on{background:var(--ink2)}.agenda .dbar i.cur{background:var(--hot)}
+.agenda .dbarl{color:var(--mute)}
+.agenda .then{margin-top:.7rem}
+.agenda .then li{border-top-color:var(--line);grid-template-columns:1.2rem 5.6rem minmax(0,1fr);padding:.5rem 0}
+.agenda .then li .glyph{color:var(--mute)}
+.agenda .then li span:nth-child(2){color:var(--ink2)}
+.agenda .then li.lv span:last-child{color:var(--hot2)}
+.agenda .then li.due span:nth-child(2),.agenda .then li.due span:last-child{color:var(--amb)}.agenda .then li.due .glyph{color:var(--amb)}
+.agenda .dl .evs{display:none}
+.agenda .dl{padding-top:1.1rem;margin-bottom:.5rem}
+.bld{margin-top:auto;border-top:1px solid var(--line);padding-top:.6rem}
+.bld .dc div{min-height:1.6rem}
+.bld .rp li:nth-child(n+2){display:none}
+.ops .ag li:nth-child(n+5){display:none}
 
 /* ===== 05 today line ===== */
 .today{grid-area:today}
@@ -303,7 +343,13 @@ html[data-waking] .wake{opacity:1;visibility:visible}
 .wake .wg{position:absolute;inset:0;display:grid;grid-template-columns:repeat(var(--c),1fr);grid-template-rows:repeat(var(--r),1fr);padding:2vmin}
 .wake .wg i{place-self:center;width:.5vmin;height:.5vmin;min-width:3px;min-height:3px;border-radius:50%;background:var(--ink);opacity:0}
 .wake .card{position:relative;text-align:center;display:grid;gap:1.1rem;justify-items:center;opacity:0}
-.wake .card .dz{font-size:clamp(3rem,7vw,8.5rem);line-height:.9;color:var(--ink);font-variation-settings:"ROND" 100}
+.wake .card .clock{font-size:clamp(1.6rem,2.4vw,2.8rem);line-height:1;color:var(--ink2);font-variation-settings:"ROND" 100}
+.wake .greet{font-size:clamp(3.2rem,8.5vw,10rem);line-height:.9;color:var(--ink);font-variation-settings:"ROND" 100;white-space:nowrap;letter-spacing:.02em}
+.wake .greet span{display:inline-block;opacity:0}
+.wake .bloom{position:absolute;inset:-20%;background:radial-gradient(closest-side,color-mix(in srgb,var(--hot) 55%,transparent),color-mix(in srgb,var(--hot) 12%,transparent) 45%,transparent 70%);opacity:0}
+.wake .rings{position:absolute;inset:0;width:100%;height:100%}
+.wake .rings g{transform-origin:500px 500px;opacity:0}
+.wake .rings circle{fill:var(--hot2)}
 .wake .card .hi{font:600 clamp(1.4rem,2.4vw,2.6rem)/1.1 var(--f);letter-spacing:-.02em}
 .wake .card .hi span{color:var(--hot2)}
 .wake .card .sub{font:500 clamp(.85rem,1vw,1.15rem)/1.4 var(--fm);color:var(--ink2);letter-spacing:.04em}
@@ -312,14 +358,20 @@ html[data-waking] .wake{opacity:1;visibility:visible}
 @media(prefers-reduced-motion:no-preference){
   html[data-waking] .wake .wg i{animation:rip 1.5s cubic-bezier(.2,.7,.2,1) forwards;animation-delay:calc(var(--d) * 1ms)}
   @keyframes rip{0%{opacity:0;transform:scale(.2)}25%{opacity:1;transform:scale(2.6);background:var(--hot)}60%{opacity:.5;transform:scale(1)}100%{opacity:.12;transform:scale(1)}}
-  html[data-waking] .wake .card{animation:cin .7s .55s ease-out forwards}
+  html[data-waking] .wake .card{animation:cin .5s .35s ease-out forwards}
+  html[data-waking] .wake .bloom{animation:bloom 1.6s cubic-bezier(.2,.7,.2,1) forwards}
+  @keyframes bloom{0%{opacity:0;transform:scale(.2)}12%{opacity:1}100%{opacity:0;transform:scale(1.6)}}
+  html[data-waking] .wake .rings g{animation:ring 1.8s cubic-bezier(.15,.6,.2,1) forwards;animation-delay:calc(var(--i) * 220ms)}
+  @keyframes ring{0%{opacity:0;transform:scale(.05)}15%{opacity:1}100%{opacity:0;transform:scale(1.25)}}
+  html[data-waking] .wake .greet span{animation:lt .45s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(.45s + var(--i) * 55ms)}
+  @keyframes lt{from{opacity:0;transform:translateY(.25em) scale(.9);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
   @keyframes cin{from{opacity:0;transform:translateY(1.2rem);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
   html[data-waking] .wake .card .bar i{animation:fill 1.6s .8s cubic-bezier(.5,0,.2,1) forwards}
   @keyframes fill{to{width:100%}}
   html[data-cascade] .app>*,html[data-cascade] .app>.deck>*{animation:pwr .7s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 70ms)}
   @keyframes pwr{0%{opacity:0;transform:translateY(14px) scale(.985);filter:brightness(2.2) blur(3px)}55%{opacity:1;filter:brightness(1.3)}100%{opacity:1;transform:none;filter:none}}
 }
-@media(prefers-reduced-motion:reduce){html[data-waking] .wake .card{opacity:1}}
+@media(prefers-reduced-motion:reduce){html[data-waking] .wake .card{opacity:1}.wake .greet span{opacity:1}}
 html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
 
 /* ===== boot ===== */
@@ -334,38 +386,30 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
 /* ===== layouts ===== */
 @media(min-width:1000px) and (min-height:680px){
   body{height:100dvh;overflow:hidden}
-  .app{height:100dvh;grid-template-rows:auto minmax(0,1.32fr) auto minmax(0,1fr)}
+  .app{height:100dvh;grid-template-rows:auto minmax(0,1.45fr) minmax(0,1fr)}
 }
 @media(max-width:1280px) and (min-width:1000px){
   .app{grid-template-areas:
    "fma fma fma fma fma fma fma fma fma fma fma fma"
-   "time time time time ring ring ring ring nav nav nav nav"
-   "brief brief brief brief brief today today today today today today today"
-   "nums nums nums nums nums nums nums nums nums nums nums nums"
-   "chk chk chk chk dA dA dA dA dB dB dB dB"}
-  .fma{grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,.9fr) minmax(0,1.4fr) auto}
-  .fma #fD{display:none}.fma .lights{display:none}
-  .nums{grid-template-columns:repeat(6,minmax(0,1fr))}
-  .nums>div{padding:.6rem var(--pad)}
-  .nums b{font-size:2rem}
-  .brief .then{display:none}
-  .brief h1{font-size:1.45rem}
-  .meta b{font-size:1.45rem}
+   "time time time time now now now now now now now now"
+   "agenda agenda agenda agenda chk chk chk chk dA dA dA dA"}
+  .fma{grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.4fr) auto}.fma .lights{display:none}
   .deck{display:grid;position:relative;border-radius:var(--r);overflow:hidden}
   .deck>.mod{grid-area:1/1;opacity:0;visibility:hidden;transition:opacity .6s,visibility .6s}
   .deck>.mod.on{opacity:1;visibility:visible}
-  #dA{grid-area:dA}#dB{grid-area:dB}
+  #dA{grid-area:dA}
   .pager{display:flex;gap:.3rem;position:absolute;right:var(--pad);top:calc(var(--pad) - .05rem);z-index:2;background:none;border:0;padding:.2rem;cursor:pointer}
   .pager i{width:.4rem;height:.4rem;border-radius:50%;background:var(--dim)}.pager i.on{background:var(--ink2)}
   .deck .lb .rt{margin-right:2.2rem}
   .clk .dz{font-size:clamp(4rem,6.6vw,6.4rem)}
-  .sky{grid-template-columns:minmax(0,1fr) auto}
+  .agenda .dl{display:none}
 }
 @media(max-width:1280px) and (min-width:1000px) and (min-height:680px){
-  .app{grid-template-rows:auto minmax(0,1.15fr) auto auto minmax(0,1fr)}
+  .app{grid-template-rows:auto minmax(0,1.2fr) minmax(0,1fr)}
 }
 @media(max-width:999px){
-  .app{grid-template-areas:"fma" "ring" "brief" "chk" "ops" "mail" "shop" "today" "nums" "time" "nav" "week";grid-template-columns:minmax(0,1fr)}
+  .app{grid-template-areas:"fma" "now" "agenda" "chk" "mail" "shop" "ops" "time";grid-template-columns:minmax(0,1fr)}
+  .nw{grid-template-columns:minmax(0,9rem) minmax(0,1fr)}
   .fma{grid-template-columns:1fr 1fr}
   .fma>div+div::before{display:none}
   .fma>div{border-top:1px solid var(--line)}.fma>div:nth-child(-n+2){border-top:0}
@@ -385,16 +429,14 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
 <body>
 <div class="boot" id="boot" aria-hidden="true"><svg id="bootSvg" viewBox="0 0 230 50"></svg><p>YASH HQ · SELF TEST</p></div>
 
-<div class="wake" id="wake" aria-hidden="true"><div class="wg" id="wakeGrid"></div><div class="card"><span class="dz" id="wkClock">--:--</span><div class="hi" id="wkHi"></div><div class="sub" id="wkSub"></div><div class="bar"><i></i></div></div></div>
+<div class="wake" id="wake" aria-hidden="true"><div class="bloom"></div><div class="wg" id="wakeGrid"></div><svg class="rings" id="wkRings" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice"></svg><div class="card"><div class="greet dz" id="wkGreet"></div><div class="hi" id="wkHi"></div><span class="clock dz" id="wkClock">--:--</span><div class="sub" id="wkSub"></div><div class="bar"><i></i></div></div></div>
 <div class="standby" id="standby" role="button" aria-label="Wake HQ"><span class="dz" id="sbClock">--:--</span><p id="sbNext"></p><p>Tap or clap to wake</p></div>
 
 <main class="app">
   <header class="fma" aria-label="Status">
-    <div id="fA"><span class="l"><i></i>ACTIVE</span><span class="a" id="fAa"><span class="ld"><i></i><i></i><i></i></span></span><span class="b" id="fAb"></span></div>
-    <div id="fB"><span class="l">ARMED</span><span class="a" id="fBa">--</span><span class="b" id="fBb"></span></div>
-    <div id="fC"><span class="l">FREE TODAY</span><span class="a dz" id="fCa" style="font-size:1.5rem">--</span><span class="b" id="fCb"></span></div>
-    <div id="fD"><span class="l">SOLIDHAUZ</span><span class="a" id="fDa">--</span><span class="b" id="fDb"></span></div>
-    <div id="caut" role="status"><span class="l"><i></i>CAUTION</span><span class="a" id="cautT">No cautions</span></div>
+    <div id="fA"><span class="l"><i></i>NOW</span><span class="a" id="fAa"><span class="ld"><i></i><i></i><i></i></span></span><span class="b" id="fAb"></span></div>
+    <div id="fB"><span class="l">NEXT</span><span class="a" id="fBa">--</span><span class="b" id="fBb"></span></div>
+    <div id="caut" role="status"><span class="l"><i></i>HEADS UP</span><span class="a" id="cautT">All clear</span></div>
     <div class="sys">
       <div class="lights" aria-label="Feeds">
         <div class="lt"><span><span class="led" id="lCal"></span>CAL</span><b id="bCal">--</b></div>
@@ -421,63 +463,43 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
     </div>
   </section>
 
-  <section class="mod ring" aria-label="Countdown">
+  <section class="mod now" aria-label="Next">
     <div class="lb"><span class="ix">02</span>Next<span class="rt" id="calStamp">--</span></div>
-    <div class="rw"><svg id="glyph" viewBox="0 0 300 300" aria-hidden="true"></svg>
-      <div class="rc"><span class="gl" id="rGl"></span><span class="k" id="nlbl">Linking</span><span class="cd dz" id="cd"><span class="ld"><i></i><i></i><i></i></span></span><span class="w" id="nwhat"></span><span class="wh" id="nwhen"></span></div>
+    <div class="nw">
+      <div class="rw"><svg id="glyph" viewBox="0 0 300 300" aria-hidden="true"></svg><div class="rc"><span class="gl" id="rGl"></span></div></div>
+      <div class="nt"><span class="k" id="nlbl">Linking</span><span class="cd dz" id="cd"><span class="ld"><i></i><i></i><i></i></span></span><span class="w" id="nwhat"></span><span class="wh" id="nwhen"></span></div>
     </div>
-  </section>
-
-  <section class="mod nav" aria-label="Next six hours map">
-    <div class="lb"><span class="ix">03</span>Nav, next 6 hours<span class="rt" id="navT"></span></div>
-    <div class="nd" id="nd"><svg id="ndSvg" aria-hidden="true"></svg></div>
-  </section>
-
-  <section class="mod brief" aria-label="Brief">
-    <div class="lb"><span class="ix">04</span>Brief<span class="rt" id="aiStamp"></span></div>
-    <h1 id="headline"><span class="ld"><i></i><i></i><i></i></span></h1>
-    <div class="dbar" id="dprog" aria-hidden="true"></div>
-    <div class="dbarl"><span>7 AM</span><span id="dpct"></span><span>11 PM</span></div>
-    <ul class="then" id="then"></ul>
+    <div class="brief"><span class="bl">Brief<span id="aiStamp"></span></span><p id="headline"><span class="ld"><i></i><i></i><i></i></span></p></div>
     <div class="meta" id="cardMeta"></div>
   </section>
 
-  <section class="mod today" aria-label="Today">
-    <div class="lb"><span class="ix">05</span>Today in quarter hours<span class="rt">7 AM to 11 PM</span></div>
+  <section class="mod agenda" aria-label="Today">
+    <div class="lb"><span class="ix">03</span>Today<span class="rt" id="openT"></span></div>
     <div class="dl" id="dial"></div>
-    <div class="dlk"><span><i class="b"></i>Booked</span><span><i class="o"></i>Open block</span><span><i></i>Free</span><span><i class="n"></i>Now</span><span class="r" id="openT"></span></div>
+    <div class="dbar" id="dprog" aria-hidden="true"></div>
+    <div class="dbarl"><span>7 AM</span><span id="dpct"></span><span>11 PM</span></div>
+    <ul class="then fade" id="then"></ul>
   </section>
 
-  <section class="mod nums" id="gs" aria-label="Numbers"></section>
-
   <section class="mod chk" aria-label="Checklist">
-    <div class="lb"><span class="ix">08</span>Checklist<span class="rt">tap to clear</span></div>
+    <div class="lb"><span class="ix">04</span>Checklist<span class="rt" id="tsum">--</span></div>
     <div class="coach" id="coach"></div>
     <ul class="cl fade" id="actions"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul>
-    <div class="clsum"><span>Items</span><b id="tsum">--</b></div>
   </section>
 
   <div class="deck" id="dA">
     <section class="mod mail" aria-label="Mail">
-      <div class="lb"><span class="ix">09</span>Mail<span class="rt" id="mailStamp">filtering</span></div>
+      <div class="lb"><span class="ix">05</span>Mail<span class="rt" id="mailStamp">filtering</span></div>
       <ul class="ml fade" id="mailList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul>
     </section>
-    <section class="mod ops" aria-label="Builds and agents">
-      <div class="lb" style="margin-bottom:.2rem"><span class="ix">11</span>Builds<span class="rt" id="opsStamp">7 days</span></div>
-      <div class="dc" id="chart"></div>
-      <ul class="rp" id="opsList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul>
-      <div class="agw"><div class="lb"><span class="ix">12</span>Claude sessions<span class="rt" id="sessT"></span></div><ul class="ag fade" id="sessList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul><ul class="ag" id="agentList"></ul></div>
-    </section>
-  </div>
-
-  <div class="deck" id="dB">
     <section class="mod shop" aria-label="SolidHauz">
-      <div class="lb"><span class="ix">10</span>SolidHauz<span class="rt" id="shopStamp">30 days</span></div>
+      <div class="lb"><span class="ix">06</span>SolidHauz<span class="rt" id="shopStamp">30 days</span></div>
       <div id="shopBody"><span class="ld"><i></i><i></i><i></i></span></div>
     </section>
-    <section class="mod week" aria-label="Week">
-      <div class="lb"><span class="ix">06</span>Week<span class="rt">6A to 12A, hours booked</span></div>
-      <div class="wg" id="heat"></div>
+    <section class="mod ops" aria-label="Claude sessions and builds">
+      <div class="lb"><span class="ix">07</span>Claude sessions<span class="rt" id="sessT"></span></div>
+      <ul class="ag fade" id="sessList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul><ul class="ag" id="agentList"></ul>
+      <div class="bld"><div class="lb" style="margin-bottom:.35rem">Builds, 7 days<span class="rt" id="opsStamp"></span></div><div class="dc" id="chart"></div><ul class="rp" id="opsList"></ul></div>
     </section>
   </div>
 </main>
@@ -520,6 +542,7 @@ let ev = [], calOk = false, mailRows = [], codeRows = [], brief = null, doneIds 
 const got = {cal: false, mail: false, code: false, shop: false};
 const synced = {cal: 0, mail: 0, code: 0, shop: 0}, errs = {};
 let shop = {ov: null, td: null};
+let profileText = '';   /* who Yash is and what he's working toward, from db profile/main (private, never in the page source) */
 const hasShop = () => typeof renderShop === 'function';
 
 /* ---------- derived: what the views read ---------- */
@@ -699,12 +722,14 @@ const aid = (a) => String(a.id || a.text || 'task').replace(/[^A-Za-z0-9_-]/g, '
 function hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
 async function maybeBrief(force) {
   if (!got.cal || !got.mail || !got.code || briefing) return;
-  const key = hash(ev.map((e) => e.id).join() + '|' + mailRows.map((r) => r.id).join() + '|' + codeRows.length);
+  const key = hash(ev.map((e) => e.id).join() + '|' + mailRows.map((r) => r.id).join() + '|' + codeRows.length + '|' + profileText.length);
   if (!force && brief && (brief.key === key || Date.now() - (brief.at || 0) < 30 * 60e3)) return;
   if (!sample) { if (!brief) aiMsg('Open this page in Claude to turn on the AI.'); return; }
   briefing = true; led('Ai', 'busy', 'RUN'); document.documentElement.dataset.briefing = '1';
   const today = new Date().toLocaleDateString('en-US', {timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
-  const prompt = 'You are the operations brain for Yash, a high school senior in San Diego who builds software and startups, plays soccer, and is applying to college. Now: ' + today + ', ' + fmtTime(Date.now()) + ' Pacific.\n\nCALENDAR (next 7 days):\n'
+  const prompt = 'You are the operations brain for Yash, a high school senior in San Diego who builds software and startups, plays soccer, and is applying to college. Now: ' + today + ', ' + fmtTime(Date.now()) + ' Pacific.'
+    + (profileText ? '\n\nABOUT YASH, HIS GOALS AND PLANS (his own notes, use them to judge what matters):\n' + profileText.slice(0, 6000) : '')
+    + '\n\nCALENDAR (next 7 days):\n'
     + ev.filter((e) => !e.free).map((e) => '- ' + dayName(e.s) + ' ' + (e.allDay ? 'all day' : fmtTime(e.s)) + ': ' + e.title).join('\n')
     + '\n\nUNREAD MAIL (id | from | subject | snippet):\n' + mailRows.map((r) => r.id + ' | ' + r.from + ' <' + r.addr + '> | ' + r.subj + ' | ' + r.snip).join('\n')
     + '\n\nGITHUB ACTIVITY (7 days):\n' + codeRows.slice(0, 40).map((r) => '- [' + r.repo + '] ' + r.title + (r.pr ? ' (#' + r.pr + ')' : '') + ' ' + dayKey(r.date)).join('\n')
@@ -817,6 +842,7 @@ async function start() {
   const use = (n) => (window.claude && claude.use) ? claude.use(n).catch(() => null) : Promise.resolve(null);
   [mcp, db, sample] = await Promise.all([use('mcp'), use('db'), use('sample')]);
   if (db) {
+    try { const pr = await db.doc('profile/main').get(); if (pr.exists) profileText = String(pr.data().text || ''); } catch {}
     try { const d = await db.doc('brief/latest').get(); if (d.exists) { brief = d.data(); led('Ai', 'on', 'OK'); paintBrief(); } } catch {}
     db.collection('done').onSnapshot((s) => { doneIds = new Set(s.docs.map((d) => d.id)); paintBrief(); }, () => {});
     db.collection('agents').onSnapshot((s) => renderAgents(sortAgents(s.docs.map((d) => ({id: d.id, ...d.data()})))), () => renderAgents([], 'Agent board offline.'));
@@ -869,10 +895,18 @@ const BMP = {
   build: ['......##...', '.....##....', '....##.....', '...######..', '.....##....', '....##.....', '...##......', '..##.......', '.#.........'],
   other: ['.....#.....', '....###....', '....###....', '###########', '.#########.', '..#######..', '..###.###..', '.##.....##.', '#.........#'],
 };
+const ICON = {
+  school: '<path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v4.6c3.2 2.3 7.8 2.3 11 0V11"/>',
+  sport: '<circle cx="12" cy="12" r="8.5"/><path d="M12 8.2l3.1 2.2-1.2 3.6h-3.8l-1.2-3.6z"/><path d="M12 8.2V3.6M15.1 10.4l4.3-1.4M13.9 14l2.6 3.6M10.1 14l-2.6 3.6M8.9 10.4 4.6 9"/>',
+  meet: '<rect x="3" y="6.5" width="12" height="11" rx="2.5"/><path d="m15 10.5 5.5-3v9l-5.5-3"/>',
+  build: '<path d="M13.5 2.5 5 13.5h6.5l-1 8 8.5-11h-6.5z"/>',
+  leave: '<path d="M4 14.5 6 9h12l2 5.5v3H4z"/><circle cx="8" cy="17.5" r="1.6"/><circle cx="16" cy="17.5" r="1.6"/>',
+  due: '<path d="M6 21V4h11l-2 4 2 4H6"/>',
+  other: '<circle cx="12" cy="12" r="3.2"/>',
+};
+const iconKey = (e) => /^leave for/i.test(e.title) ? 'leave' : e.allDay ? 'due' : kind(e);
 function glyphSvg(k, cls) {
-  const b = BMP[k] || BMP.other; let s = '';
-  b.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') s += '<circle cx="' + (x * 10 + 5) + '" cy="' + (y * 10 + 5) + '" r="4.1"/>'; }));
-  return '<svg class="glyph ' + (cls || '') + '" viewBox="0 0 110 90" aria-hidden="true">' + s + '</svg>';
+  return '<svg class="glyph ' + (cls || '') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICON[k] || ICON.other) + '</svg>';
 }
 
 /* sun and moon for San Diego, computed locally */
@@ -937,7 +971,7 @@ function renderNext({now, cur, nxt}) {
   const r = document.documentElement, sm = (ms) => { const t = hms(ms), i = t.lastIndexOf(':'); return esc(t.slice(0, i)) + '<small>' + esc(t.slice(i + 1)) + '</small>'; };
   r.toggleAttribute('data-live', !!cur);
   r.toggleAttribute('data-soon', !cur && !!nxt && nxt.s - now < 10 * 60e3);
-  const gk = cur ? kind(cur) : nxt ? kind(nxt) : 'other'; if ($('rGl').dataset.k !== gk) { $('rGl').dataset.k = gk; $('rGl').innerHTML = glyphSvg(gk); }
+  const gk = cur ? iconKey(cur) : nxt ? iconKey(nxt) : 'other'; if ($('rGl').dataset.k !== gk) { $('rGl').dataset.k = gk; $('rGl').innerHTML = glyphSvg(gk); }
   if (cur) { T('nlbl', 'Live now'); $('cd').innerHTML = sm(cur.e - now); T('nwhat', cur.title); T('nwhen', 'ends ' + fmtTime(cur.e)); ring((cur.e - now) / (cur.e - cur.s), true);
     T('fAa', cur.title); T('fAb', 'Ends ' + fmtTime(cur.e) + ' · ' + dur((cur.e - now) / 6e4) + ' left'); }
   else { T('fAa', 'Open'); T('fAb', 'Nothing in progress');
@@ -948,6 +982,7 @@ function renderNext({now, cur, nxt}) {
 
 /* nav display: the next 6 hours as a route over dot terrain */
 function renderNav() {
+  if (!$('nd')) return;
   const box = $('nd'), W = Math.max(200, box.clientWidth), Hh = Math.max(150, box.clientHeight), svg = $('ndSvg');
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + Hh);
   const cx = W / 2, cy = Hh - 18, R = Math.min(Hh - 30, W * .6), now = Date.now(), seed = Math.floor(now / 864e5) % 97;
@@ -989,7 +1024,8 @@ function renderDial() {
   if (calOk) timedToday().forEach((e) => { const a = Math.max(D0, laMin(e.s)); if (a >= D1) return; const l = (a - D0) / (D1 - D0) * 100; alt = l - lastL < 24 ? !alt : false; lastL = l; evs += '<span class="' + (e.e < now ? 'past ' : '') + (alt ? 'lo' : '') + '" style="left:' + l.toFixed(2) + '%;max-width:' + (100 - l).toFixed(1) + '%">' + A(e.link, e.title) + '<small>' + esc(fmtShort(e.s) + ' to ' + fmtShort(e.e)) + '</small></span>'; });
   $('dial').innerHTML = h + '<div class="row">' + row + '</div><div class="evs">' + evs + '</div>';
   T('openT', calOk ? (fw.length ? 'Next open ' + minLabel(fw[0][0]) + ' for ' + dur(fw[0][1] - fw[0][0]) : 'No open blocks left') : '');
-  if (calOk) $('then').innerHTML = ev.filter((e) => !e.allDay && !e.free && e.s > now).slice(0, 4).map((e) => '<li>' + glyphSvg(kind(e)) + '<span>' + (dayKey(e.s) === k ? 'Today' : cap(dow(e.s))) + ' ' + esc(fmtShort(e.s)) + '</span><span>' + A(e.link, e.title) + '</span></li>').join('');
+  if (calOk) { const tmk = dayKey(now + 864e5), up = ev.filter((e) => !e.free && (e.allDay ? (dayKey(e.s) === k || dayKey(e.s) === tmk) : e.e > now && (dayKey(e.s) === k || dayKey(e.s) === tmk))).sort((x, y) => (y.allDay - x.allDay) || x.s - y.s).slice(0, 7);
+    $('then').innerHTML = up.length ? up.map((e) => '<li class="' + (/^leave for/i.test(e.title) ? 'lv' : e.allDay ? 'due' : '') + '">' + glyphSvg(iconKey(e)) + '<span>' + (dayKey(e.s) === k ? (e.allDay ? 'Due today' : e.s <= now ? 'Now' : 'Today') : (e.allDay ? 'Due ' + cap(dow(e.s)) : cap(dow(e.s)))) + (e.allDay ? '' : ' ' + esc(fmtShort(e.s))) + '</span><span>' + A(e.link, e.title) + '</span></li>').join('') : '<li class="empty" style="display:block">Nothing else today or tomorrow.</li>'; }
   const tm = calOk ? tomorrowFirst() : null, m = metrics();
   $('cardMeta').innerHTML = '<div>Left today<b class="dz">' + (m.left ?? '--') + '</b></div><div>Free hrs<b class="dz">' + (m.free == null ? '--' : m.free.toFixed(1)) + '</b></div><div>Tomorrow<b class="dz">' + (tm ? esc(fmtShort(tm.s)) : '--') + '</b></div>';
   if (calOk) { T('fCa', freeHours().toFixed(1) + 'h'); T('fCb', fw.length ? 'Next ' + minLabel(fw[0][0]) + ' · ' + dur(fw[0][1] - fw[0][0]) : 'No open blocks'); }
@@ -997,12 +1033,14 @@ function renderDial() {
   if (typeof coachSugs !== 'undefined' && coachSugs.length) renderCoach();
 }
 function renderGauges() {
+  if (!$('gs')) return;
   const m = metrics(), v = (x, d) => x == null ? '--' : d ? x.toFixed(d) : String(x);
   const cell = (l, val, sub, hot) => '<div class="' + (hot ? 'hot' : '') + '"><span>' + l + '</span><b class="dz">' + val + '</b><em>' + sub + '</em></div>';
   $('gs').innerHTML = cell('07 Events', v(m.events), m.left == null ? 'today' : m.left + ' still ahead') + cell('Free', v(m.free, 1) + '<small>h</small>', 'until 11 PM') + cell('Tasks', v(m.open), m.total == null ? 'AI queue' : 'of ' + m.total + ' open', m.open > 4)
     + cell('Mail', v(m.mail), 'from real people', m.mail > 5) + cell('Ships', v(m.ships), 'GitHub, 7 days') + cell('Streak', v(m.streak) + '<small>d</small>', 'days shipping', m.streak >= 3);
 }
 function renderHeat() {
+  if (!$('heat')) return;
   if (!calOk) { $('heat').innerHTML = ''; return; }
   let h = '<span></span>'; for (let hr = 6; hr < 24; hr++) h += '<span class="hl">' + (hr % 6 === 0 ? (hr % 12 || 12) : '') + '</span>'; h += '<span></span>';
   weekDays().forEach((d) => { h += '<span class="d' + (d.d === 0 ? ' t' : '') + '">' + d.l + '</span>';
@@ -1192,8 +1230,12 @@ function playWake() {
   let h = ''; for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) { const dx = (x - (C - 1) / 2) / C, dy = (y - (R - 1) / 2) / R; h += '<i style="--d:' + Math.round(Math.hypot(dx, dy * 1.4) * 900) + '"></i>'; }
   g.innerHTML = h;
   const c = clockParts(), hr = new Date().toLocaleString('en-US', {timeZone: TZ, hour: 'numeric', hour12: false}) | 0;
-  T('wkClock', c.h + ':' + c.m);
-  $('wkHi').innerHTML = (hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening') + ', <span>Yash</span>';
+  T('wkClock', c.h + ':' + c.m + ' ' + c.ap);
+  const word = hr < 5 ? 'LATE NIGHT' : hr < 12 ? 'GOOD MORNING' : hr < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
+  $('wkGreet').innerHTML = [...word].map((ch, i) => '<span style="--i:' + i + '">' + (ch === ' ' ? '&nbsp;' : ch) + '</span>').join('');
+  $('wkHi').innerHTML = 'Welcome back, <span>Yash</span>';
+  let rg = ''; [0, 1, 2].forEach((i) => { rg += '<g style="--i:' + i + '">'; const n = 48 + i * 12, R = 300 + i * 90; for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2; rg += '<circle cx="' + (500 + R * Math.cos(a)).toFixed(1) + '" cy="' + (500 + R * Math.sin(a)).toFixed(1) + '" r="' + (6 - i * 1.4) + '"/>'; } rg += '</g>'; });
+  $('wkRings').innerHTML = rg;
   const n = calOk ? nowNext() : {}, e = n.cur || n.nxt, m = metrics();
   T('wkSub', [e ? (n.cur ? 'Now ' + e.title : 'Next ' + e.title + ' at ' + fmtTime(e.s)) : 'Nothing on the calendar', m.open != null ? m.open + ' tasks' : '', m.mail != null ? m.mail + ' mail' : ''].filter(Boolean).join('  ·  '));
   r.setAttribute('data-waking', '');
@@ -1201,7 +1243,7 @@ function playWake() {
     [...document.querySelectorAll('.app>*:not(.deck), .app>.deck>*')].forEach((el, i) => el.style.setProperty('--i', i));
     r.removeAttribute('data-waking'); r.setAttribute('data-cascade', '');
     setTimeout(() => { r.removeAttribute('data-cascade'); waking = false; }, 1800);
-  }, reduced ? 900 : 2700);
+  }, reduced ? 900 : 3200);
 }
 function standbyCheck() {
   const now = laMin(Date.now()), slot = WAKE_AT.find((t) => now >= hm(t) && now < hm(t) + 1);
@@ -1230,8 +1272,7 @@ setInterval(standbyCheck, 15e3);
   for (const ch of 'YASH') { F[ch].forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') s += '<circle class="on" cx="' + (ox + x * 10 + 5) + '" cy="' + (y * 10 + 5) + '" r="4" style="animation-delay:' + (n++ * 9) + 'ms"/>'; else s += '<circle cx="' + (ox + x * 10 + 5) + '" cy="' + (y * 10 + 5) + '" r="4"/>'; })); ox += 60; }
   $('bootSvg').innerHTML = s;
 })();
-new ResizeObserver(() => renderNav()).observe($('nd'));
-setTimeout(() => playWake(), reduced ? 0 : 950);
+setTimeout(() => { if (location.hash === '#wake' || !window.claude) { playWake(); if (location.hash === '#wake') history.replaceState(null, '', location.pathname + location.search); } }, reduced ? 0 : 950);
 
 start();
 }

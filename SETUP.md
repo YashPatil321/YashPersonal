@@ -83,8 +83,8 @@ calendar, so create it yourself:
 3. Paste this as the prompt:
 
 > Keep my Google Calendar in sync with my Del Norte Boys Varsity Soccer schedule. Head coach David
-> O'Rielly (orielly.david@gmail.com, spelled Rielly), assistant Coach Tim Roty. Coach emails usually
-> come forwarded by my dad (neelvp@gmail.com) or mom (resh.shanbhag@gmail.com). Search Gmail from the
+> O'Rielly (spelled Rielly), assistant Coach Tim Roty. Coach emails usually
+> come forwarded by my dad or mom (add their email addresses here). Search Gmail from the
 > last 14 days for orielly OR rielly OR Roty OR "Coach Tim" OR "DN Boys", read each thread in full,
 > and pull out every future practice, game or meeting with a date and time. Skip anything already on
 > my calendar (same day, within 30 minutes). Add the rest: titles like "Varsity soccer practice",

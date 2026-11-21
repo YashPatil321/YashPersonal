@@ -357,6 +357,7 @@ let ev = [], calOk = false, mailRows = [], codeRows = [], brief = null, doneIds 
 const got = {cal: false, mail: false, code: false, shop: false};
 const synced = {cal: 0, mail: 0, code: 0, shop: 0}, errs = {};
 let shop = {ov: null, td: null};
+let profileText = '';   /* who Yash is and what he's working toward, from db profile/main (private, never in the page source) */
 const hasShop = () => typeof renderShop === 'function';
 
 /* ---------- derived: what the views read ---------- */
@@ -536,12 +537,14 @@ const aid = (a) => String(a.id || a.text || 'task').replace(/[^A-Za-z0-9_-]/g, '
 function hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
 async function maybeBrief(force) {
   if (!got.cal || !got.mail || !got.code || briefing) return;
-  const key = hash(ev.map((e) => e.id).join() + '|' + mailRows.map((r) => r.id).join() + '|' + codeRows.length);
+  const key = hash(ev.map((e) => e.id).join() + '|' + mailRows.map((r) => r.id).join() + '|' + codeRows.length + '|' + profileText.length);
   if (!force && brief && (brief.key === key || Date.now() - (brief.at || 0) < 30 * 60e3)) return;
   if (!sample) { if (!brief) aiMsg('Open this page in Claude to turn on the AI.'); return; }
   briefing = true; led('Ai', 'busy', 'RUN'); document.documentElement.dataset.briefing = '1';
   const today = new Date().toLocaleDateString('en-US', {timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
-  const prompt = 'You are the operations brain for Yash, a high school senior in San Diego who builds software and startups, plays soccer, and is applying to college. Now: ' + today + ', ' + fmtTime(Date.now()) + ' Pacific.\n\nCALENDAR (next 7 days):\n'
+  const prompt = 'You are the operations brain for Yash, a high school senior in San Diego who builds software and startups, plays soccer, and is applying to college. Now: ' + today + ', ' + fmtTime(Date.now()) + ' Pacific.'
+    + (profileText ? '\n\nABOUT YASH, HIS GOALS AND PLANS (his own notes, use them to judge what matters):\n' + profileText.slice(0, 6000) : '')
+    + '\n\nCALENDAR (next 7 days):\n'
     + ev.filter((e) => !e.free).map((e) => '- ' + dayName(e.s) + ' ' + (e.allDay ? 'all day' : fmtTime(e.s)) + ': ' + e.title).join('\n')
     + '\n\nUNREAD MAIL (id | from | subject | snippet):\n' + mailRows.map((r) => r.id + ' | ' + r.from + ' <' + r.addr + '> | ' + r.subj + ' | ' + r.snip).join('\n')
     + '\n\nGITHUB ACTIVITY (7 days):\n' + codeRows.slice(0, 40).map((r) => '- [' + r.repo + '] ' + r.title + (r.pr ? ' (#' + r.pr + ')' : '') + ' ' + dayKey(r.date)).join('\n')
@@ -654,6 +657,7 @@ async function start() {
   const use = (n) => (window.claude && claude.use) ? claude.use(n).catch(() => null) : Promise.resolve(null);
   [mcp, db, sample] = await Promise.all([use('mcp'), use('db'), use('sample')]);
   if (db) {
+    try { const pr = await db.doc('profile/main').get(); if (pr.exists) profileText = String(pr.data().text || ''); } catch {}
     try { const d = await db.doc('brief/latest').get(); if (d.exists) { brief = d.data(); led('Ai', 'on', 'OK'); paintBrief(); } } catch {}
     db.collection('done').onSnapshot((s) => { doneIds = new Set(s.docs.map((d) => d.id)); paintBrief(); }, () => {});
     db.collection('agents').onSnapshot((s) => renderAgents(sortAgents(s.docs.map((d) => ({id: d.id, ...d.data()})))), () => renderAgents([], 'Agent board offline.'));

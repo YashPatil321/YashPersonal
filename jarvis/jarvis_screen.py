@@ -20,12 +20,24 @@ import time
 
 IS_WIN = sys.platform == "win32"
 
+if IS_WIN:
+    # Work in real pixels. Without this, Windows display scaling makes windows land in the wrong place and size.
+    try:
+        import ctypes
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))   # per monitor v2
+    except Exception:
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            pass
+
 # spoken name -> process names that count as that app
 APPS = {
     "chrome": ["chrome.exe"], "browser": ["chrome.exe", "msedge.exe"], "edge": ["msedge.exe"],
     "spotify": ["spotify.exe"], "claude": ["claude.exe"], "vs code": ["code.exe"], "vscode": ["code.exe"], "code": ["code.exe"],
     "discord": ["discord.exe"], "terminal": ["windowsterminal.exe"], "explorer": ["explorer.exe"], "files": ["explorer.exe"],
     "steam": ["steam.exe"], "notepad": ["notepad.exe"], "hq": ["chrome.exe", "msedge.exe"],
+    "whatsapp": ["whatsapp.exe", "whatsapp.root.exe"],
 }
 
 # zones as fractions of the screen's work area: (x, y, w, h)
@@ -135,24 +147,44 @@ class Screen:
             wins = [w for w in wins if "yash hq" in w[2].lower()] or wins
         return wins[0][0] if wins else None
 
-    def work_area(self):
+    def work_area(self, hwnd=None):
+        """Work area (screen minus taskbar) of the monitor the window is on, or the primary one."""
         if not IS_WIN:
             return (0, 0, 5120, 1400)
         import ctypes
         from ctypes import wintypes
+
+        class MI(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+        u = ctypes.windll.user32
+        mon = u.MonitorFromWindow(hwnd, 2) if hwnd else u.MonitorFromPoint(wintypes.POINT(0, 0), 1)
+        mi = MI(cbSize=ctypes.sizeof(MI))
+        if mon and u.GetMonitorInfoW(mon, ctypes.byref(mi)):
+            r = mi.rcWork
+            return (r.left, r.top, r.right - r.left, r.bottom - r.top)
         r = wintypes.RECT()
-        ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0)   # SPI_GETWORKAREA
+        u.SystemParametersInfoW(0x0030, 0, ctypes.byref(r), 0)
         return (r.left, r.top, r.right - r.left, r.bottom - r.top)
 
     def place(self, hwnd, rect):
+        """Moves a window so its VISIBLE edges land exactly on the zone. Windows 10/11 windows have an invisible
+        resize border (about 7 px) that SetWindowPos counts, which is what leaves gaps and overlaps."""
         self.log.append(("place", hwnd, rect))
         if not IS_WIN:
             return
         import ctypes
+        from ctypes import wintypes
         u = ctypes.windll.user32
-        u.ShowWindow(hwnd, 9)   # restore if maximized
-        x, y, w, h = rect
-        u.SetWindowPos(hwnd, 0, int(x), int(y), int(w), int(h), 0x0040)   # SWP_SHOWWINDOW
+        if u.IsIconic(hwnd) or u.IsZoomed(hwnd):
+            u.ShowWindow(hwnd, 9)   # restore first, a maximized window ignores moves
+            time.sleep(0.05)
+        x, y, w, h = (int(round(v)) for v in rect)
+        outer, vis = wintypes.RECT(), wintypes.RECT()
+        u.GetWindowRect(hwnd, ctypes.byref(outer))
+        l = t = r = b = 0
+        if ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(vis), ctypes.sizeof(vis)) == 0:   # DWMWA_EXTENDED_FRAME_BOUNDS
+            l, t, r, b = vis.left - outer.left, vis.top - outer.top, outer.right - vis.right, outer.bottom - vis.bottom
+        u.SetWindowPos(hwnd, 0, x - l, y - t, w + l + r, h + t + b, 0x0004 | 0x0040)   # no z order change, show
 
     def show(self, hwnd, cmd):
         self.log.append(("show", hwnd, cmd))
@@ -161,14 +193,25 @@ class Screen:
             ctypes.windll.user32.ShowWindow(hwnd, {"max": 3, "min": 6, "restore": 9}[cmd])
 
     def focus(self, hwnd):
+        """Brings a window to the front. Windows blocks this for background apps, so borrow the foreground thread's input."""
         self.log.append(("focus", hwnd))
-        if IS_WIN:
-            import ctypes
-            u = ctypes.windll.user32
+        if not IS_WIN:
+            return
+        import ctypes
+        u, k = ctypes.windll.user32, ctypes.windll.kernel32
+        if u.IsIconic(hwnd):
             u.ShowWindow(hwnd, 9)
-            u.keybd_event(0x12, 0, 0, 0)    # a tap of Alt lets Windows hand over focus
-            u.keybd_event(0x12, 0, 2, 0)
-            u.SetForegroundWindow(hwnd)
+        fg = u.GetForegroundWindow()
+        a, b = u.GetWindowThreadProcessId(fg, None), k.GetCurrentThreadId()
+        if a and a != b:
+            u.AttachThreadInput(b, a, True)
+        u.keybd_event(0x12, 0, 0, 0)
+        u.keybd_event(0x12, 0, 2, 0)
+        u.BringWindowToTop(hwnd)
+        u.SetForegroundWindow(hwnd)
+        u.SetFocus(hwnd)
+        if a and a != b:
+            u.AttachThreadInput(b, a, False)
 
     def foreground(self):
         if not IS_WIN:
@@ -254,7 +297,7 @@ class ScreenControl:
             h = self._win(app, True)
             if not h:
                 return self.say(f"I can't find {app}.")
-            self.s.place(h, zone_rect(area, zone))
+            self.s.place(h, zone_rect(self.s.work_area(h) if self.s.work_area.__code__.co_argcount > 1 else area, zone))
         elif action in ("maximize", "minimize"):
             h = self._win(arg)
             if not h:

@@ -87,6 +87,13 @@ Spotify (Premium + Client ID): "play gods plan by drake", "play drake", "play so
 "play my liked songs", "play the album utopia", "play something chill", "queue sicko mode", "play blinding lights next".
 Spotify opens by itself if it isn't running.
 
+WhatsApp: "whatsapp mom I'm on my way", "send a whatsapp to dad saying practice ends at 9". Jarvis reads it back and sends only
+after you say yes. Put numbers in `WHATSAPP_CONTACTS` in local_settings.py. Needs WhatsApp Desktop. Reading messages is not possible:
+no connector or app lets anything read your personal WhatsApp or iMessage.
+
+The walk in: double clap plays a 2.6 second cinematic sound (preview: wake-sound-preview.wav) while HQ opens with its full screen
+takeover on the PC and the iPad.
+
 The orb: a small dot ring in the bottom right corner. Dim when idle, pulses when listening, spins while thinking,
 ripples while talking, amber on an error. Clicks pass through it. Turn it off with `ORB = False`, move it with `CORNER`
 in `jarvis_orb.py`, preview it with `python jarvis_orb.py --demo`.

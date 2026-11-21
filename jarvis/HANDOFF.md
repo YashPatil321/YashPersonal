@@ -37,6 +37,11 @@ Then run `--spotify-login` (the login now asks for liked songs and playlists too
 - If the local tiling function isn't covered by `jarvis_screen.LAYOUTS["room"]`, port its zones into that layout
   (as fractions of the work area) so it survives updates.
 
+## 2c. About Yash (private)
+Jarvis reads C:\jarvis\CLAUDE.md on every question, and updates never overwrite it. Under "Notes he's asked you to keep",
+add the personal profile Yash gives you (team, coaches, college deadlines, SolidHauz, projects, day rules). Never commit it to
+the repo, which is public. Add WhatsApp numbers to WHATSAPP_CONTACTS in local_settings.py, not the repo.
+
 ## 3. Windows power (so walk in wake works)
 A sleeping PC can't hear. keep_awake() stops sleep while Jarvis runs. Also set it in Windows:
 `powercfg /change standby-timeout-ac 0` and `powercfg /change monitor-timeout-ac 10`.

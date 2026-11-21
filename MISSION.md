@@ -10,7 +10,7 @@ me build fast. I'm moving on from Hearth and the city sim; I want to build new t
 - 49 inch 240Hz OLED monitor, old iPad (for an always on HQ screen), iPhone 14
 - Focusrite interface with a Samsung mic, speakers, phone mounts
 - Claude Max 5x. I use Claude Code a lot. Claude Duet is installed.
-- Connected in claude.ai: Gmail (yashp.d39@gmail.com), Google Calendar, Google Drive, GitHub via email
+- Connected in claude.ai: Gmail, Google Calendar, Google Drive, GitHub via email
   notifications, Vercel, Supabase, Wispr Flow (dictation, hands free shortcut Ctrl+Win+Space)
 
 ## What already exists

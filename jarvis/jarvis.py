@@ -76,6 +76,7 @@ BROWSER = "chrome"           # chrome or edge, for HQ and every site Jarvis open
 BROWSER_PROFILE = ""         # Chrome profile folder like "Profile 1". Empty = find it from BROWSER_ACCOUNT
 BROWSER_ACCOUNT = ""         # the email of the profile to use. Empty = your personal @gmail.com profile, never the school one
 ORB = True                   # the little dot ring in the corner that shows when Jarvis is listening
+WHATSAPP_CONTACTS = {}       # name -> phone with country code, in local_settings.py. e.g. {"mom": "+18585550100"}
 NTFY_TOPIC = ""              # optional: phone push on clap. Install the ntfy app on your iPhone, subscribe to a long random topic, paste it here
 # your cloud Claude Code sessions, through the claude.ai Claude Code Remote connector (run --doctor to confirm the name)
 SESSIONS_TOOLS = "mcp__claude_ai_Claude_Code_Remote__list_sessions,mcp__claude_ai_Claude_Code_Remote__get_session,mcp__claude_ai_Claude_Code_Remote__list_events"
@@ -306,15 +307,9 @@ class Speaker:
             self.engine.runAndWait()
 
     def powerup(self):
-        """A short rising chord: the room powering on."""
+        """The walk in sound: a deep drop, a rising whoosh, then a bright chord that blooms. About 2.6 seconds."""
         sd = _sd()
-        sr, dur = 24000, 0.9
-        t = np.linspace(0, dur, int(sr * dur), False)
-        sweep = np.zeros_like(t)
-        for i, f in enumerate((220, 330, 440, 660)):
-            env = np.clip((t - i * 0.12) * 8, 0, 1) * np.exp(-np.clip(t - i * 0.12, 0, None) * 2.2)
-            sweep += np.sin(2 * np.pi * f * (1 + 0.04 * t) * t) * env
-        sd.play((0.12 * sweep / max(1e-6, np.max(np.abs(sweep)))).astype(np.float32), sr, device=SPEAKER_DEVICE)
+        sd.play(wake_sound(), 44100, device=SPEAKER_DEVICE)
         sd.wait()
 
     def chime(self, freq=880):
@@ -498,6 +493,40 @@ def browser_profile(local_state_path=None):
     return personal[0] if len(personal) == 1 else None
 
 
+def wake_sound(sr=44100, volume=0.5):
+    """Synthesized locally, no files. Stereo float32."""
+    rng = np.random.default_rng(7)
+    dur = 2.6
+    t = np.arange(int(sr * dur)) / sr
+    out = np.zeros_like(t)
+    # 1. sub drop: 90 Hz falling to 38 Hz with a soft thump
+    f = 38 + 52 * np.exp(-t * 3.0)
+    phase = 2 * np.pi * np.cumsum(f) / sr
+    out += 0.9 * np.sin(phase) * np.exp(-t * 1.6) * np.clip(t * 60, 0, 1)
+    # 2. riser: filtered noise swelling into the hit at 1.15 s
+    n = rng.standard_normal(t.size)
+    k = np.exp(-np.linspace(0, 8, 64)); k /= k.sum()
+    n = np.convolve(n, k, mode="same")
+    rise = np.clip(t / 1.15, 0, 1) ** 3 * (t < 1.2) + (t >= 1.2) * np.exp(-(t - 1.2) * 9)
+    out += 0.55 * n / (np.abs(n).max() + 1e-9) * rise
+    # 3. the hit: A major spread across octaves, bright attack, long bloom
+    hit = t >= 1.15
+    th = np.where(hit, t - 1.15, 0)
+    env = hit * (1 - np.exp(-th * 40)) * np.exp(-th * 1.25)
+    for fr, a in ((110, .5), (220, .45), (277.18, .3), (329.63, .32), (440, .3), (554.37, .18), (659.25, .2), (880, .12), (1318.5, .06)):
+        out += a * env * (np.sin(2 * np.pi * fr * th) + 0.25 * np.sin(2 * np.pi * fr * 2.003 * th))
+    # 4. shimmer: high sparkle after the hit
+    out += 0.08 * env * np.sin(2 * np.pi * 2637 * th) * (0.5 + 0.5 * np.sin(2 * np.pi * 7 * th))
+    out = np.tanh(out * 1.4)
+    out *= volume / (np.abs(out).max() + 1e-9)
+    fade = np.clip((dur - t) / 0.3, 0, 1)
+    out *= fade
+    # gentle stereo width from a tiny delay on the right channel
+    d = int(sr * 0.012)
+    right = np.concatenate([np.zeros(d), out[:-d]])
+    return np.stack([out, 0.85 * right + 0.15 * out], axis=1).astype(np.float32)
+
+
 def update_waiting():
     try:
         r = subprocess.run([sys.executable, os.path.join(WORKDIR, "update.py"), "--check"], capture_output=True, timeout=180,
@@ -548,6 +577,9 @@ def route(text):
         return ("update", None)
     if re.search(r"\b(what are|how are|status of|check on) my (claude )?(cloud )?(sessions|agents)( doing)?\b|\bsession status\b", t):
         return ("sessions", None)
+    m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
+    if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
+        return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     cc = jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
@@ -889,7 +921,9 @@ class Jarvis:
     def wake_room(self):
         """The walk in scene. Opening HQ here also tells HQ on the iPad to wake up."""
         self.pc.nudge_display()
-        self.pc.open_url(HQ_URL, app_window=HQ_FULLSCREEN)
+        snd = threading.Thread(target=lambda: self.speaker.powerup(), daemon=True)
+        snd.start()
+        self.pc.open_url(HQ_URL + "#wake", app_window=HQ_FULLSCREEN)   # #wake plays HQ's full screen takeover here and on the iPad
         if hasattr(self.pc, "arrange"):
             try:
                 self.pc.arrange()
@@ -899,10 +933,7 @@ class Jarvis:
         log("room awake, HQ opened")
         if NTFY_TOPIC:
             threading.Thread(target=push_phone, args=("HQ is online. Welcome back.",), daemon=True).start()
-        try:
-            self.speaker.powerup()
-        except Exception:
-            pass
+        snd.join(timeout=4)
         self.speaker.say(GREETING)
         today = time.strftime("%Y-%m-%d")
         if time.localtime().tm_hour < MORNING_BRIEF_BEFORE and self.last_brief_day != today:
@@ -939,6 +970,30 @@ class Jarvis:
                 self.restart_for_update = True
             else:
                 say("I'm already on the latest version.")
+        elif action == "whatsapp":
+            name, msg = arg
+            num = next((v for k, v in WHATSAPP_CONTACTS.items() if k.lower() == name.lower()), None)
+            if not num:
+                say(f"I don't have a WhatsApp number for {name}. Add it to WHATSAPP_CONTACTS in local settings.")
+                return True
+            text = jarvis_screen.clean_typing(msg)
+
+            def send():
+                digits = re.sub(r"[^0-9]", "", num)
+                pc.launch("whatsapp://send?phone=" + digits + "&text=" + urllib.parse.quote(text))
+                time.sleep(3.5)
+                sc = jarvis_screen.ScreenControl(say, pc.launch, open_url=pc.open_url)
+                h = sc.s.find("whatsapp")
+                if h:
+                    sc.s.focus(h)
+                    time.sleep(0.4)
+                    sc.s.chord(["RETURN"])
+                    say("Sent.")
+                else:
+                    say("WhatsApp didn't open. The message is ready in the app if it shows up.")
+            self.pending = send
+            say(f"WhatsApp {name}: {text} Say yes to send.")
+            return True
         elif action == "time":
             say("It's " + time.strftime("%I:%M %p").lstrip("0") + ".")
         elif action == "timer":
