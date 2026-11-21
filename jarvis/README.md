@@ -71,6 +71,26 @@ More instant commands:
 On a clap Jarvis also plays a short power up sound, and if `NTFY_TOPIC` is set your iPhone gets a push
 (install the free ntfy app, subscribe to a long random topic name, paste it at the top of jarvis.py).
 
+Screen control (from a fixed list, nothing destructive):
+
+| Say | Does |
+|---|---|
+| put chrome on the left, move spotify to the right third | snaps the window (left, right, thirds, quarters, center, full, corners) |
+| maximize chrome, minimize discord, show desktop | window size |
+| switch to claude, focus vs code | brings the app forward, opens it if needed |
+| room layout, coding layout, school layout, focus layout | arranges several windows at once |
+| type see you at practice comma bro | types into the active window, punctuation by name |
+| press enter, new tab, close tab, copy, paste, undo, save, refresh, screenshot | safe keys only |
+| start dictation | Wispr Flow hands free |
+
+Spotify (Premium + Client ID): "play gods plan by drake", "play drake", "play some sza", "play my gym playlist",
+"play my liked songs", "play the album utopia", "play something chill", "queue sicko mode", "play blinding lights next".
+Spotify opens by itself if it isn't running.
+
+The orb: a small dot ring in the bottom right corner. Dim when idle, pulses when listening, spins while thinking,
+ripples while talking, amber on an error. Clicks pass through it. Turn it off with `ORB = False`, move it with `CORNER`
+in `jarvis_orb.py`, preview it with `python jarvis_orb.py --demo`.
+
 Everything else goes to Claude Code, which can search the web, read your calendar and mail, and
 write files only inside `notes/`. It cannot run commands or touch other files.
 

@@ -5,9 +5,16 @@ and tested the logic (91 checks, fake audio and fake Claude history). Your local
 hardware tuning the repo copy does not (6x gain, Scarlett device 1, monitor output, 5120x1440 tiling,
 scheduled task). Keep all of that. Merge, don't overwrite.
 
-## 1. Copy in two new modules (no edits needed)
+## 1. Copy in four new modules (no edits needed)
 - `jarvis_claude.py`: voice control for Claude Code sessions, read only project questions, claude.ai chats.
 - `jarvis_room.py`: keep_awake() and start_music() for the walk in scene.
+- `jarvis_screen.py`: window snapping, layouts, typing and safe keys. Its `room` layout can replace the local tiling if you like; zones are fractions of the work area.
+- `jarvis_orb.py`: the corner status ring. Run `python jarvis_orb.py --demo` once to show Yash every state.
+
+The repo `jarvis.py` also has the full Spotify upgrade (play anything by name, queue, auto device), timers, notes, goodnight,
+session control and SPOTIFY_CLIENT_ID already set. Easiest merge: take the repo jarvis.py and re-apply the local hardware
+settings at the top (MIC_DEVICE, MIC_CHANNEL, gain, SPEAKER_DEVICE, CLAP_LEVEL) plus the local window tiling function.
+Then run `--spotify-login` (the login now asks for liked songs and playlists too).
 
 ## 2. Wire them into the local jarvis.py (four small edits, see the repo jarvis.py for exact code)
 1. `import jarvis_claude, jarvis_room` at the top.

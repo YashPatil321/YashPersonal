@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import queue
+import random
 import re
 import secrets
 import shutil
@@ -33,13 +34,16 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
 import numpy as np
 
 import jarvis_claude
+import jarvis_orb
 import jarvis_room
+import jarvis_screen
 
 # ---------------- settings you might change ----------------
 MIC_DEVICE = None            # None = find the Focusrite by name. Or put a number from --devices
@@ -66,6 +70,7 @@ CONNECTOR_TOOLS = "mcp__claude_ai_Google_Calendar,mcp__claude_ai_Gmail"
 # Voice can search, read your calendar and mail, and write new files only inside notes/. Never add Bash.
 ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 SPOTIFY_CLIENT_ID = "9168fe0d1873402497e1738a923b9a76"       # optional, from developer.spotify.com. Then run --spotify-login once
+ORB = True                   # the little dot ring in the corner that shows when Jarvis is listening
 NTFY_TOPIC = ""              # optional: phone push on clap. Install the ntfy app on your iPhone, subscribe to a long random topic, paste it here
 # your cloud Claude Code sessions, through the claude.ai Claude Code Remote connector (run --doctor to confirm the name)
 SESSIONS_TOOLS = "mcp__claude_ai_Claude_Code_Remote__list_sessions,mcp__claude_ai_Claude_Code_Remote__get_session,mcp__claude_ai_Claude_Code_Remote__list_events"
@@ -256,6 +261,13 @@ class Speaker:
             self.engine = pyttsx3.init()
 
     def say(self, text):
+        jarvis_orb.send("speaking")
+        try:
+            self._say(text)
+        finally:
+            jarvis_orb.send("idle")
+
+    def _say(self, text):
         sd = _sd()
         text = re.sub(r"[*#`_>\[\]]", "", text)
         text = re.sub(r"https?://\S+", "", text)
@@ -449,7 +461,7 @@ def route(text):
         return ("confirm", False)
     if re.search(r"\b(what are|how are|status of|check on) my (claude )?(cloud )?(sessions|agents)( doing)?\b|\bsession status\b", t):
         return ("sessions", None)
-    cc = jarvis_claude.route_claude(t)
+    cc = jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -484,11 +496,14 @@ def route(text):
         return ("now_playing", None)
     if re.fullmatch(r"(pause|stop)( the)?( music| song| spotify)?|(resume|unpause)( the)?( music| song| spotify)?|play( the)? music|play spotify|resume|play", t):
         return ("play_pause", None)
-    if re.search(r"\b(next|skip)( the)?( song| track)?\b", t) and len(t.split()) <= 4:
+    if re.search(r"\b(next|skip)( the)?( song| track)?\b", t) and len(t.split()) <= 4 and not t.startswith(("play ", "queue ")):
         return ("next", None)
     if re.search(r"\b(previous|last|go back)( the)?( song| track)\b|\bprevious\b", t) and len(t.split()) <= 4:
         return ("prev", None)
-    m = re.fullmatch(r"play (.+?)( on spotify)?", t)
+    m = re.fullmatch(r"(?:queue|queue up|add) (.+?)(?: to (?:the |my )?queue)?(?: on spotify)?|play (.+?) next", t)
+    if m and (t.startswith("queue") or "queue" in t or t.endswith(" next")):
+        return ("spotify_queue", (m.group(1) or m.group(2)).strip())
+    m = re.fullmatch(r"(?:play|put on|throw on|spin) (.+?)( on spotify)?", t)
     if m and m.group(1) not in ("music", "spotify"):
         return ("spotify_play", m.group(1).strip())
 
@@ -519,7 +534,7 @@ def route(text):
 class Spotify:
     """Real playback control. Needs SPOTIFY_CLIENT_ID and Spotify Premium. Without it, Jarvis uses media keys."""
     REDIRECT = "http://127.0.0.1:8765/callback"
-    SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
+    SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read playlist-read-private playlist-read-collaborative"
 
     def __init__(self):
         self.tok = {}
@@ -593,18 +608,121 @@ class Spotify:
             raw = r.read()
         return json.loads(raw) if raw else {}
 
-    def play(self, query):
-        """Search and play. 'lofi playlist' plays a playlist, 'drake' plays the top track."""
-        kind = "playlist" if "playlist" in query else "album" if re.search(r"\balbum\b", query) else "track"
-        q = re.sub(r"\b(the )?(playlist|album|song)\b", "", query).strip() or query
-        res = self._api("GET", "/search?" + urllib.parse.urlencode({"q": q, "type": kind, "limit": 1}))
-        items = [i for i in (res.get(kind + "s", {}).get("items") or []) if i]
-        if not items:
+    # ---- understanding what you asked for ----
+    MOODS = r"chill|hype|lofi|lo fi|study|focus|workout|gym|sad|happy|party|sleep|rap|hip hop|pregame|game day|throwback|jazz|classical|acoustic|indie|rock|pop|country|edm|r&b|rnb|latin|bollywood|punjabi"
+
+    @staticmethod
+    def parse(query):
+        """'drake' -> artist or track, 'gods plan by drake' -> track, 'my gym playlist' -> your playlist,
+        'my liked songs' -> likes, 'the album scorpion' -> album, 'something chill' -> mood playlist."""
+        q = re.sub(r"\s+", " ", query.lower()).strip()
+        q = re.sub(r"^(some|a little|me|the song|song|track)\s+", lambda m: "some " if m.group(1) == "some" else "", q)
+        if re.fullmatch(r"(my )?(liked|saved|favorite|favourite) (songs|music|tracks)|my likes|my liked", q):
+            return {"kind": "liked"}
+        m = re.fullmatch(r"my (.+?) playlist|my playlist (?:called |named )?(.+)", q)
+        if m:
+            return {"kind": "myplaylist", "q": (m.group(1) or m.group(2)).strip()}
+        m = re.fullmatch(r"(?:the |a )?(.+?) playlist|(?:the |a )?playlist (?:called |named )?(.+)", q)
+        if m:
+            return {"kind": "playlist", "q": (m.group(1) or m.group(2)).strip()}
+        m = re.fullmatch(r"(?:the )?album (.+?)(?: by (.+))?|(?:the )?(.+?) album(?: by (.+))?", q)
+        if m:
+            return {"kind": "album", "q": (m.group(1) or m.group(3)).strip(), "artist": (m.group(2) or m.group(4) or "").strip()}
+        m = re.fullmatch(r"(?:something|anything|some|music for|songs for) ?(" + Spotify.MOODS + r")(?: music| songs| vibes)?|(" + Spotify.MOODS + r") (?:music|songs|vibes)", q)
+        if m:
+            return {"kind": "playlist", "q": (m.group(1) or m.group(2)).strip()}
+        m = re.fullmatch(r"(?:some |songs by |music by |more )(.+)|(.+?) songs", q)
+        if m:
+            return {"kind": "artist", "q": (m.group(1) or m.group(2)).strip()}
+        m = re.fullmatch(r"(.+?) by (.+)", q)
+        if m:
+            return {"kind": "track", "q": m.group(1).strip(), "artist": m.group(2).strip()}
+        return {"kind": "any", "q": q}
+
+    def device(self, launch=None, wait=10.0):
+        """The device to play on. Prefers what's already playing, then this PC. Opens Spotify if nothing is there."""
+        t0 = time.time()
+        while True:
+            devs = self._api("GET", "/me/player/devices").get("devices", [])
+            act = next((d for d in devs if d.get("is_active")), None) or next((d for d in devs if d.get("type") == "Computer"), None) or (devs[0] if devs else None)
+            if act or not launch or time.time() - t0 > wait:
+                return act
+            if time.time() - t0 < 0.5:
+                launch("spotify:")
+            time.sleep(1.0)
+
+    def _search(self, kind, q, limit=5):
+        res = self._api("GET", "/search?" + urllib.parse.urlencode({"q": q, "type": kind, "limit": limit}))
+        return [i for i in (res.get(kind + "s", {}).get("items") or []) if i]
+
+    def resolve(self, query):
+        """Turn what you said into something playable: ({'uris': [...]} or {'context_uri': ...}, spoken name)."""
+        r = self.parse(query)
+        k = r["kind"]
+        if k == "liked":
+            items = self._api("GET", "/me/tracks?limit=50").get("items", [])
+            uris = [i["track"]["uri"] for i in items if i.get("track")]
+            if not uris:
+                return None, None
+            random.shuffle(uris)
+            return {"uris": uris}, "your liked songs"
+        if k == "myplaylist":
+            mine = self._api("GET", "/me/playlists?limit=50").get("items", [])
+            want = r["q"]
+            best = next((p for p in mine if p and p.get("name", "").lower() == want), None) or next((p for p in mine if p and want in p.get("name", "").lower()), None)
+            if best:
+                return {"context_uri": best["uri"]}, "your " + best["name"] + " playlist"
+            k, r = "playlist", {"q": want}
+        if k == "playlist":
+            pl = self._search("playlist", r["q"], 3)
+            return ({"context_uri": pl[0]["uri"]}, pl[0]["name"] + " playlist") if pl else (None, None)
+        if k == "album":
+            al = self._search("album", r["q"] + (" artist:" + r["artist"] if r.get("artist") else ""), 3)
+            return ({"context_uri": al[0]["uri"]}, al[0]["name"] + " by " + al[0]["artists"][0]["name"]) if al else (None, None)
+        if k == "artist":
+            ar = self._search("artist", r["q"], 3)
+            return ({"context_uri": ar[0]["uri"]}, ar[0]["name"]) if ar else (None, None)
+        if k == "track":
+            tr = self._search("track", "track:" + r["q"] + " artist:" + r["artist"], 5) or self._search("track", r["q"] + " " + r["artist"], 5)
+            return ({"uris": [tr[0]["uri"]]}, tr[0]["name"] + " by " + tr[0]["artists"][0]["name"]) if tr else (None, None)
+        # bare name: an artist if it matches one exactly, otherwise the best song
+        q = r["q"]
+        ar = self._search("artist", q, 3)
+        if ar and ar[0].get("name", "").lower().replace("the ", "") == q.replace("the ", ""):
+            return {"context_uri": ar[0]["uri"]}, ar[0]["name"]
+        tr = self._search("track", q, 5)
+        if tr:
+            return {"uris": [tr[0]["uri"]]}, tr[0]["name"] + " by " + tr[0]["artists"][0]["name"]
+        return (({"context_uri": ar[0]["uri"]}, ar[0]["name"]) if ar else (None, None))
+
+    def play(self, query, launch=None):
+        """Play anything by name. Returns what's playing, or None if nothing matched."""
+        body, name = self.resolve(query)
+        if not body:
             return None
-        it = items[0]
-        self._api("PUT", "/me/player/play", {"uris": [it["uri"]]} if kind == "track" else {"context_uri": it["uri"]})
-        who = ", ".join(a["name"] for a in it.get("artists", [])[:1]) if kind != "playlist" else ""
-        return it["name"] + (" by " + who if who else "")
+        dev = self.device(launch)
+        q = "?device_id=" + dev["id"] if dev else ""
+        if "context_uri" in body and "playlist" in body["context_uri"] or "artist" in body.get("context_uri", ""):
+            try:
+                self._api("PUT", "/me/player/shuffle?state=true" + ("&device_id=" + dev["id"] if dev else ""))
+            except Exception:
+                pass
+        self._api("PUT", "/me/player/play" + q, body)
+        return name
+
+    def queue(self, query, launch=None):
+        """Add one song to the queue."""
+        body, name = self.resolve(query)
+        if not body:
+            return None
+        uri = (body.get("uris") or [None])[0]
+        if not uri:
+            tr = self._search("track", query, 1)
+            if not tr:
+                return None
+            uri, name = tr[0]["uri"], tr[0]["name"] + " by " + tr[0]["artists"][0]["name"]
+        self._api("POST", "/me/player/queue?" + urllib.parse.urlencode({"uri": uri}))
+        return name
 
     def now_playing(self):
         r = self._api("GET", "/me/player/currently-playing")
@@ -766,6 +884,9 @@ class Jarvis:
             self.pending = send
             say(f"Send to the {name} session: {msg}. Say yes to send.")
             return True
+        if action in ("snap", "maximize", "minimize", "focus", "layout", "keys", "type"):
+            jarvis_screen.ScreenControl(say, pc.launch).handle(action, arg)
+            return True
         if action.startswith(("cc_", "chat_", "claude_")):
             jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude()).handle(action, arg)
             return True
@@ -806,15 +927,23 @@ class Jarvis:
                     log(f"spotify api: {e}")
             song = song or pc.spotify_title()
             say(f"This is {song}." if song else "Nothing's playing on Spotify.")
-        elif action == "spotify_play":
-            played = None
+        elif action in ("spotify_play", "spotify_queue"):
+            done, err = None, ""
             if sp.ready:
                 try:
-                    played = sp.play(arg)
+                    done = (sp.play if action == "spotify_play" else sp.queue)(arg, launch=pc.launch)
+                except urllib.error.HTTPError as e:
+                    err = "premium" if e.code == 403 else "device" if e.code == 404 else ""
+                    log(f"spotify api: {e}")
                 except Exception as e:
                     log(f"spotify api: {e}")
-            if played:
-                say(f"Playing {played}.")
+            if done:
+                say(("Playing " if action == "spotify_play" else "Queued ") + done + ".")
+            elif sp.ready and err == "premium":
+                say("Spotify only lets Premium accounts be controlled. I opened the search instead.")
+                pc.launch("spotify:search:" + urllib.parse.quote(arg))
+            elif sp.ready and not err:
+                say(f"I couldn't find {arg} on Spotify.")
             else:
                 pc.launch("spotify:search:" + urllib.parse.quote(arg))
                 say(f"Pulled up {arg} on Spotify.")
@@ -915,6 +1044,10 @@ def main():
     wake = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
 
     jarvis_room.keep_awake()
+    if ORB:
+        pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        subprocess.Popen([pyw if os.path.exists(pyw) else sys.executable, os.path.join(WORKDIR, "jarvis_orb.py")], cwd=WORKDIR)
+        jarvis_orb.send("thinking")   # loading models
     whisper, _ = load_whisper()
     speaker = Speaker()
     jarvis = Jarvis(speaker, claude=claude)
@@ -923,6 +1056,7 @@ def main():
 
     with Mic(mic):
         noise = np.median([np.sqrt(np.mean(audio_q.get().astype(np.float32) ** 2)) for _ in range(25)])
+        jarvis_orb.send("idle")
         log(f"listening for '{WAKE_WORD.replace('_', ' ')}'" + (" and double claps" if CLAP_WAKE else "") + f" (room noise {noise:.0f})")
 
         while True:
@@ -943,21 +1077,28 @@ def main():
 
             wake.reset()
             drain_mic()
+            jarvis_orb.send("listening")
             speaker.chime()
             drain_mic()
             audio = record_until_silence(noise)
             if audio is None:
+                jarvis_orb.send("idle")
                 continue
+            jarvis_orb.send("thinking")
             text = transcribe(whisper, audio)
             log(f"you: {text}")
             if not text:
+                jarvis_orb.send("idle")
                 continue
             try:
                 if not jarvis.handle(text):
+                    jarvis_orb.send("quit")
                     return
             except Exception as e:
                 log(f"error: {e}")
+                jarvis_orb.send("error")
                 speaker.say("Something broke. Check the Jarvis window.")
+            jarvis_orb.send("idle")
             drain_mic()                       # don't hear itself
             jarvis.quiet_until = time.time() + 1.0
             wake.reset()
