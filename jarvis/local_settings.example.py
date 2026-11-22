@@ -46,3 +46,6 @@
 # LOCK_AFTER = 60
 # TOUCH_REGION = (0.18, 0.15, 0.82, 0.80)   # smaller box = less reaching
 # TOUCH_SMOOTH = 0.35
+# DESK_CAMERA_INDEX = 1          # the camera looking down at the desk
+# DESK_DISPLAY = None            # which screen is the projector. None = the smallest screen that isn't the main one
+# DWELL_SECONDS = 0.6            # how long to hold a finger still to press

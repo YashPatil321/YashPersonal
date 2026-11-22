@@ -541,6 +541,7 @@ class Planner:
         return [(10, f"{title} in 10 minutes.")]
 
     def load(self, events, day=None):
+        self.events = [e for e in (events or []) if isinstance(e, dict)] or getattr(self, "events", [])
         lt = time.localtime(self.clock())
         base = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
         n = 0

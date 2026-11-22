@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk Cards</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #fff; color: #111; margin: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 18px; color: #555; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+  .card { border: 1px dashed #999; border-radius: 10px; padding: 14px; text-align: center; break-inside: avoid; }
+  .card img { width: 160px; height: 160px; image-rendering: pixelated; }
+  .card b { display: block; font-size: 18px; letter-spacing: .12em; margin-top: 6px; }
+  .card span { font-size: 12px; color: #555; }
+  @media print { p.screen { display: none; } body { margin: 10mm; } }
+</style>
+</head>
+<body>
+<h1>Jarvis desk cards</h1>
+<p class="screen">Print on plain paper, cut along the dashed lines, glue to cardboard or a coaster. Keep the white border around each code. Ctrl+P to print.</p>
+<div class="grid" id="g"></div>
+<script>
+const T = new URLSearchParams(location.search).get("token") || "";
+const CARDS = [[0, "FOCUS", "Put down: 50 minute focus. Pick up: done"], [1, "MUSIC", "Put down: play. Pick up: pause"],
+  [2, "VOLUME", "Turn it like a knob"], [3, "TIMER", "Turn to set minutes, pick up to start"],
+  [4, "STUDY", "Study mode"], [5, "PARTY", "House party protocol"], [6, "GAME", "Hype me up for the game"]];
+document.getElementById("g").innerHTML = CARDS.map(([id, name, what]) =>
+  `<div class="card"><img src="/desk/marker.png?id=${id}&size=240&token=${encodeURIComponent(T)}" alt="${name} marker"><b>${name}</b><span>${what}</span></div>`).join("");
+</script>
+</body>
+</html>

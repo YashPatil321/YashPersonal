@@ -213,6 +213,7 @@ class Bridge:
     """ask(text) -> spoken answer as text. event(name) -> text. Only your home network, only with the token."""
     def __init__(self, ask, event, port=None):
         self.ask, self.event, self.port, self.tok = ask, event, port or PHONE_PORT, token()
+        self.routes = {}   # extra pages, e.g. the projected desk: path -> fn(handler, params)
 
     def start(self):
         bridge = self
@@ -253,6 +254,8 @@ class Bridge:
                         return self._reply(200, bridge.ask(text, q.get("speak") == "1") if text else "Say something after Jarvis.")
                     if path == "/event":
                         return self._reply(200, bridge.event((q.get("name") or "").lower()))
+                    if path in bridge.routes:
+                        return bridge.routes[path](self, q)
                     if path == "/ping":
                         return self._reply(200, "Jarvis is online.")
                     return self._reply(404, "Unknown.")

@@ -238,6 +238,27 @@ Then: only your face counts as you being at the desk, so welcomes are for you. P
 "Hey Mom". Anyone else in view turns on guest mode until they leave (`AUTO_GUEST`). If someone who isn't
 you sits at your PC for a minute while you're gone, it locks the screen and pings your phone (`AUTO_LOCK`).
 
+## The projected desk and the hologram (`jarvis_desk.py`, `desk.html`, `holo.html`)
+
+Hardware: a projector pointing straight down at the desk (a short throw one on a ceiling or wall arm, plugged in
+as a second screen), and a second webcam next to it looking down (`DESK_CAMERA_INDEX`, usually 1).
+
+| Say | What happens |
+|---|---|
+| "desk mode" / "desk off" | the Jarvis desk opens full screen on the projector and the down camera starts |
+| "calibrate the desk" | projects 4 markers, the camera finds them, done in a second. Redo it if you move anything |
+| "print my desk cards" | opens the marker cards to print: FOCUS, MUSIC, VOLUME knob, TIMER dial, STUDY, PARTY, GAME |
+| "hologram mode" | the Jarvis core in 4 views for a Pepper's ghost pyramid |
+
+On the desk: hold a fingertip still on a button for half a second, or pinch over it, to press it. Pinch a
+panel's title and move your hand to move the panel (it remembers where you put it). Put a FOCUS card down to
+start a focus session, pick it up to end it. Turn the VOLUME card like a knob. Turn the TIMER card to set
+minutes and pick it up to start. Panels: next event with a leave countdown, music, focus ring, weather,
+today's log, season, people in the room, protocols. The core in the middle spins faster when Jarvis listens or talks.
+
+Holograms: `python jarvis.py --desk` prints the links. The 4 view page goes on the iPad (or any flat screen)
+under an acrylic Pepper's ghost pyramid. `?single=1` is one big view for a holographic LED fan or a transparent OLED.
+
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 
 Media keys work out of the box. To play a specific song by name:

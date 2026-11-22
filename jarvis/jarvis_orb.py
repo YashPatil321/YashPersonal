@@ -29,8 +29,13 @@ COL = {"idle": ("#5e3e35", "#ad8679"), "listening": ("#ff5a43", "#fff1ea"), "thi
        "speaking": ("#ff5a43", "#ffd2c4"), "error": ("#ffb84d", "#ffe3b0")}
 
 
+LAST = {"state": "idle", "t": 0.0}   # the projected desk and hologram read this
+
+
 def send(state):
     """Called from Jarvis. Silent if the orb isn't running."""
+    import time as _t
+    LAST.update(state=state, t=_t.time())
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.sendto(state.encode(), ("127.0.0.1", PORT))

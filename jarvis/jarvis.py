@@ -48,6 +48,7 @@ import jarvis_phone
 import jarvis_room
 import jarvis_screen
 import jarvis_vision
+import jarvis_desk
 import jarvis_faces
 import jarvis_touch
 
@@ -96,7 +97,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -606,7 +607,7 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_desk.route_desk(t) or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -960,6 +961,7 @@ class Jarvis:
         self.extras = None
         self.lock = threading.RLock()   # voice and phone requests take turns
         self.vision = None
+        self.desk = None
         self.listen_requested = False   # a peace sign to the camera works like the wake word
         self.last_wake = 0.0
         self.record_long = None   # set in main: records up to 3 minutes and returns the text
@@ -1028,6 +1030,73 @@ class Jarvis:
                 self.speaker.say("Hey.")
         if name not in ("point_up", "point_down", "peace", "wave"):
             threading.Thread(target=lambda: self.speaker.chime(1480), daemon=True).start()
+
+    def local_url(self, path):
+        return f"http://127.0.0.1:{jarvis_phone.PHONE_PORT}{path}?token={jarvis_phone.token()}"
+
+    def open_desk_page(self, path):
+        """Opens the desk full screen on the projector."""
+        scr = jarvis_desk.projector_screen()
+        url = self.local_url(path)
+        exe, prof = browser_exe(), browser_profile()
+        if IS_WIN and exe and scr:
+            x, y, w, h, _ = scr
+            args = [exe] + (["--profile-directory=" + prof] if prof else []) + ["--app=" + url, f"--window-position={x},{y}", f"--window-size={w},{h}"]
+            subprocess.Popen(args)
+
+            def fit():   # Chrome sometimes ignores the position, so move it there ourselves
+                time.sleep(3)
+                sc = jarvis_screen.Screen()
+                for hwnd, _, title in sc.windows():
+                    if title.startswith("Jarvis Desk") or title.startswith("Jarvis Hologram"):
+                        sc.place(hwnd, (x, y, w, h))
+                        sc.focus(hwnd)
+                        time.sleep(0.3)
+                        import ctypes
+                        ctypes.windll.user32.keybd_event(0x7A, 0, 0, 0)   # F11: full screen, no title bar
+                        ctypes.windll.user32.keybd_event(0x7A, 0, 2, 0)
+                        break
+            threading.Thread(target=fit, daemon=True).start()
+        else:
+            self.pc.open_url(url, app_window=True)
+
+    def desk_state(self):
+        """What the desk panels show."""
+        b, out = self.brain, {}
+        now = time.time()
+        if b:
+            lt = time.localtime()
+            base = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+            evs = []
+            for e in getattr(b.planner, "events", []):
+                m = re.match(r"(\d{1,2}):(\d{2})", str(e.get("start", "")))
+                if m:
+                    at = base + int(m.group(1)) * 3600 + int(m.group(2)) * 60
+                    if at > now - 300:
+                        evs.append((at, e))
+            evs.sort(key=lambda x: x[0])
+            if evs:
+                at, e = evs[0]
+                leave = next(((a, x) for a, x in evs if x.get("leave") or str(x.get("title", "")).lower().startswith("leave")), None)
+                out["next"] = {"title": e.get("title", ""), "when": time.strftime("%I:%M %p", time.localtime(at)).lstrip("0"),
+                               "leave_in": int((leave[0] - now) / 60) if leave else None}
+            out["log"] = [{"t": l[2:7], "text": l[8:]} for l in b.vault.today_log(8).splitlines()]
+            out["season"] = b.season.spoken()
+            out["streaks"] = jarvis_brain.streak_line(jarvis_brain.streaks(b.vault))
+            if b.focus_started and b.focus_timer:
+                out["focus"] = {"total": int(b.focus_timer.interval / 60), "done": int((now - b.focus_started) / 60)}
+            out["focus_today"] = jarvis_brain.focus_minutes(b.vault.read(b.vault.daily_rel()))
+        cache = getattr(self, "_desk_cache", {})
+        self._desk_cache = cache
+        if now - cache.get("music_t", 0) > 6:
+            cache["music"], cache["music_t"] = self.pc.spotify_title(), now
+        if now - cache.get("wx_t", 0) > 600:
+            cache["wx"], cache["wx_t"] = jarvis_extras.weather_brief(), now
+        out["music"], out["weather"] = cache.get("music"), cache.get("wx")
+        if self.vision and self.vision.last_seen_names:
+            out["people"] = ", ".join(("Yash" if n == jarvis_faces.OWNER else jarvis_faces.spoken_name(n)) if n else "a guest"
+                                      for n in self.vision.last_seen_names)
+        return out
 
     def people(self, arrived, left, room, lock=False):
         """Face ID: who came and went."""
@@ -1241,6 +1310,29 @@ class Jarvis:
             if action == "focus" and jarvis_brain.FOCUS_MUSIC and sp.ready:
                 threading.Thread(target=lambda: sp.play(jarvis_brain.FOCUS_MUSIC, launch=pc.launch), daemon=True).start()
             self.brain.handle(action, arg)
+            return True
+        if action in ("desk", "desk_cal", "desk_cards", "holo"):
+            d = self.desk
+            if not d:
+                say("The desk needs the phone bridge on. Set PHONE SERVER to True.")
+            elif action == "desk":
+                if arg:
+                    d.start()
+                    self.open_desk_page("/desk")
+                    say("Desk online." + ("" if d.cal.ready else " First time: say calibrate the desk."))
+                else:
+                    d.stop()
+                    say("Desk off.")
+            elif action == "desk_cal":
+                self.open_desk_page("/desk")
+                say("Calibrating. Keep your hands off the desk for a second.")
+                d.calibrate(lambda ok: say("Desk calibrated. Touch anything."))
+            elif action == "desk_cards":
+                pc.open_url(self.local_url("/desk/cards"))
+                say("Your desk cards are open. Print them, cut them out, and put them on the desk.")
+            elif action == "holo":
+                pc.open_url(self.local_url("/holo"), app_window=True)
+                say("Hologram up. For the iPad pyramid, open the hologram link from jarvis dot py dash dash desk on the iPad.")
             return True
         if action in ("touch", "face_learn", "face_forget", "face_who", "face_list"):
             v = self.vision
@@ -1476,6 +1568,15 @@ def main():
         return doctor()
     if "--levels" in sys.argv:
         return levels()
+    if "--desk" in sys.argv:
+        ip, tok = jarvis_phone.lan_ip(), jarvis_phone.token()
+        base = f"http://{ip}:{jarvis_phone.PHONE_PORT}"
+        print(f"Desk (projector):   {base}/desk?token={tok}")
+        print(f"Hologram, 4 views:  {base}/holo?token={tok}   (iPad under a Pepper's ghost pyramid)")
+        print(f"Hologram, 1 view:   {base}/holo?single=1&token={tok}   (LED hologram fan or transparent screen)")
+        print(f"Desk cards to print: {base}/desk/cards?token={tok}")
+        print("Jarvis must be running for these links to work.")
+        return
     if "--vision" in sys.argv:
         return jarvis_vision.preview()
     if "--phone" in sys.argv:
@@ -1516,7 +1617,11 @@ def main():
             BRAIN.presence.idle = lambda: min(jarvis_brain.idle_seconds(), jarvis.vision.seconds_since_face())
     if jarvis_phone.PHONE_SERVER:
         try:
-            jarvis_phone.Bridge(jarvis.remote_ask, jarvis.phone_event).start()
+            bridge = jarvis_phone.Bridge(jarvis.remote_ask, jarvis.phone_event).start()
+            if jarvis_desk.DESK:
+                jarvis.desk = jarvis_desk.Desk(lambda phrase: jarvis.remote_ask(phrase, speak=True), jarvis.pc.key,
+                                               state=jarvis.desk_state, say=speaker.say)
+                jarvis.desk.register(bridge)
         except Exception as e:
             log(f"phone bridge off: {e}")
     claps = ClapDetector()

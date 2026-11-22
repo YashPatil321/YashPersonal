@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis Hologram</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// A Jarvis core for a Pepper's ghost pyramid: four copies around the middle, each facing outward.
+// Put the acrylic pyramid point down in the center of the screen. ?single=1 draws one big copy instead,
+// for a holographic LED fan or a transparent screen.
+const P = new URLSearchParams(location.search), SINGLE = P.get("single") === "1", TOKEN = P.get("token") || "";
+const c = document.getElementById("c"), g = c.getContext("2d");
+let state = P.get("state") || "idle", W, H;
+function size() { W = c.width = innerWidth * devicePixelRatio; H = c.height = innerHeight * devicePixelRatio; }
+addEventListener("resize", size); size();
+
+const COL = { idle: [255, 110, 85], listening: [255, 90, 67], thinking: [255, 150, 90], speaking: [255, 120, 70], error: [255, 184, 77] };
+const pts = [];   // a sphere of points, golden spiral
+for (let i = 0, n = 420; i < n; i++) {
+  const y = 1 - (i / (n - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.39996;
+  pts.push([Math.cos(th) * r, y, Math.sin(th) * r]);
+}
+
+function core(R, t) {
+  const [r0, g0, b0] = COL[state] || COL.idle;
+  const speed = { idle: .4, listening: 1.2, thinking: 2.2, speaking: 1.4, error: .4 }[state] || .4;
+  const a = t * speed, pulse = state === "speaking" ? 1 + .08 * Math.sin(t * 9) : state === "listening" ? 1 + .04 * Math.sin(t * 4) : 1;
+  const ca = Math.cos(a), sa = Math.sin(a), tilt = .35, ct = Math.cos(tilt), st = Math.sin(tilt);
+  // glow
+  const grd = g.createRadialGradient(0, 0, 0, 0, 0, R * 1.3);
+  grd.addColorStop(0, `rgba(${r0},${g0},${b0},.28)`); grd.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grd; g.beginPath(); g.arc(0, 0, R * 1.3, 0, 7); g.fill();
+  // the point sphere, back points dimmer: that depth is what sells it in the pyramid
+  for (const [x, y, z] of pts) {
+    let X = x * ca + z * sa, Z = -x * sa + z * ca;
+    let Y = y * ct - Z * st; Z = y * st + Z * ct;
+    const d = (Z + 1.6) / 2.6, s = R * .62 * pulse;
+    g.fillStyle = `rgba(${r0},${g0 + 60 * d},${b0 + 60 * d},${.15 + .85 * d})`;
+    g.beginPath(); g.arc(X * s, Y * s, (1 + 2.2 * d) * devicePixelRatio, 0, 7); g.fill();
+  }
+  // orbit rings
+  for (let i = 0; i < 3; i++) {
+    g.save(); g.rotate(a * (i % 2 ? -.6 : .8) + i);
+    g.scale(1, .32 + i * .12);
+    g.strokeStyle = `rgba(255,${180 - i * 30},${120 - i * 20},${.7 - i * .15})`; g.lineWidth = (2.5 - i * .5) * devicePixelRatio;
+    g.beginPath(); g.arc(0, 0, R * (.82 + i * .1), 0, Math.PI * 1.6); g.stroke();
+    g.restore();
+  }
+  g.fillStyle = "rgba(255,225,210,.9)"; g.font = `600 ${R * .1}px ui-monospace, monospace`; g.textAlign = "center";
+  g.fillText("J A R V I S", 0, R * 1.18);
+  const d = new Date();
+  g.fillStyle = `rgba(${r0},${g0},${b0},.9)`; g.font = `500 ${R * .08}px ui-monospace, monospace`;
+  g.fillText(d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + "  " + state.toUpperCase(), 0, R * 1.32);
+}
+
+function frame(now) {
+  const t = now / 1000;
+  g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
+  if (SINGLE) {
+    g.save(); g.translate(W / 2, H / 2); core(Math.min(W, H) * .36, t); g.restore();
+  } else {
+    const S = Math.min(W, H), R = S * .13, off = S * .3;
+    for (let k = 0; k < 4; k++) {   // bottom, left, top, right
+      // flipped top to bottom: the pyramid's reflection flips it back, so it floats upright
+      g.save(); g.translate(W / 2, H / 2); g.rotate(k * Math.PI / 2); g.translate(0, off); g.scale(1, -1); core(R, t); g.restore();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+if (TOKEN) {   // follow Jarvis: listening, thinking, speaking
+  const go = () => {
+    const es = new EventSource("/desk/stream?token=" + encodeURIComponent(TOKEN));
+    es.onmessage = (e) => { try { state = JSON.parse(e.data).orb || "idle"; } catch (err) {} };
+    es.onerror = () => { es.close(); setTimeout(go, 3000); };
+  };
+  go();
+}
+</script>
+</body>
+</html>

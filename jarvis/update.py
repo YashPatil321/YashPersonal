@@ -21,7 +21,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.environ.get("JARVIS_REPO", r"C:\yash-system")      # where you cloned YashPatil321/YashPersonal
 BRANCH = os.environ.get("JARVIS_BRANCH", "claude/hopeful-bohr-1ramsu")
-MANAGED = ["jarvis.py", "jarvis_*.py", "update.py", "requirements.txt", "requirements-extras.txt", "README.md", "HANDOFF.md"]
+MANAGED = ["jarvis.py", "jarvis_*.py", "update.py", "requirements.txt", "requirements-extras.txt", "*.html", "README.md", "HANDOFF.md"]
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
