@@ -1579,6 +1579,14 @@ class Jarvis:
             if self.pending:
                 with self.lock:
                     self.run("confirm", True)
+        elif name == "thumbs_down":
+            if self.pending:
+                with self.lock:
+                    self.run("confirm", False)
+            else:
+                return
+        elif name == "rock":
+            return   # recognized, not used for anything yet
         elif name == "wave":
             if time.time() - self.last_wake > 600:
                 with self.lock:

@@ -32,7 +32,7 @@ os.environ.setdefault("ABSL_MIN_LOG_LEVEL", "2")
 # ---------------- settings (override in local_settings.py) ----------------
 VISION = True                # on by default. No camera? It checks again every minute, so plugging one in just works
 CAMERA_INDEX = 0             # the camera to try first. If it isn't there, Jarvis tries the others and uses the first that works
-CAMERA_SIZE = (640, 360)
+CAMERA_SIZE = (1280, 720)     # more pixels = hands and faces read well from farther away
 GESTURES = True
 AIR_MOUSE = False            # index finger drives the cursor, pinch clicks. Fun, but off by default
 HOLD_SECONDS = 1.0           # how long a pose must be held before it counts
@@ -43,6 +43,9 @@ ARM_SECONDS = 0.5            # a hand has to appear and hold still this long bef
 MIN_HAND = 0.045             # palm width as a share of the picture width (about arm's length from a normal webcam)
 MAX_WRIST_Y = 0.80           # wrist above this line (0 top, 1 bottom): hand held up, not resting on the desk
 PRESENCE_FROM_CAMERA = True
+GESTURE_MODEL = True         # Google's trained gesture model on top of the hand points (much steadier than finger math)
+VOTE_SECONDS = 0.35          # a shape has to win most of the frames in this window to count (kills flicker)
+GRACE_SECONDS = 0.3          # the hand can drop out of tracking this long (motion blur) without starting over
 # ---------------------------------------------------------------------------
 
 # MediaPipe hand landmark ids
@@ -96,6 +99,23 @@ def pose_name(lm):
     return None
 
 
+MODEL_LABELS = {"Open_Palm": "palm", "Closed_Fist": "fist", "Victory": "peace", "Pointing_Up": "point_up",
+                "Thumb_Up": "thumbs_up", "Thumb_Down": "thumbs_down", "ILoveYou": "rock", "None": ""}
+
+
+def fuse(label, lm):
+    """One frame's hand shape. The trained model decides when it has an opinion; the finger math fills in what it
+    doesn't know (pointing down) and covers when the model isn't loaded."""
+    mine = pose_name(lm)
+    if label is None:
+        return mine
+    if label == "point_up" and mine == "point_down":
+        return "point_down"
+    if label == "" and mine in ("point_down", "point_up"):
+        return mine
+    return label or None
+
+
 def pinching(lm):
     palm = _d(lm[INDEX_MCP], lm[PINKY_MCP]) or 1e-6
     return _d(lm[THUMB_TIP], lm[INDEX_TIP]) < palm * 0.35
@@ -113,9 +133,17 @@ class GestureReader:
         self.track = deque()   # (t, x) of the open palm center, for swipes and waves
         self.arm_since = self.arm_pos = None
         self.why = ""
+        self.votes = deque()
+        self.seen_at = None
+        self.palm = 0.08
 
-    def feed(self, lm):
+    def feed(self, lm, label=None):
+        """label: what the trained model says this frame ("palm", "fist", ..., "" for nothing), or None without it."""
         now = self.clock()
+        if lm is None and self.seen_at and now - self.seen_at < GRACE_SECONDS:
+            return None   # lost the hand for a moment (fast move, blur): carry on where we were
+        if lm is not None:
+            self.seen_at = now
         self.why = "no hand" if lm is None else ""
         if lm is not None and _d(lm[INDEX_MCP], lm[PINKY_MCP]) < MIN_HAND:
             self.why, lm = "hand too far from the camera", None
@@ -134,12 +162,29 @@ class GestureReader:
         if lm is None:
             self.cur, self.fired_cur = None, False
             self.track.clear()
+            self.votes.clear()
+            self.seen_at = None
             return None
-        name = pose_name(lm)
+        raw = fuse(label, lm)
+        self.votes.append((now, raw))
+        while self.votes and now - self.votes[0][0] > VOTE_SECONDS:
+            self.votes.popleft()
+        tally = {}
+        for _, v in self.votes:
+            tally[v] = tally.get(v, 0) + 1
+        top, cnt = max(tally.items(), key=lambda kv: kv[1])
+        n = len(self.votes)
+        if cnt >= max(2, 0.6 * n):
+            name = top
+        elif self.cur is not None and tally.get(self.cur, 0) >= 0.45 * n:
+            name = self.cur   # still mostly the same shape: keep the hold going
+        else:
+            name = None
         self.why = "reading: " + (name or "no clear shape")
         cx = sum(lm[i][0] for i in (WRIST, INDEX_MCP, PINKY_MCP)) / 3
+        self.palm = _d(lm[INDEX_MCP], lm[PINKY_MCP])
 
-        if name == "palm":
+        if raw == "palm" or (name == "palm" and raw is None):
             self.track.append((now, cx))
             while self.track and now - self.track[0][0] > 1.6:
                 self.track.popleft()
@@ -184,12 +229,12 @@ class GestureReader:
             if direction and s != direction:
                 turns += 1
             direction = s
-        if turns >= 3 and max(xs) - min(xs) > 0.12:
+        if turns >= 3 and max(xs) - min(xs) > max(0.08, self.palm * 1.3):
             return "wave"
         recent = [(t, x) for t, x in pts if now - t <= 0.5]
         if len(recent) >= 3:
             dx = recent[-1][1] - recent[0][1]
-            if abs(dx) > 0.30 and turns <= 1:
+            if abs(dx) > max(0.16, self.palm * 2.6) and turns <= 1:   # about two and a half hand widths, any distance
                 return "swipe_right" if dx > 0 else "swipe_left"
         return None
 
@@ -236,6 +281,7 @@ class RepCounter:
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "models")
 MODELS = {
     "hand": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
+    "gesture": "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/latest/gesture_recognizer.task",
     "face": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
     "pose": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
 }
@@ -260,9 +306,21 @@ class Detectors:
         from mediapipe.tasks.python import BaseOptions, vision
         self.mp, self.vision, self.Base = mp, vision, BaseOptions
         V = vision.RunningMode.VIDEO
-        self.hands = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=V, num_hands=2,
-            min_hand_detection_confidence=0.6, min_hand_presence_confidence=0.6, min_tracking_confidence=0.6)) if hands else None
+        self.hands, self.recognizer, self.last_label, self._cache = None, None, None, (None, None)
+        if hands and GESTURE_MODEL:
+            try:
+                self.recognizer = vision.GestureRecognizer.create_from_options(vision.GestureRecognizerOptions(
+                    base_options=BaseOptions(model_asset_path=model_path("gesture")), running_mode=V, num_hands=2,
+                    min_hand_detection_confidence=0.6, min_hand_presence_confidence=0.6, min_tracking_confidence=0.6))
+                self.hands = True
+                _log("gesture model loaded")
+            except Exception as e:
+                _log(f"gesture model didn't load ({e}), using finger math")
+        if hands and not self.recognizer:
+            self.hands = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=V, num_hands=2,
+                min_hand_detection_confidence=0.6, min_hand_presence_confidence=0.6, min_tracking_confidence=0.6))
+        self.hand_ts = 0
         self.faces = vision.FaceDetector.create_from_options(vision.FaceDetectorOptions(
             base_options=BaseOptions(model_asset_path=model_path("face")), running_mode=V, min_detection_confidence=0.5)) if faces else None
         self.pose = None
@@ -275,13 +333,35 @@ class Detectors:
         self.last_ts = max(int(ts), self.last_ts + 1)   # VIDEO mode needs strictly rising timestamps
         return self.last_ts
 
+    def _hands(self, rgb, ts):
+        """[(points, label)] for each hand, one model run per frame however many times it's asked."""
+        if self._cache[0] is rgb:
+            return self._cache[1]
+        self.hand_ts = max(int(ts), self.hand_ts + 1)
+        if self.recognizer:
+            r = self.recognizer.recognize_for_video(self._img(rgb), self.hand_ts)
+            out = []
+            for i, h in enumerate(r.hand_landmarks):
+                g = r.gestures[i][0] if i < len(r.gestures) and r.gestures[i] else None
+                label = MODEL_LABELS.get(g.category_name, "") if g is not None and g.score >= 0.55 else ""
+                out.append(([(p.x, p.y) for p in h], label))
+        else:
+            r = self.hands.detect_for_video(self._img(rgb), self.hand_ts)
+            out = [([(p.x, p.y) for p in h], None) for h in r.hand_landmarks]
+        self._cache = (rgb, out)
+        return out
+
     def hands_all(self, rgb, ts):
-        r = self.hands.detect_for_video(self._img(rgb), self._ts(ts))
-        return [[(p.x, p.y) for p in h] for h in r.hand_landmarks]
+        return [h for h, _ in self._hands(rgb, ts)]
 
     def hand(self, rgb, ts):
-        hs = self.hands_all(rgb, ts)
-        return max(hs, key=lambda h: _d(h[INDEX_MCP], h[PINKY_MCP])) if hs else None
+        """The biggest (closest) hand. Its model label is in self.last_label."""
+        hs = self._hands(rgb, ts)
+        if not hs:
+            self.last_label = None
+            return None
+        lm, self.last_label = max(hs, key=lambda h: _d(h[0][INDEX_MCP], h[0][PINKY_MCP]))
+        return lm
 
     def face(self, rgb, ts):
         return bool(self.faces.detect_for_video(self._img(rgb), self._ts(ts)).detections)
@@ -369,8 +449,8 @@ class Vision:
                 _log("no working camera yet (tried 0 to 5). Is another app using it, or is it unplugged? Checking every minute")
                 warned = True
             time.sleep(60)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_SIZE[0])
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_SIZE[1])
+        setup_capture(cap)
+        grab = LatestFrame(cap)
         try:
             import jarvis_faces
             if jarvis_faces.FACES:
@@ -379,15 +459,16 @@ class Vision:
         except Exception as e:
             _log(f"face id off: {e}")
         self.ok = True
-        _log("camera on")
+        _log(f"camera on, {grab.size()}")
+        if self.faceid:
+            threading.Thread(target=self._faces_loop, daemon=True).start()
         n, face_seen, pinch_was = 0, False, False
         while True:
             if not self.enabled:
                 time.sleep(0.5)
                 continue
-            good, frame = cap.read()
-            if not good:
-                time.sleep(0.2)
+            frame = grab.next(timeout=1.0)   # always the newest picture, never a stale one from the buffer
+            if frame is None:
                 continue
             frame = cv2.flip(frame, 1)   # mirror, so your right is the screen's right
             self.last_frame, self.last_frame_t = frame, time.time()
@@ -404,8 +485,8 @@ class Vision:
                 if self.enroll:
                     self._enroll_step(frame)
                     continue
-                if self.faceid and n % 12 == 0:   # who's here, about once a second
-                    self._faces_step(frame)
+                if self.faceid:
+                    pass   # faces run on their own thread, so hands never wait for them
                 elif det.faces and not self.faceid and n % 10 == 0:   # faces about twice a second is plenty
                     seen = det.face(rgb, ts)
                     if seen:
@@ -435,7 +516,7 @@ class Vision:
                     self._click()
                 pinch_was = p
                 continue
-            g = self.reader.feed(lm)
+            g = self.reader.feed(lm, det.last_label if lm is not None else None)
             if lm is not None and self.reader.why != getattr(self, "_why_logged", "") and time.time() - getattr(self, "_why_t", 0) > 8:
                 self._why_logged, self._why_t = self.reader.why, time.time()
                 _log("hand seen: " + self.reader.why)   # so you can see why a gesture didn't fire
@@ -450,16 +531,29 @@ class Vision:
         name, feats, until, done = self.enroll
         if self.faceid:
             f = self.faceid.biggest_feature(frame)
-            if f is not None:
+            if f is not None and not _near_duplicate(f, feats):
                 feats.append(f)
-        if time.time() >= until or len(feats) >= 20:
+        if time.time() >= until or len(feats) >= 24:
             self.enroll = None
             saved = self.faceid.book.add(name, feats[2:] if len(feats) > 5 else feats) if self.faceid and feats else None
             done(saved, len(feats))
 
+    def _faces_loop(self):
+        """Who's here, about three times a second, on the newest frame."""
+        while True:
+            time.sleep(0.33)
+            f = getattr(self, "last_frame", None)
+            if f is None or self.enroll or not self.enabled or time.time() - getattr(self, "last_frame_t", 0) > 2:
+                continue
+            try:
+                self._faces_step(f)
+            except Exception as e:
+                _log(f"faces: {e}")
+                time.sleep(2)
+
     def _faces_step(self, frame):
         import jarvis_faces
-        found = self.faceid.who(frame)
+        found = self.faceid.identify(frame)
         self.last_seen_names = [n for n, _, _ in found]
         owner_known = jarvis_faces.OWNER in self.faceid.book.people
         if found and (not owner_known or jarvis_faces.OWNER in self.last_seen_names):
@@ -505,6 +599,64 @@ def desk_camera_index():
         return jarvis_desk.DESK_CAMERA_INDEX
     except Exception:
         return None
+
+
+def _near_duplicate(f, feats, limit=0.95):
+    import numpy as np
+    if not feats:
+        return False
+    a = np.asarray(f, dtype=np.float32).ravel()
+    m = np.asarray(feats[-12:], dtype=np.float32).reshape(-1, a.size)
+    sims = (m @ a) / ((np.linalg.norm(m, axis=1) + 1e-9) * (np.linalg.norm(a) + 1e-9))
+    return float(sims.max()) > limit
+
+
+def setup_capture(cap):
+    """Ask for HD at 30 fps, compressed (MJPG) so USB can carry it, and no backlog of old frames."""
+    import cv2
+    try:
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_SIZE[0])
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_SIZE[1])
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    except Exception:
+        pass
+
+
+class LatestFrame:
+    """Reads the camera nonstop on its own thread and keeps only the newest frame, so what Jarvis sees is never
+    behind what you're doing (cameras otherwise queue frames and the lag piles up)."""
+    def __init__(self, cap):
+        self.cap, self.frame, self.seq, self.taken = cap, None, 0, 0
+        self.cond = threading.Condition()
+        threading.Thread(target=self._pump, daemon=True).start()
+
+    def _pump(self):
+        fails = 0
+        while True:
+            ok, f = self.cap.read()
+            if not ok:
+                fails += 1
+                time.sleep(0.05 if fails < 40 else 0.5)
+                continue
+            fails = 0
+            with self.cond:
+                self.frame, self.seq = f, self.seq + 1
+                self.cond.notify_all()
+
+    def next(self, timeout=1.0):
+        with self.cond:
+            if self.seq == self.taken:
+                self.cond.wait(timeout)
+            if self.seq == self.taken:
+                return None
+            self.taken = self.seq
+            return self.frame
+
+    def size(self):
+        f = self.frame
+        return f"{f.shape[1]}x{f.shape[0]}" if f is not None else "no picture yet"
 
 
 def open_camera(first=0, avoid=None, tries=6):
@@ -589,7 +741,7 @@ def route_vision(t):
 
 
 GESTURE_HELP = ("Peace sign and I start listening. Open palm, play or pause. Swipe right or left for the next or last song. "
-                "Point up or down for volume. Thumbs up says yes. A fist mutes. Wave to wake the room. "
+                "Point up or down for volume. Thumbs up says yes, thumbs down says no. A fist mutes. Wave to wake the room. "
                 "Say touch mode to control the whole screen with your hands.")
 
 
@@ -601,6 +753,7 @@ def preview():
     if cap is None:
         print("no camera found")
         return
+    setup_capture(cap)
     print(f"camera {idx}")
     reader, last, last_t = GestureReader(), "", 0
     while True:
@@ -610,14 +763,15 @@ def preview():
             break
         frame = cv2.flip(frame, 1)
         lm = det.hand(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), time.time() * 1000)
+        label = det.last_label
         if lm:
             h, w = frame.shape[:2]
             for x, y in lm:
                 cv2.circle(frame, (int(x * w), int(y * h)), 4, (60, 90, 255), -1)
-        g = reader.feed(lm)
+        g = reader.feed(lm, label if lm is not None else None)
         if g:
             last, last_t = g, time.time()
-        cv2.putText(frame, f"shape: {pose_name(lm) if lm else 'no hand'}", (16, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 200, 255), 2)
+        cv2.putText(frame, f"model: {label or '-'}   math: {pose_name(lm) if lm else 'no hand'}", (16, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 200, 255), 2)
         cv2.putText(frame, reader.why, (16, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         if lm:
             cv2.putText(frame, f"palm {_d(lm[INDEX_MCP], lm[PINKY_MCP]):.3f} (needs {MIN_HAND})  wrist {lm[WRIST][1]:.2f} (needs under {MAX_WRIST_Y})",

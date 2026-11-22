@@ -65,9 +65,11 @@ footer { text-align: center; color: var(--mute); font: 12px var(--fm); letter-sp
       <div class="move"><canvas data-g="up"></canvas><div><b>Point up, hold</b><span>Volume up, keeps going while you hold.</span></div></div>
       <div class="move"><canvas data-g="down"></canvas><div><b>Point down, hold</b><span>Volume down.</span></div></div>
       <div class="move"><canvas data-g="thumb"></canvas><div><b>Thumbs up</b><span>Yes, to anything Jarvis asked you to confirm.</span></div></div>
+      <div class="move"><canvas data-g="thumbDown"></canvas><div><b>Thumbs down</b><span>No, to anything Jarvis asked you to confirm.</span></div></div>
       <div class="move"><canvas data-g="fist"></canvas><div><b>Fist, hold</b><span>Mute. While Jarvis talks: stop talking.</span></div></div>
       <div class="move"><canvas data-g="wave"></canvas><div><b>Wave</b><span>Wakes the room, like a double clap.</span></div></div>
     </div>
+    <p class="how">Hold your hand up at about arm's length, palm toward the camera, and keep it still for a beat. You'll hear a tick when a gesture counts. Hands on the desk, hands passing by and fidgeting are ignored on purpose.</p>
     <p class="tip"><b>Say</b> "gestures off" or "gestures on" · "what gestures can I use" · "camera off" pauses everything</p>
   </section>
 
@@ -215,6 +217,7 @@ const G = {
   tap: ['.....#.....','...#...#...','.....#.....','.#..###..#.','....###....','...#####...','...#####...','....###....','...........','...........','...........'],
   card: ['...........','.#########.','.#.......#.','.#.##.##.#.','.#.##.##.#.','.#.......#.','.#.##.##.#.','.#.##.##.#.','.#.......#.','.#########.','...........'],
 };
+G.thumbDown = G.thumb.slice(0, 9).reverse().concat(['...........', '...........']);
 const dpr = Math.min(3, window.devicePixelRatio || 1);
 document.querySelectorAll('canvas[data-g]').forEach((c) => {
   const rows = G[c.dataset.g] || G.palm, n = 11, S = 62;
