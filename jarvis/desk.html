@@ -100,6 +100,10 @@
 
 <script>
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
+// a dark room: pure black gives the down camera nothing to see your hand with, so the desk glows a little.
+// ?glow=0 is pure black, 30 is brighter. Default 12 is barely visible on a tan mat but enough for the camera.
+const GLOW = Math.max(0, Math.min(60, +(new URLSearchParams(location.search).get("glow") ?? 12)));
+document.documentElement.style.setProperty("--bg", `rgb(${GLOW}, ${Math.round(GLOW * .62)}, ${Math.round(GLOW * .5)})`);
 const q = (p) => p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN);
 const $ = (id) => document.getElementById(id);
 const DEFAULT = { core: [38, 30], next: [4, 6], music: [4, 40], focus: [4, 68], weather: [71, 6], today: [71, 24], season: [71, 56], quick: [71, 76] };

@@ -34,6 +34,7 @@ DESK_CAMERA_INDEX = 1        # the downward camera. The monitor webcam is usuall
 DESK_CAMERA_SIZE = (1280, 720)
 DESK_DISPLAY = None          # which screen is the projector (0, 1, 2 ...). None = the smallest screen that isn't the main one
 DWELL_SECONDS = 0.6
+DESK_GLOW = 12               # 0 = pure black desk. A little glow lets the down camera see your hand in a dark room
 CALIB_FILE = os.path.join(HERE, ".cache", "desk_calib.json")
 # ArUco 4x4 marker ids printed on the cards
 CARDS = {0: "focus", 1: "music", 2: "volume", 3: "timer", 4: "study", 5: "party", 6: "game"}
@@ -389,7 +390,7 @@ class Desk:
             return send(h, 200, "calibrating", "text/plain")
 
         bridge.routes.update({
-            "/desk": lambda h, q: send(h, 200, page("desk.html"), "text/html; charset=utf-8"),
+            "/desk": lambda h, q: send(h, 200, page("desk.html").replace('?? 12)', f'?? {int(DESK_GLOW)})'), "text/html; charset=utf-8"),
             "/holo": lambda h, q: send(h, 200, page("holo.html"), "text/html; charset=utf-8"),
             "/desk/cards": lambda h, q: send(h, 200, page("desk-cards.html"), "text/html; charset=utf-8"),
             "/desk/stream": stream,
