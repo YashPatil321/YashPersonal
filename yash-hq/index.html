@@ -1215,7 +1215,9 @@ function onJarvisFile(e) {
   if (key === jarvisFile) return;
   jarvisFile = key;
   mcp.callTool('Google Drive', 'read_file_content', {fileId: f.id}).then((r) => {
-    try { jarvisSt = JSON.parse(String(unwrap(r)?.fileContent || '').trim()); } catch { return; }
+    // Drive returns text files with markdown escaping (\[ for [), which isn't valid JSON. Undo just those escapes.
+    const raw = String(unwrap(r)?.fileContent || '').trim().replace(/\\([\[\]*_#>`~|+.!(){}-])/g, '$1');
+    try { jarvisSt = JSON.parse(raw); } catch { return; }
     renderJarvis();
   }).catch(() => {});
 }
