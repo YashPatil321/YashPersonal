@@ -40,6 +40,7 @@ import urllib.request
 
 import numpy as np
 
+import jarvis_autostart
 import jarvis_brain
 import jarvis_claude
 import jarvis_extras
@@ -98,7 +99,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -1704,6 +1705,8 @@ def main():
     whisper, _ = load_whisper()
     speaker = Speaker()
     jarvis = Jarvis(speaker, claude=claude)
+    # how was I started, and can I actually control windows? fixes the startup task if it can, says so if not
+    threading.Thread(target=lambda: jarvis_autostart.check(log=log, say=speaker.say), daemon=True).start()
     global BRAIN
     BRAIN = jarvis.make_brain()
     BRAIN.start()
