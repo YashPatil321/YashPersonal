@@ -12,3 +12,4 @@ jarvis/.spotify.json
 jarvis/.cache/
 jarvis/local_settings.py
 jarvis/__pycache__/
+jarvis/.ntfy_topic

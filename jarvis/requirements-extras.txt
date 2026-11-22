@@ -1,0 +1,4 @@
+# camera, face ID, touch mode and screenshots. Installed one by one, so a failure here never blocks Jarvis
+pillow
+opencv-python
+mediapipe

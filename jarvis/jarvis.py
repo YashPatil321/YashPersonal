@@ -100,6 +100,18 @@ for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
+WAKE_PUSH = _mine.get("WAKE_PUSH", False)   # also ping your phone on every clap
+if not NTFY_TOPIC:   # make a private phone topic once, so phone features are on out of the box
+    _tf = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ntfy_topic")
+    try:
+        NTFY_TOPIC = open(_tf).read().strip()
+    except OSError:
+        NTFY_TOPIC = "yash-jarvis-" + secrets.token_hex(6)
+        try:
+            open(_tf, "w").write(NTFY_TOPIC)
+        except OSError:
+            pass
+jarvis_phone.NTFY_TOPIC = jarvis_phone.NTFY_TOPIC or NTFY_TOPIC
 if "CONNECTOR_TOOLS" in _mine and "ALLOWED_TOOLS" not in _mine:
     ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 
@@ -1061,7 +1073,7 @@ class Jarvis:
                 log(f"layout failed: {e}")
         threading.Thread(target=lambda: log("music: " + jarvis_room.start_music(self.pc, self.spotify, log)), daemon=True).start()
         log("room awake, HQ opened")
-        if NTFY_TOPIC:
+        if NTFY_TOPIC and WAKE_PUSH:
             threading.Thread(target=push_phone, args=("HQ is online. Welcome back.",), daemon=True).start()
         if self.brain:
             quick, finish = self.brain.greet("clap")   # starts reading the calendar right away
@@ -1413,6 +1425,12 @@ def doctor():
         except Exception as e:
             print(f"   could not list connectors ({e})")
     print(f"spotify api {'connected' if Spotify().ready else 'off (media keys only)'}")
+    import importlib.util as _u
+    for pkg, mod in (("pillow", "PIL"), ("opencv", "cv2"), ("mediapipe", "mediapipe")):
+        print(f"{pkg}: {'PASS' if _u.find_spec(mod) else 'missing (python update.py --extras)'}")
+    print(f"phone topic: {NTFY_TOPIC}  (subscribe to this in the ntfy app)")
+    print(f"camera: {'on' if jarvis_vision.VISION else 'off'}, face id {'on' if jarvis_faces.FACES else 'off'}, "
+          f"faces known: {', '.join(jarvis_faces.FaceBook().people) or 'none yet'}")
     v = jarvis_brain.Vault()
     print(f"vault -> {v.root}  " + ("Obsidian PASS" if v.is_obsidian else "plain folder (open it in Obsidian as a vault, or set VAULT)"))
     print(f"idle seconds now: {jarvis_brain.idle_seconds():.0f}")

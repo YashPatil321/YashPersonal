@@ -26,7 +26,7 @@ from collections import deque
 IS_WIN = sys.platform == "win32"
 
 # ---------------- settings (override in local_settings.py) ----------------
-VISION = False               # turn on once mediapipe and opencv are installed and a camera is plugged in
+VISION = True                # on by default. No camera? It checks again every minute, so plugging one in just works
 CAMERA_INDEX = 0             # 0 = first webcam. Try 1 if you have more than one
 CAMERA_SIZE = (640, 360)
 GESTURES = True
@@ -300,21 +300,38 @@ class Vision:
         return rc
 
     def _run(self):
-        try:
-            import cv2
-            det = Detectors(hands=GESTURES, faces=PRESENCE_FROM_CAMERA)
-        except ImportError:
-            _log("install the camera parts: .venv\\Scripts\\pip install mediapipe opencv-python")
+        det = None
+        for attempt in range(2):
+            try:
+                import cv2
+                det = Detectors(hands=GESTURES, faces=PRESENCE_FROM_CAMERA)
+                break
+            except ImportError:
+                if attempt == 0:
+                    _log("camera packages missing, installing them now (a few minutes, once)")
+                    import subprocess
+                    import update
+                    update.install_extras()
+                    import importlib
+                    importlib.invalidate_caches()
+            except Exception as e:
+                _log(f"camera models failed: {e}")
+                return
+        if det is None:
+            _log("camera packages didn't install. Run: .venv\\Scripts\\python update.py --extras")
             return
-        except Exception as e:
-            _log(f"camera models failed: {e}")
-            return
-        cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW if IS_WIN else 0)
+        warned = False
+        while True:
+            cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW if IS_WIN else 0)
+            if cap.isOpened():
+                break
+            cap.release()
+            if not warned:
+                _log(f"no camera at index {CAMERA_INDEX} yet, checking every minute")
+                warned = True
+            time.sleep(60)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_SIZE[0])
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_SIZE[1])
-        if not cap.isOpened():
-            _log(f"no camera at index {CAMERA_INDEX}")
-            return
         try:
             import jarvis_faces
             if jarvis_faces.FACES:

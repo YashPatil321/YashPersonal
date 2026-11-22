@@ -185,10 +185,10 @@ The PC only answers your home network (and Tailscale) with the secret token in `
 
 Any USB webcam on top of the monitor. Everything runs on your PC with MediaPipe. No picture is saved or sent.
 
-Setup, once:
-1. `.venv\Scripts\pip install mediapipe opencv-python`
-2. `python jarvis.py --vision` opens a test window that shows your hand and the gesture it reads (Q to quit).
-3. Put `VISION = True` in `local_settings.py` and restart Jarvis. The models (about 14 MB) download the first time.
+Setup: plug in a webcam. That's it. Everything is on by default: the camera packages install themselves on the
+next update (or the first time the camera starts), the models download once, and if no camera is plugged in
+Jarvis checks again every minute. `python jarvis.py --vision` opens a test window that shows your hand and the
+gesture it reads (Q to quit). Turn pieces off in `local_settings.py`: `VISION`, `FACES`, `GESTURES`, `AUTO_GUEST`, `AUTO_LOCK`.
 
 | Do | What happens |
 |---|---|

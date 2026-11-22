@@ -280,8 +280,8 @@ Test from your phone's Safari on home WiFi: {base}/ping?token={tok}
 (Windows may ask to allow Python on private networks the first time. Say Allow.)
 
 A. PC to phone (alarms, Do Not Disturb, timers, reminders, find my phone)
-  1. Install ntfy from the App Store. Subscribe to a long random topic, like yash-jarvis-{secrets.token_hex(4)}.
-  2. Put it in local_settings.py:  NTFY_TOPIC = "that-topic"
+  1. Install ntfy from the App Store, tap +, and subscribe to your private topic:  {NTFY_TOPIC or "yash-jarvis-" + secrets.token_hex(6)}
+  2. That's it, Jarvis already uses that topic. (To use a different one, set NTFY_TOPIC in local_settings.py.)
   3. Shortcuts app, new shortcut named exactly:  {PHONE_SHORTCUT}
        Receive Text input from Share Sheet / Quick Actions (turn on "Show in Share Sheet" is not needed)
        Split Text  (Shortcut Input)  by Custom  |

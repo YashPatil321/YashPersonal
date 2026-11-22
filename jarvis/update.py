@@ -21,7 +21,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.environ.get("JARVIS_REPO", r"C:\yash-system")      # where you cloned YashPatil321/YashPersonal
 BRANCH = os.environ.get("JARVIS_BRANCH", "claude/hopeful-bohr-1ramsu")
-MANAGED = ["jarvis.py", "jarvis_*.py", "update.py", "requirements.txt", "README.md", "HANDOFF.md"]
+MANAGED = ["jarvis.py", "jarvis_*.py", "update.py", "requirements.txt", "requirements-extras.txt", "README.md", "HANDOFF.md"]
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
@@ -73,7 +73,29 @@ def update():
     if open(os.path.join(HERE, "requirements.txt")).read() != old_req:
         print("update: installing new packages")
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", os.path.join(HERE, "requirements.txt")], creationflags=NO_WINDOW)
+    install_extras()
     return len(files)
+
+
+def install_extras(pip_run=None):
+    """Camera and screenshot packages, one at a time. A package that fails just stays off."""
+    path = os.path.join(HERE, "requirements-extras.txt")
+    if not os.path.exists(path):
+        return []
+    import importlib.util
+    mods = {"pillow": "PIL", "opencv-python": "cv2", "mediapipe": "mediapipe"}
+    done = []
+    for line in open(path):
+        pkg = line.split("#")[0].strip()
+        if not pkg or importlib.util.find_spec(mods.get(pkg, pkg)):
+            continue
+        print(f"update: installing {pkg}")
+        r = (pip_run or (lambda p: subprocess.run([sys.executable, "-m", "pip", "install", "-q", p], creationflags=NO_WINDOW)))(pkg)
+        if getattr(r, "returncode", 0) == 0:
+            done.append(pkg)
+        else:
+            print(f"update: {pkg} didn't install, that feature stays off")
+    return done
 
 
 if __name__ == "__main__":
@@ -81,4 +103,7 @@ if __name__ == "__main__":
         w = waiting()
         print("update waiting" if w else "up to date")
         sys.exit(10 if w else 0)
-    update()
+    if "--extras" in sys.argv:
+        install_extras()
+    else:
+        update()
