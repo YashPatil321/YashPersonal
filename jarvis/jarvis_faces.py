@@ -96,6 +96,19 @@ class FaceBook:
             return True
         return False
 
+    def rename(self, old, new):
+        old, new = clean_name(old), clean_name(new)
+        if old not in self.people or old == new:
+            return None
+        self.people[new] = (self.people.get(new, []) + self.people.pop(old))[-40:]
+        with open(os.path.join(self.folder, new + ".json"), "w") as f:
+            json.dump(self.people[new], f)
+        try:
+            os.remove(os.path.join(self.folder, old + ".json"))
+        except OSError:
+            pass
+        return new
+
     def best(self, feat):
         """(name, score) of the closest person, or (None, best_score)."""
         import numpy as np

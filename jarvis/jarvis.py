@@ -1139,6 +1139,9 @@ def one_line(text):
     return re.sub(r"\s*\n\s*", " | ", text).replace('"', "'")
 
 
+RELATIONS = {"dad", "mom", "brother", "sister", "grandma", "grandpa", "uncle", "aunt", "cousin", "girlfriend", "boyfriend",
+             "coach", "friend", "best_friend", "teacher", "stepdad", "stepmom"}
+
 SESSION_HOURS = 12   # start a fresh Claude conversation after this long; the conversation log carries the context over
 
 
@@ -1768,6 +1771,18 @@ class Jarvis:
                                  args=(text, recent, lambda pr: ask_claude(pr, None, self.claude, tools="Read", model="haiku")[0], self.brain, log)).start()
         if self.brain:
             self.brain.presence.seen()
+        # "this is my dad" ... "his name is Neil": put the real name on the face you just met
+        m = re.fullmatch(r"(?:his|her|their) name(?:'s| is) (\w+(?: \w+)?)[.!]?", text.strip().lower())
+        just = getattr(self, "just_met", None)
+        if m and just and time.time() - just[1] < 180 and self.vision and getattr(self.vision, "faceid", None):
+            label, real = just[0], m.group(1)
+            if self.vision.faceid.book.rename(label, real):
+                self.just_met = None
+                if self.brain:
+                    self.brain.vault.remember(f"Yash's {jarvis_faces.spoken_name(label).lower()} is named {real.title()}"
+                                              if label in RELATIONS else f"{real.title()} is someone Yash introduced")
+                self.speaker.say(f"Got it. {real.title()} it is. Hi {real.title()}.")
+                return
         cmd = route(text)
         if cmd:
             log(f"command: {cmd}")
@@ -2108,6 +2123,7 @@ class Jarvis:
                     elif name == jarvis_faces.OWNER:
                         say(f"Got you, Yash. I'll know it's you from now on.")
                     else:
+                        self.just_met = (name, time.time())
                         say(f"Nice to meet you, {jarvis_faces.spoken_name(name)}.")
                 v.learn_face(arg, done)
             elif action == "face_forget":
