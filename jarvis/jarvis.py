@@ -1123,6 +1123,22 @@ def find_claude():
     return shutil.which("claude") or shutil.which("claude.exe") or shutil.which("claude.cmd")
 
 
+def claude_cmd(claude):
+    """claude.cmd (the npm install) runs through cmd.exe, which mangles long arguments. Skip it and run node directly."""
+    if claude and claude.lower().endswith((".cmd", ".bat")):
+        base = os.path.dirname(claude)
+        cli = os.path.join(base, "node_modules", "@anthropic-ai", "claude-code", "cli.js")
+        node = os.path.join(base, "node.exe") if os.path.exists(os.path.join(base, "node.exe")) else shutil.which("node")
+        if os.path.exists(cli) and node:
+            return [node, cli]
+    return [claude]
+
+
+def one_line(text):
+    """Command line safe: no new lines (Windows stops reading there) and no double quotes."""
+    return re.sub(r"\s*\n\s*", " | ", text).replace('"', "'")
+
+
 SESSION_HOURS = 12   # start a fresh Claude conversation after this long; the conversation log carries the context over
 
 
@@ -1328,16 +1344,18 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
             extra += " " + ACTIVITY.context()
         except Exception:
             pass
-    if CONVOS:
+    if CONVOS and not prompt.startswith("[context]"):
         try:
             recent = CONVOS.recent()
             if recent:
-                extra += ("\n\nYour recent conversation with Yash, oldest first (includes quick commands Jarvis handled "
-                          "itself; use it for context, like what 'that' or 'it' means):\n" + recent)
+                # rides in the message, not on the command line: Windows cuts command lines off at the first new line
+                prompt = ("[context] Your recent conversation with Yash, oldest first (includes quick commands Jarvis "
+                          "handled itself; use it for what 'that', 'it' or a one word reply like 'smaller' means):\n"
+                          + recent + "\n[/context]\n\n" + prompt)
         except Exception:
             pass
-    cmd = [claude, "-p", "--output-format", "stream-json" if on_text else "json", "--append-system-prompt",
-           SPOKEN_STYLE + " Local time now: " + now + "." + extra, "--allowedTools", tools]
+    cmd = claude_cmd(claude) + ["-p", "--output-format", "stream-json" if on_text else "json", "--append-system-prompt",
+           one_line(SPOKEN_STYLE + " Local time now: " + now + "." + extra), "--allowedTools", tools]
     if on_text:
         cmd += ["--verbose", "--include-partial-messages"]
     if model or CLAUDE_MODEL:
