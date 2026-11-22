@@ -49,6 +49,7 @@ import jarvis_orb
 import jarvis_phone
 import jarvis_room
 import jarvis_wake
+import jarvis_chats
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -126,7 +127,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -825,7 +826,7 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_memory.route_memory(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1397,8 +1398,9 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
                   "follow up on one with: claude -p --cloud <session id> --output-format json (message on stdin); pull one "
                   "down with: claude --teleport <id>; open a local session in a new terminal window; drive a session from his "
                   "phone with: claude --remote-control. Sessions you start are listed in "
-                  f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. claude.ai chats have no API: open claude.ai/recents in the "
-                  "browser and read the screen with jarvis_ctl when he asks about them.")
+                  f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. His claude.ai chats (from his data export) are notes in his "
+                  "vault under Claude/Chats, one per chat: Grep them when he asks what he talked to Claude about. For a chat "
+                  "newer than the export, open claude.ai/recents in the browser and read the screen with jarvis_ctl.")
     if ACTIVITY:
         try:
             extra += " " + ACTIVITY.context()
@@ -2410,6 +2412,11 @@ class Jarvis:
         if action in ("snap", "maximize", "minimize", "focus", "layout", "keys", "type"):
             jarvis_screen.ScreenControl(say, pc.launch, open_url=pc.open_url).handle(action, arg)
             return True
+        if action.startswith("chats_") and action != "chats_open":
+            ch = getattr(self, "chats", None) or jarvis_chats.Chats(say, lambda pr: ask_claude(pr, None, self.claude, tools="Read")[0],
+                                                                   vault=self.brain.vault if self.brain else None, open_url=pc.open_url)
+            ch.handle(action, arg)
+            return True
         if action.startswith(("cc_", "chat_", "claude_", "cloud_")) or action == "chats_open":
             done = jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude()).handle(action, arg)
             if done is False and action == "cloud_send":
@@ -2633,6 +2640,9 @@ def main():
     MODS = load_mods()
     CONVOS = jarvis_memory.Conversations(vault=BRAIN.vault)
     Speaker.on_said = lambda text: CONVOS.add("jarvis", text)
+    jarvis.chats = jarvis_chats.Chats(speaker.say, lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read")[0], vault=BRAIN.vault,
+                                      remember=BRAIN.vault.remember, open_url=jarvis.pc.open_url)
+    threading.Thread(target=jarvis.chats.watch, daemon=True).start()
 
     def daily_digest():
         """Once a day: lasting facts from yesterday's conversations go into Memory.md."""
