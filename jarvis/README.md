@@ -308,6 +308,19 @@ Export from Fusion, Onshape or SolidWorks as STEP to keep every part separate.
 Mouse works too: drag to spin, right drag to slide, scroll to zoom, click a part, keys E W H C R and space.
 You can also drag a file onto the window.
 
+## Cutting Jarvis off
+
+While Jarvis is talking, say the wake word (or double clap) and it stops mid sentence and listens to you right
+away. "Hey jarvis, stop" just stops it. An open palm or a fist to the camera also stops it. If it cuts itself
+off by accident, raise `BARGE_THRESHOLD` (0.7) in `local_settings.py`.
+
+## Renaming it
+
+`ASSISTANT_NAME` changes what it calls itself. The wake word is separate: the built in ones are hey_jarvis, alexa,
+hey_mycroft and hey_rhasspy. For any other name, train a free custom wake word with openWakeWord's training
+notebook (Google Colab, about an hour, no recordings needed), put the .onnx file in C:\jarvis and set
+`WAKE_WORD = r"C:\jarvis\hey_atlas.onnx"`.
+
 ## Full access
 
 Jarvis's Claude can do anything on this PC by voice: run commands, change files and settings, fix things itself

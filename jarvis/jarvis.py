@@ -60,7 +60,9 @@ MIC_NAME_HINTS = ["focusrite", "scarlett"]
 MIC_CHANNEL = 0              # Focusrite input 1 = 0, input 2 = 1
 MIC_GAIN = 1.0               # software boost for a quiet mic (your Scarlett likes about 6)
 SPEAKER_DEVICE = None        # None = Windows default output
-WAKE_WORD = "hey_jarvis"     # built in options: hey_jarvis, alexa, hey_mycroft
+ASSISTANT_NAME = "Jarvis"    # what it calls itself. The wake word is separate (below)
+WAKE_WORD = "hey_jarvis"     # built in: hey_jarvis, alexa, hey_mycroft, hey_rhasspy. Or the path to your own .onnx wake word model
+BARGE_THRESHOLD = 0.7        # how sure it must be it heard the wake word to cut itself off while talking (higher = fewer accidents)
 WAKE_THRESHOLD = 0.5         # raise to 0.6 or 0.7 if it triggers by accident
 WHISPER_MODEL = "large-v3-turbo"   # "small.en" if your GPU setup gives you trouble
 VOICE = "am_michael"         # kokoro voices: am_michael, am_adam, af_heart, bf_emma ...
@@ -122,6 +124,7 @@ jarvis_phone.NTFY_TOPIC = jarvis_phone.NTFY_TOPIC or NTFY_TOPIC
 if "CONNECTOR_TOOLS" in _mine and "ALLOWED_TOOLS" not in _mine:
     ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 
+WAKE_KEY = os.path.splitext(os.path.basename(WAKE_WORD))[0] if WAKE_WORD.endswith(".onnx") else WAKE_WORD
 RATE = 16000
 FRAME = 1280   # 80 ms, what openWakeWord expects
 STATE_FILE = os.path.join(WORKDIR, ".session.json")
@@ -129,7 +132,7 @@ SPOTIFY_FILE = os.path.join(WORKDIR, ".spotify.json")
 IS_WIN = sys.platform == "win32"
 
 SPOKEN_STYLE = (
-    "You are Jarvis, Yash's voice assistant. Everything you write is read aloud by a "
+    f"You are {ASSISTANT_NAME}, Yash's voice assistant. Everything you write is read aloud by a "
     "text to speech engine, so answer in plain spoken sentences. No markdown, no lists, "
     "no code blocks, no URLs, no emoji. Keep it under 80 words unless he asks for detail. "
     "For his calendar and email use the Google Calendar and Gmail tools. Times are Pacific."
@@ -323,6 +326,35 @@ class Speaker:
             log(f"kokoro unavailable ({e}); using Windows voice")
             import pyttsx3
             self.engine = pyttsx3.init()
+        self.stop_flag = threading.Event()
+        self.speaking = False
+        self.interrupted = False
+        self.watch = None   # watch(frame) -> True cuts Jarvis off mid sentence. Set in main: wake word or a double clap
+
+    def stop(self):
+        """Stop talking right now."""
+        self.stop_flag.set()
+        try:
+            _sd().stop()
+        except Exception:
+            pass
+
+    def _watch(self):
+        """While Jarvis talks, keep listening for the wake word or a double clap, and stop talking if you do."""
+        while self.speaking and not self.stop_flag.is_set():
+            try:
+                frame = audio_q.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            try:
+                if self.watch(frame):
+                    log("interrupted")
+                    self.interrupted = True
+                    self.stop()
+                    return
+            except Exception as e:
+                log(f"interrupt watch: {e}")
+                return
 
     capture = threading.local()   # a request from your phone collects the answer here instead of speaking
 
@@ -332,10 +364,16 @@ class Speaker:
             cap.append(re.sub(r"[*#`_>\[\]]", "", text))
             if not getattr(Speaker.capture, "speak", False):
                 return
+        self.stop_flag.clear()
+        self.interrupted = False
+        self.speaking = True
         jarvis_orb.send("speaking")
+        if self.watch and threading.current_thread() is threading.main_thread():
+            threading.Thread(target=self._watch, daemon=True).start()
         try:
             self._say(text)
         finally:
+            self.speaking = False
             jarvis_orb.send("idle")
 
     def _say(self, text):
@@ -345,8 +383,15 @@ class Speaker:
         print("  >>", text, flush=True)
         if self.kokoro:
             for _, _, audio in self.kokoro(text, voice=VOICE):
+                if self.stop_flag.is_set():
+                    break
                 sd.play(audio, 24000, device=SPEAKER_DEVICE)
-                sd.wait()
+                end = time.time() + len(audio) / 24000 + 0.05
+                while time.time() < end and not self.stop_flag.is_set():
+                    time.sleep(0.02)
+                if self.stop_flag.is_set():
+                    sd.stop()
+                    break
         else:
             self.engine.say(text)
             self.engine.runAndWait()
@@ -608,12 +653,14 @@ def route(text):
     """Turn a spoken line into a local command, or None to send it to Claude.
     Returns (action, arg). Only actions from this list can ever run by voice."""
     t = re.sub(r"[^\w\s']", " ", text.lower())
-    t = re.sub(r"^\s*(hey\s+)?jarvis\s*", "", t)
+    t = re.sub(r"^\s*(hey\s+)?(jarvis|" + re.escape(ASSISTANT_NAME.lower()) + r")\s*", "", t)
     t = re.sub(r"\b(please|can you|could you|for me|real quick)\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
 
     if re.fullmatch(r"(?:test|check) (?:the |my )?(?:computer|pc|screen) control|run (?:a )?(?:self ?test|diagnostics?)|(?:test|check) yourself", t):
         return ("test_pc", None)
+    if re.fullmatch(r"(?:ok(?:ay)? )?(?:stop|stop talking|shut up|be quiet|quiet|enough|that's enough|hush|nevermind|never mind that)", t):
+        return ("hush", None)
     if re.fullmatch(r"(go to sleep|shut down jarvis)", t) or t == "go to sleep":
         return ("sleep", None)
     if re.fullmatch(r"(yes|yeah|yep|do it|send it|confirm|go ahead)", t):
@@ -1054,6 +1101,9 @@ class Jarvis:
         """A hand gesture from the camera."""
         log(f"gesture: {name}")
         pc = self.pc
+        if self.speaker.speaking and name in ("palm", "fist"):
+            self.speaker.stop()   # hand up = stop talking
+            return
         if name == "peace":
             self.listen_requested = True
         elif name == "palm":
@@ -1289,6 +1339,9 @@ class Jarvis:
                 say("Cancelled.")
             return True
         self.pending = None
+        if action == "hush":
+            self.pending = None
+            return True
         if action == "test_pc":
             say("Testing computer control. I'll open Notepad and move it around. Don't touch the mouse for a few seconds.")
             res = jarvis_screen.selftest(log=log, launch=pc.launch)
@@ -1667,7 +1720,8 @@ def levels():
     """Live meter: talk, clap, say 'hey jarvis' and watch the numbers to tune the settings at the top."""
     from openwakeword.model import Model
     from openwakeword.utils import download_models
-    download_models([WAKE_WORD])
+    if not WAKE_WORD.endswith(".onnx"):
+        download_models([WAKE_WORD])
     wake = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
     claps = ClapDetector()
     mic, _ = resolve_devices()
@@ -1677,7 +1731,7 @@ def levels():
             f = audio_q.get()
             peak, rms = frame_stats(f)
             crest = peak / max(rms, 1e-6)
-            score = wake.predict(f).get(WAKE_WORD, 0)
+            score = wake.predict(f).get(WAKE_KEY, 0)
             double = claps.feed(f)
             bar = "#" * int(peak * 40)
             tag = "  << DOUBLE CLAP" if double else "  < clap" if peak >= CLAP_LEVEL and crest >= CLAP_CREST else ""
@@ -1739,7 +1793,8 @@ def main():
 
     from openwakeword.model import Model
     from openwakeword.utils import download_models
-    download_models([WAKE_WORD])
+    if not WAKE_WORD.endswith(".onnx"):
+        download_models([WAKE_WORD])
     wake = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
 
     jarvis_room.keep_awake()
@@ -1779,6 +1834,12 @@ def main():
     claps = ClapDetector()
     mic, _ = resolve_devices()
 
+    def barge(frame):
+        if CLAP_WAKE and claps.feed(frame):
+            return True
+        return wake.predict(frame).get(WAKE_KEY, 0) >= max(WAKE_THRESHOLD, BARGE_THRESHOLD)
+    speaker.watch = barge
+
     with Mic(mic):
         noise = np.median([np.sqrt(np.mean(audio_q.get().astype(np.float32) ** 2)) for _ in range(25)])
 
@@ -1813,10 +1874,12 @@ def main():
                 continue
             if jarvis.listen_requested:
                 jarvis.listen_requested = False   # peace sign to the camera
-            elif wake.predict(frame).get(WAKE_WORD, 0) < WAKE_THRESHOLD:
+            elif wake.predict(frame).get(WAKE_KEY, 0) < WAKE_THRESHOLD:
                 continue
 
             wake.reset()
+            if speaker.speaking:
+                speaker.stop()
             drain_mic()
             jarvis_orb.send("listening")
             speaker.chime()
@@ -1842,6 +1905,11 @@ def main():
                 jarvis_orb.send("error")
                 speaker.say("Something broke. Check the Jarvis window.")
             jarvis_orb.send("idle")
+            if speaker.interrupted:           # you cut it off: it stops talking and listens to you right away
+                speaker.interrupted = False
+                jarvis.listen_requested = True
+                wake.reset()
+                continue
             drain_mic()                       # don't hear itself
             jarvis.quiet_until = time.time() + 1.0
             wake.reset()
