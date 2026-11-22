@@ -1590,11 +1590,16 @@ class Jarvis:
             return
         log(f"gesture: {name}")
         pc = self.pc
+        if name == "eyes_closed":
+            b = self.brain
+            if b and b.focus_started and not self.speaker.speaking:
+                self.speaker.say("Eyes open, Yash. Stand up for a minute if you need to.")
+            return
         if name in ("dial_up", "dial_down"):
             pc.key("vol_up" if name == "dial_up" else "vol_down", 1)
             return
         custom = load_gesture_map().get(name)
-        if custom and not (name in ("thumbs_up", "thumbs_down") and self.pending):
+        if custom and not (name in ("thumbs_up", "thumbs_down", "nod", "shake") and self.pending):
             log(f"gesture {name} -> {custom}")
             threading.Thread(target=lambda: self.speaker.chime(1480), daemon=True).start()
             threading.Thread(target=self.handle, args=(custom,), daemon=True).start()
@@ -1620,6 +1625,17 @@ class Jarvis:
             if self.pending:
                 with self.lock:
                     self.run("confirm", True)
+        elif name in ("nod", "shake"):
+            if not self.pending:
+                return   # heads move all the time; only an answer to a question counts
+            with self.lock:
+                self.run("confirm", name == "nod")
+        elif name == "both_palms":
+            self.speaker.stop()
+            self.pending = None
+            return
+        elif name in ("wink", "brows"):
+            return   # yours to map: "when I wink, play my focus playlist"
         elif name == "thumbs_down":
             if self.pending:
                 with self.lock:

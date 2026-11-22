@@ -392,6 +392,7 @@ MODELS = {
     "gesture": "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/latest/gesture_recognizer.task",
     "face": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
     "pose": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+    "face_mesh": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task",
     "objects": "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/latest/efficientdet_lite0.tflite",
 }
 
@@ -415,7 +416,7 @@ class Detectors:
         from mediapipe.tasks.python import BaseOptions, vision
         self.mp, self.vision, self.Base = mp, vision, BaseOptions
         V = vision.RunningMode.VIDEO
-        self.hands, self.recognizer, self.last_label, self._cache = None, None, None, (None, None)
+        self.hands, self.recognizer, self.last_label, self._cache, self.last_all = None, None, None, (None, None), []
         if hands and GESTURE_MODEL:
             try:
                 self.recognizer = vision.GestureRecognizer.create_from_options(vision.GestureRecognizerOptions(
@@ -476,9 +477,12 @@ class Detectors:
     def hands_all(self, rgb, ts):
         return [h for h, _ in self._hands(rgb, ts)]
 
-    def hand(self, rgb, ts, roi=None):
-        """The biggest (closest) hand. Its model label is in self.last_label."""
+    def hand(self, rgb, ts, roi=None, keep=None):
+        """The biggest (closest) hand that `keep` accepts. Its model label is in self.last_label."""
         hs = self._hands(rgb, ts, roi)
+        self.last_all = hs
+        if keep:
+            hs = [h for h in hs if keep(h[0])]
         if not hs:
             self.last_label = None
             return None
@@ -495,6 +499,127 @@ class Detectors:
                 base_options=self.Base(model_asset_path=model_path("pose")), running_mode=v.RunningMode.VIDEO))
         r = self.pose.detect_for_video(self._img(rgb), self._ts(ts))
         return [(p.x, p.y) for p in r.pose_landmarks[0]] if r.pose_landmarks else None
+
+
+# ================= face gestures: nod, shake, wink, eyebrows (pure, tested) =================
+FACE_GESTURES = True         # head nods and shakes answer yes or no; winks and raised eyebrows are yours to map
+
+
+class HeadReader:
+    """Feed it head angles (degrees) and face muscle scores (0 to 1, from MediaPipe's face mesh) about 15 times a
+    second. Returns "nod", "shake", "wink", "brows" or "eyes_closed" when one happens."""
+    def __init__(self, clock=time.time):
+        self.clock = clock
+        self.hist = deque()          # (t, yaw, pitch)
+        self.last = {}               # event -> last time fired
+        self.wink_since = self.brows_since = self.closed_since = None
+
+    def _fire(self, name, now, gap):
+        if now - self.last.get(name, -1e9) < gap:
+            return None
+        self.last[name] = now
+        return name
+
+    @staticmethod
+    def _swings(vals, step):
+        """How many times the movement reverses direction (ignoring wobbles smaller than step)."""
+        turns, direction, anchor = 0, 0, vals[0]
+        for v in vals[1:]:
+            d = v - anchor
+            if abs(d) < step:
+                continue
+            sgn = 1 if d > 0 else -1
+            if direction and sgn != direction:
+                turns += 1
+            direction, anchor = sgn, v
+        return turns
+
+    def feed(self, yaw, pitch, b):
+        now = self.clock()
+        self.hist.append((now, yaw, pitch))
+        while self.hist and now - self.hist[0][0] > 1.3:
+            self.hist.popleft()
+        ys, ps = [h[1] for h in self.hist], [h[2] for h in self.hist]
+        if len(ys) >= 6:
+            yr, pr = max(ys) - min(ys), max(ps) - min(ps)
+            if pr > 9 and yr < pr * 0.6 and self._swings(ps, 3.0) >= 2:
+                e = self._fire("nod", now, 1.6)
+                if e:
+                    self.hist.clear()
+                    return e
+            if yr > 12 and pr < yr * 0.6 and self._swings(ys, 4.0) >= 2:
+                e = self._fire("shake", now, 1.6)
+                if e:
+                    self.hist.clear()
+                    return e
+        l, r = b.get("eyeBlinkLeft", 0), b.get("eyeBlinkRight", 0)
+        if (l > 0.55 and r < 0.25) or (r > 0.55 and l < 0.25):
+            self.wink_since = self.wink_since or now
+        else:
+            if self.wink_since and 0.18 <= now - self.wink_since <= 1.2:
+                self.wink_since = None
+                e = self._fire("wink", now, 1.5)
+                if e:
+                    return e
+            self.wink_since = None
+        if l > 0.6 and r > 0.6:
+            self.closed_since = self.closed_since or now
+            if now - self.closed_since > 4.0:
+                e = self._fire("eyes_closed", now, 60)
+                if e:
+                    return e
+        else:
+            self.closed_since = None
+        brow = max(b.get("browInnerUp", 0), (b.get("browOuterUpLeft", 0) + b.get("browOuterUpRight", 0)) / 2)
+        if brow > 0.6:
+            self.brows_since = self.brows_since or now
+            if now - self.brows_since > 0.45:
+                self.brows_since = now + 10   # once per raise
+                e = self._fire("brows", now, 2.0)
+                if e:
+                    return e
+        else:
+            self.brows_since = None
+        return None
+
+
+def head_angles(matrix):
+    """(yaw, pitch) in degrees from MediaPipe's 4x4 face transform."""
+    m = [[matrix[i][j] for j in range(3)] for i in range(3)]
+    pitch = math.degrees(math.atan2(m[2][1], m[2][2]))
+    yaw = math.degrees(math.atan2(-m[2][0], math.hypot(m[2][1], m[2][2])))
+    return yaw, pitch
+
+
+class FaceSense:
+    """MediaPipe's face mesh: 478 points, 52 muscle scores and head angle for the face it's following."""
+    def __init__(self):
+        import mediapipe as mp
+        from mediapipe.tasks.python import BaseOptions, vision
+        self.mp, self.ts = mp, 0
+        self.lm = vision.FaceLandmarker.create_from_options(vision.FaceLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=model_path("face_mesh")), running_mode=vision.RunningMode.VIDEO,
+            num_faces=3, output_face_blendshapes=True, output_facial_transformation_matrixes=True,
+            min_face_detection_confidence=0.5, min_face_presence_confidence=0.5, min_tracking_confidence=0.5))
+
+    def read(self, rgb, near=None):
+        """(yaw, pitch, scores) for the face closest to `near` (x, y shares of the picture, e.g. you), else the biggest."""
+        self.ts = max(int(time.time() * 1000), self.ts + 1)
+        r = self.lm.detect_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=rgb), self.ts)
+        if not r.face_landmarks:
+            return None
+        def center(i):
+            pts = r.face_landmarks[i]
+            xs, ys = [p.x for p in pts], [p.y for p in pts]
+            return (sum(xs) / len(xs), sum(ys) / len(ys), max(xs) - min(xs))
+        cs = [center(i) for i in range(len(r.face_landmarks))]
+        if near:
+            i = min(range(len(cs)), key=lambda k: (cs[k][0] - near[0]) ** 2 + (cs[k][1] - near[1]) ** 2)
+        else:
+            i = max(range(len(cs)), key=lambda k: cs[k][2])
+        yaw, pitch = head_angles(r.facial_transformation_matrixes[i]) if r.facial_transformation_matrixes else (0.0, 0.0)
+        scores = {c.category_name: c.score for c in r.face_blendshapes[i]} if r.face_blendshapes else {}
+        return yaw, pitch, scores
 
 
 class ObjectFinder:
@@ -601,6 +726,8 @@ class Vision:
         if self.faceid:
             threading.Thread(target=self._faces_loop, daemon=True).start()
         threading.Thread(target=self._phone_loop, daemon=True).start()
+        if FACE_GESTURES:
+            threading.Thread(target=self._head_loop, daemon=True).start()
         n, face_seen, pinch_was = 0, False, False
         while True:
             if not self.enabled:
@@ -649,7 +776,11 @@ class Vision:
                     ctl, exe = self.touch
                     exe.run(ctl.feed(det.hands_all(rgb, ts)))
                     continue
-                lm = det.hand(rgb, ts, self._zoom_roi())
+                lm = det.hand(rgb, ts, self._zoom_roi(), keep=self.keep_hand)
+                g2 = self._two_hands(det.last_all)
+                if g2 and self.on_gesture:
+                    threading.Thread(target=self.on_gesture, args=(g2,), daemon=True).start()
+                    self._orb(g2)
             except Exception as e:
                 _log(f"frame: {e}")
                 time.sleep(0.5)
@@ -684,6 +815,21 @@ class Vision:
             saved = self.faceid.book.add(name, feats[2:] if len(feats) > 5 else feats) if self.faceid and feats else None
             done(saved, len(feats))
 
+    def _two_hands(self, hands):
+        """Both open palms up toward the camera, held for most of a second: "both_palms" (stop)."""
+        now = time.time()
+        both = len(hands) >= 2 and sum(1 for pts, lab in hands if (lab == "palm" or (lab is None and pose_name(pts) == "palm"))
+                                       and self.keep_hand(pts)) >= 2
+        if not both:
+            self._both_since = None
+            return None
+        self._both_since = getattr(self, "_both_since", None) or now
+        if now - self._both_since > 0.7 and now - getattr(self, "_both_fired", 0) > 3:
+            self._both_fired = now
+            self.reader.cur, self.reader.fired_cur = "palm", True   # so one palm doesn't also count as play/pause
+            return "both_palms"
+        return None
+
     def _orb(self, g):
         """Live feedback in the corner orb: it fills up while you hold a gesture and flashes when one fires."""
         try:
@@ -697,6 +843,55 @@ class Vision:
                 self._orb_t = now
         except Exception:
             pass
+
+    def _head_loop(self):
+        """Face mesh about 15 times a second on your face only: nods, shakes, winks, raised eyebrows."""
+        import cv2
+        try:
+            fs = FaceSense()
+            _log("face mesh on (nod yes, shake no, wink, eyebrows)")
+        except Exception as e:
+            _log(f"face mesh off: {e}")
+            return
+        reader = HeadReader()
+        while True:
+            time.sleep(0.066)
+            try:
+                f = getattr(self, "last_frame", None)
+                if f is None or not self.enabled or self.enroll or time.time() - getattr(self, "last_frame_t", 0) > 2 \
+                        or self.seconds_since_face() > 10:
+                    continue
+                h, w = f.shape[:2]
+                k = min(1.0, 960 / w)
+                small = cv2.resize(f, (int(w * k), int(h * k))) if k < 1 else f
+                me = self.owner_center()
+                got = fs.read(cv2.cvtColor(small, cv2.COLOR_BGR2RGB), near=me)
+                if got:
+                    self.head = got
+                    e = reader.feed(*got)
+                    if e and self.on_gesture:
+                        threading.Thread(target=self.on_gesture, args=(e,), daemon=True).start()
+                        self._orb(e)
+            except Exception as e:
+                _log(f"face mesh: {e}")
+                time.sleep(2)
+
+    def owner_center(self):
+        """Where your face is in the picture (x, y shares), when it knows you and sees you."""
+        for cx, cy, w, name in getattr(self, "faces_norm", []):
+            if name == getattr(self, "owner_name", "yash"):
+                return (cx, cy)
+        return None
+
+    def keep_hand(self, pts):
+        """With more than one person in view, only hands that belong to you count (the hand nearest your face).
+        Until it knows your face, every hand counts."""
+        fl = [f for f in getattr(self, "faces_norm", []) if time.time() - getattr(self, "faces_norm_t", 0) < 2]
+        if len(fl) < 2 or not any(f[3] == getattr(self, "owner_name", "yash") for f in fl):
+            return True
+        wx, wy = pts[WRIST]
+        owner_of = min(fl, key=lambda f: (abs(wx - f[0]) / max(f[2], 1e-3)) + 0.3 * max(0.0, f[1] - wy) / max(f[2], 1e-3))
+        return owner_of[3] == getattr(self, "owner_name", "yash")
 
     phone_watch = None    # set by Jarvis: returns True while a focus session runs
     on_phone = None       # called with the number of seconds the phone has been out
@@ -776,6 +971,9 @@ class Vision:
             t = next((t for t in trs if t.get("name") == jarvis_faces.OWNER), None)
             if t is None and not (getattr(self, "zoom_on", ZOOM) and jarvis_faces.OWNER in self.faceid.book.people):
                 t = max(trs, key=lambda t: t["w"])
+        self.owner_name = jarvis_faces.OWNER
+        self.faces_norm = [(x["cx"] / W, x["cy"] / H, x["w"] / W, x.get("name") if x.get("sure") else None) for x in trs]
+        self.faces_norm_t = time.time()
         if t is not None:
             self.focus = ((t["cx"] - t["w"] / 2) / W, (t["cy"] - t["h"] / 2) / H, t["w"] / W, t["h"] / H, time.time())
         self.last_seen_names = [n for n, _, _ in found]
@@ -969,6 +1167,9 @@ GESTURE_WORDS = [
     (r"peace(?: sign)?|(?:a )?v(?: sign)?|two fingers", "peace"), (r"(?:an )?open (?:palm|hand)|(?:a )?palm|high five", "palm"),
     (r"swipe left", "swipe_left"), (r"swipe right", "swipe_right"), (r"(?:a )?wave", "wave"),
     (r"point(?:ing)? up", "point_up"), (r"point(?:ing)? down", "point_down"),
+    (r"(?:a )?wink", "wink"), (r"(?:a )?nod|nod my head", "nod"), (r"(?:a )?head shake|shake my head", "shake"),
+    (r"raise my eyebrows|(?:raised? )?eyebrows|eyebrow raise", "brows"),
+    (r"both (?:palms|hands)(?: up)?|two palms|hands up", "both_palms"),
 ]
 _GW = "|".join(f"(?:{w})" for w, _ in GESTURE_WORDS)
 
@@ -983,7 +1184,7 @@ def gesture_from_words(w):
 
 def route_gesture_map(t):
     """'when I do the rock sign, open Spotify', 'make thumbs down lock in for an hour', 'reset my gestures'."""
-    m = re.fullmatch(rf"(?:when(?:ever)? i (?:do|make|show(?: you)?|throw(?: up)?|hold up) |make |map |set |use )(?:a |an |the |my )?({_GW})"
+    m = re.fullmatch(rf"(?:when(?:ever)? i (?:do |make |show(?: you)? |throw(?: up)? |hold up |put )?|make |map |set |use )(?:a |an |the |my )?({_GW})"
                      rf"(?: gesture| sign)?(?: to| do| mean| should| it should| then| you should| for)*(?: do| be)? (.+)", t)
     if m:
         g = gesture_from_words(m.group(1))
@@ -1041,7 +1242,7 @@ def route_vision(t):
 
 
 GESTURE_HELP = ("Peace sign and I start listening. Open palm, play or pause. Swipe right or left for the next or last song. "
-                "Point up or down for volume, or make an OK sign and move it up or down like a dial. Thumbs up says yes, thumbs down says no. A fist mutes. Wave to wake the room. "
+                "Point up or down for volume, or make an OK sign and move it up or down like a dial. Nod for yes, shake your head for no. Both palms up stops me. Thumbs up says yes, thumbs down says no. A fist mutes. Wave to wake the room. "
                 "Say touch mode to control the whole screen with your hands.")
 
 
