@@ -1,9 +1,9 @@
 """
 Puts what Jarvis is doing on HQ (the iPad and every screen with HQ open).
 
-HQ lives inside claude.ai, so it can't reach this PC. Instead Jarvis writes one small document,
-jarvis/status, into HQ's own database (through Claude Code's ArtifactData tool), and HQ shows it in the
-JARVIS cell of the top strip and the Jarvis list in the sessions panel.
+HQ lives inside claude.ai, so it can't reach this PC. Instead Jarvis keeps one tiny text file in your Google Drive,
+"Jarvis status (for HQ)" (through Claude Code's Google Drive connector), replacing it on each update, and HQ reads
+the newest one into the JARVIS cell of the top strip and the Jarvis list in the sessions panel.
 
 What goes up: a one line headline ("Locked in, 32 min left", "In the workshop: drone frame"), the last few
 log lines from today ("16:05 Training: run 3 mi"), focus progress, camera on or off, and when it was sent.
@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------- settings (override in local_settings.py) ----------------
 HQ_SYNC = True
-HQ_SYNC_URL = "https://claude.ai/artifact/9ZQx1xYZwPMRDhDuoT5oVE"
+DRIVE_TOOLS = "mcp__claude_ai_Google_Drive"   # the connector's tools in Claude Code (check with: claude mcp list)
 HQ_SYNC_MIN_GAP = 120        # seconds between writes
 HQ_SYNC_HEARTBEAT = 900      # write at least this often while Jarvis runs
 HQ_SYNC_MODEL = "haiku"      # a small fast model is plenty for one database write
@@ -120,27 +120,24 @@ class HQSync:
             threading.Thread(target=self.loop, daemon=True).start()
         return self
 
-    # the actual write: Claude Code's ArtifactData tool, as you
+    # the actual write: a tiny text file in your Google Drive, through Claude Code's Google Drive connector
     def _claude_write(self, st):
         claude = getattr(self.j, "claude", None)
         if not claude:
             return False
-        path = os.path.join(HERE, ".cache", "hq_status.json")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(st, f)
-        prompt = (f"Use the ArtifactData tool on the artifact {HQ_SYNC_URL}. First: action get, collection 'jarvis', doc_id 'status'. "
-                  f"Then: action set, collection 'jarvis', doc_id 'status', file_path '{path}', with if_version set to the version "
-                  "the get returned (leave if_version out if the get found no document). If the set says the version changed, get "
-                  "again and retry once. Reply with only OK, or the error message.")
-        cmd = [claude, "-p", "--output-format", "json", "--model", HQ_SYNC_MODEL, "--allowedTools", "ArtifactData"]
+        body = json.dumps(st, separators=(",", ":"))
+        prompt = ("Use the Google Drive tools. Step 1: create_file with title 'Jarvis status (for HQ)', contentMimeType 'text/plain', "
+                  "disableConversionToGoogleType true, and textContent exactly this, character for character:\n" + body + "\n"
+                  "Step 2: search_files with query \"title = 'Jarvis status (for HQ)' and trashed = false\", excludeContentSnippets true, "
+                  "and trash_file every result except the file you just created. Reply with only OK, or the error.")
+        cmd = [claude, "-p", "--output-format", "json", "--model", HQ_SYNC_MODEL, "--allowedTools", DRIVE_TOOLS]
         try:
-            r = subprocess.run(cmd, cwd=HERE, input=prompt, capture_output=True, text=True, encoding="utf-8", timeout=120,
+            r = subprocess.run(cmd, cwd=HERE, input=prompt, capture_output=True, text=True, encoding="utf-8", timeout=180,
                                creationflags=0x08000000 if IS_WIN else 0)
-            out = json.loads(r.stdout or "{}").get("result", "") if r.stdout.strip().startswith("{") else (r.stderr or r.stdout)
+            out = json.loads(r.stdout).get("result", "") if r.stdout.strip().startswith("{") else (r.stderr or r.stdout)
         except Exception as e:
             _log(f"write failed: {e}")
             return False
-        ok = out.strip().upper().startswith("OK")
-        _log(("sent: " + st["headline"]) if ok else f"write failed: {out[:200]}")
+        ok = str(out).strip().upper().startswith("OK")
+        _log(("sent: " + st["headline"]) if ok else f"write failed: {str(out)[:200]}")
         return ok

@@ -262,10 +262,14 @@ class Desk:
             _log(f"desk camera off: {e}")
             self.running = False
             return
-        cap = cv2.VideoCapture(DESK_CAMERA_INDEX, cv2.CAP_DSHOW if IS_WIN else 0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, DESK_CAMERA_SIZE[0])
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DESK_CAMERA_SIZE[1])
-        if not cap.isOpened():
+        import jarvis_vision
+        mon = getattr(getattr(self, "vision", None), "camera_index", jarvis_vision.CAMERA_INDEX)
+        cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX, avoid=mon)
+        if cap:
+            _log(f"desk camera is camera {idx}")
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, DESK_CAMERA_SIZE[0])
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DESK_CAMERA_SIZE[1])
+        if not cap:
             _log(f"no desk camera at index {DESK_CAMERA_INDEX}")
             self.say("I can't find the desk camera. Plug it in, or set DESK CAMERA INDEX.")
             self.running = False

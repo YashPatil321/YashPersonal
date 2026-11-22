@@ -54,6 +54,7 @@ import jarvis_desk
 import jarvis_faces
 import jarvis_hqsync
 import jarvis_touch
+import jarvis_uia
 
 # ---------------- settings you might change ----------------
 MIC_DEVICE = None            # None = find the Focusrite by name. Or put a number from --devices
@@ -683,7 +684,7 @@ def route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) \
+    cc = cc or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
     if cc:
@@ -1068,6 +1069,11 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False):
         except Exception:
             extra = ""
         tools += ",Read,Grep,Glob"   # read only, so he can ask about his notes
+    if full:
+        extra += (f" You have full access to Yash's Windows PC. To see or control the screen (windows, tabs, buttons, typing, "
+                  f"shortcuts, screenshots) run: \"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" help. "
+                  "Take a screenshot with it and read the image when you need to see something. Do what he asks; don't tell him "
+                  "to do it himself.")
     cmd = [claude, "-p", "--output-format", "json", "--append-system-prompt", SPOKEN_STYLE + " Local time now: " + now + "." + extra,
            "--allowedTools", tools]
     if BRAIN:
@@ -1406,6 +1412,9 @@ class Jarvis:
                 say("Cancelled.")
             return True
         self.pending = None
+        if action in ("tabs_list", "tab_switch", "tab_close", "tabs_close_others", "ui_click"):
+            jarvis_uia.handle(action, arg, say)
+            return True
         if action == "browser":
             kind, site = arg
             new = ("edge://newtab/" if BROWSER == "edge" else "chrome://newtab/")

@@ -24,10 +24,14 @@ import time
 from collections import deque
 
 IS_WIN = sys.platform == "win32"
+# MediaPipe's engine prints a wall of INFO lines on start. Quiet it before it loads.
+os.environ.setdefault("GLOG_minloglevel", "2")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+os.environ.setdefault("ABSL_MIN_LOG_LEVEL", "2")
 
 # ---------------- settings (override in local_settings.py) ----------------
 VISION = True                # on by default. No camera? It checks again every minute, so plugging one in just works
-CAMERA_INDEX = 0             # 0 = first webcam. Try 1 if you have more than one
+CAMERA_INDEX = 0             # the camera to try first. If it isn't there, Jarvis tries the others and uses the first that works
 CAMERA_SIZE = (640, 360)
 GESTURES = True
 AIR_MOUSE = False            # index finger drives the cursor, pinch clicks. Fun, but off by default
@@ -333,12 +337,13 @@ class Vision:
             return
         warned = False
         while True:
-            cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW if IS_WIN else 0)
-            if cap.isOpened():
+            cap, idx = open_camera(CAMERA_INDEX, avoid=desk_camera_index())
+            if cap:
+                self.camera_index = idx
+                _log(f"camera {idx} works" + ("" if idx == CAMERA_INDEX else f" (camera {CAMERA_INDEX} didn't, set CAMERA_INDEX = {idx} to skip the search)"))
                 break
-            cap.release()
             if not warned:
-                _log(f"no camera at index {CAMERA_INDEX} yet, checking every minute")
+                _log("no working camera yet (tried 0 to 5). Is another app using it, or is it unplugged? Checking every minute")
                 warned = True
             time.sleep(60)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_SIZE[0])
@@ -464,16 +469,47 @@ class Vision:
             u.mouse_event(0x0004, 0, 0, 0, 0)
 
 
+def desk_camera_index():
+    try:
+        import jarvis_desk
+        return jarvis_desk.DESK_CAMERA_INDEX
+    except Exception:
+        return None
+
+
+def open_camera(first=0, avoid=None, tries=6):
+    """The first camera that actually gives a picture: `first`, then 0 to 5, through both of Windows' camera drivers.
+    Returns (capture, index) or (None, None). Skips `avoid` (the desk camera) unless it's the only one."""
+    import cv2
+    backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF] if IS_WIN else [0]
+    order = [first] + [i for i in range(tries) if i != first]
+    order = [i for i in order if i != avoid] + ([avoid] if avoid is not None and avoid in order else [])
+    for i in order:
+        for be in backends:
+            cap = cv2.VideoCapture(i, be)
+            if cap.isOpened():
+                ok = False
+                for _ in range(5):   # opened isn't enough: it has to deliver a frame
+                    ok, _f = cap.read()
+                    if ok:
+                        break
+                    time.sleep(0.1)
+                if ok:
+                    return cap, i
+            cap.release()
+    return None, None
+
+
 def grab_frame(path, index=None):
     """One picture from the webcam, when the camera loop isn't running. Returns the path, or None."""
     try:
         import cv2
     except ImportError:
         return None
-    cap = cv2.VideoCapture(CAMERA_INDEX if index is None else index, cv2.CAP_DSHOW if IS_WIN else 0)
+    cap, _ = open_camera(CAMERA_INDEX if index is None else index, avoid=desk_camera_index())
+    if not cap:
+        return None
     try:
-        if not cap.isOpened():
-            return None
         frame = None
         for _ in range(8):   # the first frames are often dark while the camera adjusts
             ok, f = cap.read()

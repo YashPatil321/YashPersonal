@@ -313,7 +313,16 @@ You can also drag a file onto the window.
 HQ's top strip has a JARVIS cell: what Jarvis is doing right now ("Locked in, 32 min left", "In the workshop: drone
 frame", "Touch mode"), focus progress, whether the camera is off, and when it last checked in. The sessions panel
 shows the last few things from today's log. Mail, notes, journal and anything private never go up, and in guest
-mode only "Guest mode" does. Jarvis writes this through Claude Code (`jarvis_hqsync.py`), at most every 2 minutes.
+mode only "Guest mode" does. Jarvis keeps it in one small text file in your Google Drive, "Jarvis status (for HQ)",
+replaced on each update (at most every 2 minutes), and HQ reads it. Don't delete that file; Jarvis remakes it anyway.
+
+## Full screen control
+
+Built in, instant: "close the YouTube tab", "close all YouTube tabs", "close the other tabs", "switch to the Gmail
+tab", "what tabs do I have open", "click sign in", "click the play button", "close this window", "zoom in",
+"go back", plus everything in the screen control section. Anything else goes to Claude, which with full access
+drives the PC itself through `jarvis_ctl.py` (windows, tabs, buttons by name, keys, typing, clicks, screenshots).
+Try it yourself: `python jarvis_ctl.py help`.
 
 ## The camera, by voice
 

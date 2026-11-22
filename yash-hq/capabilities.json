@@ -10,18 +10,21 @@
   },
   "user": {},
   "sample": {},
+  "room": {},
   "mcp": {
     "servers": [
       {
         "server": "Google Calendar",
         "tools": [
-          "list_events"
+          "list_events",
+          "create_event"
         ]
       },
       {
         "server": "Gmail",
         "tools": [
-          "search_threads"
+          "search_threads",
+          "get_thread"
         ]
       },
       {
@@ -30,8 +33,20 @@
           "business_overview",
           "today"
         ]
+      },
+      {
+        "server": "Claude Code Remote",
+        "tools": [
+          "list_sessions"
+        ]
+      },
+      {
+        "server": "Google Drive",
+        "tools": [
+          "search_files",
+          "read_file_content"
+        ]
       }
     ]
-  },
-  "room": {}
+  }
 }

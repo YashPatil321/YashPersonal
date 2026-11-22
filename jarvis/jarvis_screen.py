@@ -65,8 +65,11 @@ KEYS = {   # spoken -> virtual key chord
     "scroll down": ["NEXT"], "page down": ["NEXT"], "scroll up": ["PRIOR"], "page up": ["PRIOR"],
     "screenshot": ["LWIN", "SHIFT", "S"], "show desktop": ["LWIN", "D"], "task view": ["LWIN", "TAB"],
     "dictation": ["CONTROL", "LWIN", "SPACE"],   # Wispr Flow hands free
+    "close window": ["MENU", "F4"], "close this window": ["MENU", "F4"], "switch window": ["MENU", "TAB"],
+    "fullscreen": ["F11"], "zoom in": ["CONTROL", "OEM_PLUS"], "zoom out": ["CONTROL", "OEM_MINUS"], "reset zoom": ["CONTROL", "0"],
+    "go back": ["MENU", "LEFT"], "go forward": ["MENU", "RIGHT"], "address bar": ["CONTROL", "L"], "print": ["CONTROL", "P"],
 }
-VK = {"RETURN": 0x0D, "TAB": 0x09, "ESCAPE": 0x1B, "BACK": 0x08, "SPACE": 0x20, "CONTROL": 0x11, "SHIFT": 0x10, "MENU": 0x12,
+VK = {"F4": 0x73, "F11": 0x7A, "LEFT": 0x25, "RIGHT": 0x27, "OEM_PLUS": 0xBB, "OEM_MINUS": 0xBD, "RETURN": 0x0D, "TAB": 0x09, "ESCAPE": 0x1B, "BACK": 0x08, "SPACE": 0x20, "CONTROL": 0x11, "SHIFT": 0x10, "MENU": 0x12,
       "LWIN": 0x5B, "F5": 0x74, "NEXT": 0x22, "PRIOR": 0x21}
 
 
@@ -96,7 +99,8 @@ def route_screen(t):
         return ("keys", "dictation")
     m = re.fullmatch(r"(?:press|hit|do a?) (.+)|(.+)", t)
     key = (m.group(1) or m.group(2)).strip() if m else ""
-    if key in KEYS and (m.group(1) or key in ("new tab", "close tab", "reopen tab", "next tab", "previous tab", "copy", "paste", "undo", "redo", "select all", "screenshot", "scroll down", "scroll up", "refresh")):
+    if key in KEYS and (m.group(1) or key in ("new tab", "close tab", "reopen tab", "next tab", "previous tab", "copy", "paste", "undo", "redo", "select all", "screenshot", "scroll down", "scroll up", "refresh",
+                                               "close window", "close this window", "switch window", "fullscreen", "zoom in", "zoom out", "reset zoom", "go back", "go forward", "address bar")):
         return ("keys", key)
     m = re.fullmatch(r"(?:type out|type) (.+)", t)
     if m:

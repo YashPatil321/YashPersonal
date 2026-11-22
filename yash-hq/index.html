@@ -1203,8 +1203,22 @@ function renderSessions() {
     const what = s.post_turn_summary?.recent_action || (cls === 'working' ? 'working' : cls === 'blocked' ? 'waiting on you' : 'done');
     return '<li class="' + cls + '"><i></i><span>' + A('https://claude.ai/code/' + encodeURIComponent(s.id), s.title || 'Untitled session') + (s.unread ? '<b class="un" title="unread"></b>' : '') + (s.updated_at ? '<em>' + esc(ago(s.updated_at)) + '</em>' : '') + '<small>' + esc(what) + '</small></span></li>'; }).join('') : '<li class="empty" style="display:block">No Claude Code sessions yet.</li>');
 }
-/* Jarvis on the PC writes jarvis/status into this page's db (what it's doing, today's activity). Shown live. */
-let jarvisSt = null;
+/* Jarvis on the PC keeps a tiny "Jarvis status (for HQ)" text file in Google Drive (what it's doing, today's
+   activity, nothing private). HQ finds the newest one and reads it every 2 minutes. */
+const JDRIVE = ['Google Drive', 'search_files', {query: "title = 'Jarvis status (for HQ)' and trashed = false", orderBy: 'modifiedTime desc', pageSize: 1, excludeContentSnippets: true}];
+let jarvisSt = null, jarvisFile = '';
+function onJarvisFile(e) {
+  if (e.type === 'error') { if (!jarvisSt) { T('fJa', 'Not linked'); T('fJb', /not_connected|not_in_manifest|approval/.test(e.error?.code || '') ? 'allow Google Drive for HQ' : 'Drive unavailable'); } return; }
+  const f = (unwrap(e.result)?.files || [])[0];
+  if (!f) { jarvisSt = null; renderJarvis(); return; }
+  const key = f.id + '|' + f.modifiedTime;
+  if (key === jarvisFile) return;
+  jarvisFile = key;
+  mcp.callTool('Google Drive', 'read_file_content', {fileId: f.id}).then((r) => {
+    try { jarvisSt = JSON.parse(String(unwrap(r)?.fileContent || '').trim()); } catch { return; }
+    renderJarvis();
+  }).catch(() => {});
+}
 function renderJarvis() {
   const s = jarvisSt, el = document.getElementById('fJ');
   if (!s) { T('fJa', 'Not linked'); T('fJb', 'starts when Jarvis runs'); el.classList.remove('live'); return; }
@@ -1225,13 +1239,13 @@ function renderJarvis() {
 }
 setInterval(() => { if (jarvisSt) renderJarvis(); }, 60e3);
 function extraFeeds(m) {
-  if (db) db.doc('jarvis/status').onSnapshot((d) => { jarvisSt = d.exists ? d.data() : null; renderJarvis(); }, () => {});
-  else renderJarvis();
+  renderJarvis();
+  m.watchTool(...JDRIVE, onJarvisFile, {refetchInterval: 2 * 60e3});
   m.watchTool(...SESS, onSess, {refetchInterval: 2 * 60e3});
   m.watchTool(...COACH, onCoach, {refetchInterval: 15 * 60e3});
   if (db) db.collection('coach').onSnapshot((s) => { s.docs.forEach((d) => coachGone.add(d.id)); renderCoach(); }, () => {});
 }
-function extraRescan(m) { m.callTool(...SESS, {cache: {staleTime: 0, gcTime: 2 * 60e3, refresh: true}}).then((result) => onSess({type: 'data', result})).catch((error) => onSess({type: 'error', error})); }
+function extraRescan(m) { jarvisFile = ''; m.callTool(...JDRIVE, {cache: {staleTime: 0, refresh: true}}).then((result) => onJarvisFile({type: 'data', result})).catch(() => {}); m.callTool(...SESS, {cache: {staleTime: 0, gcTime: 2 * 60e3, refresh: true}}).then((result) => onSess({type: 'data', result})).catch((error) => onSess({type: 'error', error})); }
 function extraMock() {
   jarvisSt = {headline: 'Locked in, 32 min left', focus: {total: 50, done: 18}, camera: 'on', updated: Date.now() - 50e3,
     events: [{t: '15:48', text: 'Back at the desk (after practice)'}, {t: '16:05', text: 'Training: run 3 mi 24 min (8:00/mi)'}, {t: '16:20', text: 'Focus started, 50 min'}]};
