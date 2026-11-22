@@ -48,6 +48,7 @@ import jarvis_phone
 import jarvis_room
 import jarvis_screen
 import jarvis_vision
+import jarvis_cad
 import jarvis_desk
 import jarvis_faces
 import jarvis_touch
@@ -97,7 +98,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -607,7 +608,7 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_desk.route_desk(t) or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -962,6 +963,7 @@ class Jarvis:
         self.lock = threading.RLock()   # voice and phone requests take turns
         self.vision = None
         self.desk = None
+        self.cad = None
         self.listen_requested = False   # a peace sign to the camera works like the wake word
         self.last_wake = 0.0
         self.record_long = None   # set in main: records up to 3 minutes and returns the text
@@ -1311,6 +1313,66 @@ class Jarvis:
                 threading.Thread(target=lambda: sp.play(jarvis_brain.FOCUS_MUSIC, launch=pc.launch), daemon=True).start()
             self.brain.handle(action, arg)
             return True
+        if action.startswith("cad_"):
+            hub = self.cad
+            if not hub:
+                say("The workshop needs the phone bridge on. Set PHONE SERVER to True.")
+                return True
+            if action == "cad_open":
+                models = hub.models()
+                if not models:
+                    say("I didn't find any CAD files in Downloads, Documents or Desktop. Export a STEP or STL and try again.")
+                    return True
+                path = jarvis_cad.match_model(arg, models) if arg else models[0][0]
+                if not path:
+                    say(f"I couldn't find a model called {arg}.")
+                    return True
+                hub.active = True
+                if not getattr(self, "cad_page_open", False):
+                    pc.open_url(self.local_url("/cad"), app_window=True)
+                    self.cad_page_open = True
+                    threading.Timer(2.5, lambda: hub.open(path)).start()
+                else:
+                    hub.open(path)
+                name = os.path.splitext(os.path.basename(path))[0]
+                say(f"Opening {name}. Pinch to spin it, two hands to zoom, open both palms to explode it." if self.vision else f"Opening {name}.")
+            elif action == "cad_next":
+                models = hub.models()
+                paths = [m[0] for m in models]
+                i = (paths.index(hub.current) + 1) % len(paths) if hub.current in paths else 0
+                if paths:
+                    hub.open(paths[i])
+                    say(os.path.splitext(os.path.basename(paths[i]))[0] + ".")
+            elif action == "cad_cmd":
+                c, v = arg
+                hub.send(c, value=v)
+                say({"explode": "Exploding." if v else "Putting it back together.", "section": "Cutting it open." if v else "Closed.",
+                     "look": {"wire": "Wireframe.", "solid": "Solid.", "holo": "Hologram."}.get(v, ""), "reset": "Reset.",
+                     "spin": "Spinning." if v else "Holding still.", "snapshot": "Taking a picture."}.get(c, ""))
+            elif action == "cad_holo":
+                pc.open_url(self.local_url("/cad") + "&holo=1", app_window=True)
+                say("Hologram view open. Put it under the pyramid, or open the hologram link on the iPad.")
+            elif action == "cad_size":
+                inf = hub.info
+                if not inf.get("size_mm"):
+                    say("No model is open.")
+                else:
+                    x, z, y = inf["size_mm"][0], inf["size_mm"][2], inf["size_mm"][1]
+                    fmt = lambda v: f"{v / 25.4:.1f} inches" if v > 0 else "0"
+                    sel = inf.get("selected")
+                    line = f"It's {round(x)} by {round(z)} by {round(y)} millimeters, about {fmt(x)} by {fmt(z)} by {fmt(y)}, with {inf.get('parts', 0)} parts."
+                    if sel:
+                        sx, sz, sy = sel["size"]
+                        line += f" The selected {sel['name']} is {sx:g} by {sz:g} by {sy:g} millimeters."
+                    say(line)
+            elif action == "cad_part":
+                sel = hub.info.get("selected")
+                say(f"That's the {sel['name']}, {' by '.join(f'{v:g}' for v in sel['size'])} millimeters." if sel else "Nothing is selected. Quick pinch on a part to pick it.")
+            elif action == "cad_close":
+                hub.active = False
+                hub.send("close")
+                say("Workshop closed.")
+            return True
         if action in ("desk", "desk_cal", "desk_cards", "holo"):
             d = self.desk
             if not d:
@@ -1575,6 +1637,8 @@ def main():
         print(f"Hologram, 4 views:  {base}/holo?token={tok}   (iPad under a Pepper's ghost pyramid)")
         print(f"Hologram, 1 view:   {base}/holo?single=1&token={tok}   (LED hologram fan or transparent screen)")
         print(f"Desk cards to print: {base}/desk/cards?token={tok}")
+        print(f"CAD workshop:       {base}/cad?token={tok}")
+        print(f"CAD hologram:       {base}/cad?holo=1&token={tok}   (your model under the pyramid on the iPad)")
         print("Jarvis must be running for these links to work.")
         return
     if "--vision" in sys.argv:
@@ -1618,6 +1682,13 @@ def main():
     if jarvis_phone.PHONE_SERVER:
         try:
             bridge = jarvis_phone.Bridge(jarvis.remote_ask, jarvis.phone_event).start()
+            jarvis.cad = jarvis_cad.CadHub(say=speaker.say)
+            jarvis_cad.SNAP_DIR = os.path.join(BRAIN.vault.root, "CAD")
+            if BRAIN.vault.root not in jarvis_cad.CAD_FOLDERS:
+                jarvis_cad.CAD_FOLDERS.append(BRAIN.vault.root)
+            jarvis.cad.register(bridge)
+            if jarvis.vision:
+                jarvis.vision.cad = jarvis.cad
             if jarvis_desk.DESK:
                 jarvis.desk = jarvis_desk.Desk(lambda phrase: jarvis.remote_ask(phrase, speak=True), jarvis.pc.key,
                                                state=jarvis.desk_state, say=speaker.say)

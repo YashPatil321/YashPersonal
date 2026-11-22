@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis Workshop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght,ROND@500..900,100&family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --red: #ff5a43; --ember: #ff8a6e; --amber: #ffb84d; --soft: #ffd2c4; --line: rgba(255, 110, 85, .28); --bg: #070302; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--soft); overflow: hidden; font-family: "Geist", system-ui, sans-serif; user-select: none; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #ov { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .hud { position: fixed; pointer-events: none; }
+  #top { left: 2.2vw; top: 2vw; }
+  #brand { font: 500 .72vw/1 "Geist Mono", monospace; letter-spacing: .35em; color: var(--ember); display: flex; gap: .7vw; align-items: center; }
+  #brand::before { content: ""; width: .5vw; height: .5vw; border-radius: 50%; background: var(--red); box-shadow: 0 0 .8vw var(--red); }
+  #name { font-family: "Doto", "Geist Mono", monospace; font-variation-settings: "ROND" 100; font-weight: 800; font-size: 2.6vw; color: #fff1ea;
+    margin-top: .8vw; text-shadow: 0 0 1.2vw rgba(255, 90, 67, .5); max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body #name { font-variation-settings: "ROND" 100; }
+  #dims { font: 500 1.05vw/1.5 "Geist Mono", monospace; color: var(--amber); margin-top: .5vw; }
+  #chips { display: flex; gap: .5vw; margin-top: .9vw; }
+  .chip { font: 500 .68vw/1 "Geist Mono", monospace; letter-spacing: .18em; padding: .45vw .7vw; border: 1px solid var(--line); border-radius: 2vw; color: var(--ember); }
+  .chip.on { background: rgba(255, 90, 67, .22); color: #fff1ea; border-color: var(--red); }
+  #parts { right: 2.2vw; top: 2vw; width: 17vw; border: 1px solid var(--line); border-radius: 1vw; padding: 1vw;
+    background: linear-gradient(180deg, rgba(255, 90, 67, .08), rgba(255, 90, 67, .02)); }
+  #parts h3 { font: 500 .7vw/1 "Geist Mono", monospace; letter-spacing: .3em; color: var(--ember); margin-bottom: .7vw; padding-bottom: .5vw; border-bottom: 1px dashed var(--line); }
+  #plist div { font-size: .82vw; padding: .28vw 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--soft); opacity: .75; }
+  #plist div.sel { color: #fff1ea; opacity: 1; font-weight: 600; }
+  #plist div.sel::before { content: "\25B8 "; color: var(--red); }
+  #sel { left: 50%; bottom: 7vw; transform: translateX(-50%); text-align: center; }
+  #selName { font-size: 1.5vw; font-weight: 600; color: #fff1ea; }
+  #selDims { font: 500 .9vw "Geist Mono", monospace; color: var(--amber); margin-top: .3vw; }
+  #help { left: 50%; bottom: 1.6vw; transform: translateX(-50%); font: .72vw "Geist Mono", monospace; color: rgba(255, 138, 110, .55); letter-spacing: .14em; white-space: nowrap; }
+  #msg { left: 50%; top: 45%; transform: translate(-50%, -50%); text-align: center; }
+  #msg .big { font-family: "Doto", monospace; font-variation-settings: "ROND" 100; font-size: 3vw; font-weight: 800; color: #fff1ea; }
+  #msg .small { font: .9vw "Geist Mono", monospace; color: var(--ember); margin-top: 1vw; letter-spacing: .2em; }
+  body.holo .hud { display: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="ov"></canvas>
+<div class="hud" id="top">
+  <div id="brand">JARVIS &middot; WORKSHOP</div>
+  <div id="name">NO MODEL</div>
+  <div id="dims">Say "open my cad" or drop a file here</div>
+  <div id="chips"><span class="chip" id="cLook">SOLID</span><span class="chip" id="cExp">EXPLODE 0%</span><span class="chip" id="cCut">SECTION</span><span class="chip" id="cSpin">SPIN</span><span class="chip" id="cHands">HANDS 0</span></div>
+</div>
+<div class="hud" id="parts"><h3>PARTS <span id="pcount"></span></h3><div id="plist"></div></div>
+<div class="hud" id="sel"><div id="selName"></div><div id="selDims"></div></div>
+<div class="hud" id="msg"></div>
+<div class="hud" id="help">PINCH + MOVE: SPIN &middot; TWO HAND PINCH: ZOOM, SLIDE, TWIST &middot; FIST: MOVE &middot; OPEN PALMS APART: EXPLODE &middot; QUICK PINCH: SELECT</div>
+
+<script type="module">
+import * as THREE from "three";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { ThreeMFLoader } from "three/addons/loaders/3MFLoader.js";
+
+const P = new URLSearchParams(location.search), TOKEN = P.get("token") || "", HOLO = P.get("holo") === "1";
+const q = (p) => p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN);
+const $ = (id) => document.getElementById(id);
+if (HOLO) document.body.classList.add("holo");
+
+// ---------- scene ----------
+const renderer = new THREE.WebGLRenderer({ canvas: $("gl"), antialias: true, preserveDrawingBuffer: true, alpha: false });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.localClippingEnabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(HOLO ? 0x000000 : 0x070302);
+scene.fog = new THREE.Fog(0x070302, 8, 22);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 100);
+camera.position.set(0, 0.6, 5.2);
+scene.add(new THREE.HemisphereLight(0xffe2d6, 0x2a0d08, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(3, 5, 4); scene.add(key);
+const rim = new THREE.DirectionalLight(0xff5a43, 2.4); rim.position.set(-4, 1.5, -3); scene.add(rim);
+const under = new THREE.PointLight(0xff8a6e, 6, 6); under.position.set(0, -1.6, 0); scene.add(under);
+
+// floor: polar grid and a glowing ring
+const floor = new THREE.Group(); floor.position.y = -1.25; scene.add(floor);
+const grid = new THREE.PolarGridHelper(3.2, 24, 8, 96, 0x5a2a20, 0x2a120d); floor.add(grid);
+const ringM = new THREE.MeshBasicMaterial({ color: 0xff5a43, transparent: true, opacity: .55, side: THREE.DoubleSide });
+const ring = new THREE.Mesh(new THREE.RingGeometry(1.6, 1.63, 128), ringM); ring.rotation.x = -Math.PI / 2; floor.add(ring);
+const ring2 = new THREE.Mesh(new THREE.RingGeometry(2.4, 2.41, 128, 1, 0, Math.PI * 1.4), ringM.clone()); ring2.rotation.x = -Math.PI / 2; floor.add(ring2);
+if (HOLO) floor.visible = false;
+
+const holder = new THREE.Group(); scene.add(holder);   // user moves/rotates this
+const model = new THREE.Group(); holder.add(model);     // normalized model lives here
+const clip = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 10);
+let parts = [], look = "solid", explode = 0, explodeTarget = 0, section = 0, spin = 0.0025, sizeMM = [0, 0, 0], selected = null, fileName = "";
+
+function makeMaterials(color) {
+  return {
+    solid: new THREE.MeshStandardMaterial({ color, metalness: .55, roughness: .38, side: THREE.DoubleSide, clippingPlanes: [clip] }),
+    wire: new THREE.MeshBasicMaterial({ color: 0xff8a6e, wireframe: true, transparent: true, opacity: .55, clippingPlanes: [clip] }),
+    holo: new THREE.MeshBasicMaterial({ color: 0xff5a43, transparent: true, opacity: .16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, clippingPlanes: [clip] }),
+  };
+}
+const PALETTE = [0xd9cfc9, 0xc9b8ae, 0xb8a49a, 0xe3d6cd, 0xa8968c, 0xcfc2ba];
+
+function clear() {
+  for (const c of [...model.children]) { model.remove(c); c.traverse((o) => { o.geometry && o.geometry.dispose(); }); }
+  parts = []; selected = null; $("selName").textContent = ""; $("selDims").textContent = "";
+}
+
+function addMeshes(root, name) {
+  // collect every mesh as a part, with its own materials and crisp edges
+  root.updateMatrixWorld(true);
+  const meshes = [];
+  root.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  meshes.forEach((m, i) => {
+    const g = m.geometry.clone().applyMatrix4(m.matrixWorld);
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const mats = makeMaterials(PALETTE[i % PALETTE.length]);
+    const mesh = new THREE.Mesh(g, mats[look]);
+    mesh.userData = { mats, name: m.name || (meshes.length > 1 ? `${name} part ${i + 1}` : name) };
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(g, 28),
+      new THREE.LineBasicMaterial({ color: 0xff5a43, transparent: true, opacity: .55, clippingPlanes: [clip] }));
+    mesh.add(edges); mesh.userData.edges = edges;
+    model.add(mesh); parts.push(mesh);
+  });
+  frame();
+}
+
+function frame() {
+  // center, scale to fit, remember the real size, work out each part's explode direction
+  model.scale.setScalar(1); model.position.set(0, 0, 0); model.updateMatrixWorld(true);   // measure in real units, not the last model's scale
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+  sizeMM = [size.x, size.y, size.z];
+  const s = 2.2 / Math.max(size.x, size.y, size.z || 1, 1e-6);
+  model.scale.setScalar(s);
+  model.position.copy(center).multiplyScalar(-s);
+  for (const p of parts) {
+    const c = new THREE.Box3().setFromObject(p).getCenter(new THREE.Vector3()).sub(center);
+    p.userData.home = p.position.clone();
+    p.userData.dir = c.lengthSq() > 1e-9 ? c : new THREE.Vector3((Math.random() - .5), (Math.random() - .5), (Math.random() - .5)).multiplyScalar(.2 * Math.max(size.x, size.y, size.z));
+  }
+  floor.position.y = -1.15 - (size.y * s) / 2 * 0.15;
+  resetView();
+  hud();
+  report();
+}
+
+function resetView() {
+  holder.position.set(0, 0, 0); holder.quaternion.identity();
+  holder.rotateX(-0.35); holder.rotateY(0.6);
+  camera.position.set(0, 0.5, 5.2); camera.lookAt(0, 0, 0);
+}
+
+function mm(v) { return v >= 1000 ? (v / 1000).toFixed(2) + " m" : v >= 100 ? Math.round(v) + "" : v.toFixed(1); }
+function hud() {
+  $("name").textContent = fileName ? fileName.replace(/\.[^.]+$/, "").toUpperCase() : "NO MODEL";
+  $("dims").textContent = fileName ? `${mm(sizeMM[0])} × ${mm(sizeMM[2])} × ${mm(sizeMM[1])} mm  ·  ${parts.length} part${parts.length === 1 ? "" : "s"}` : 'Say "open my cad" or drop a file here';
+  $("pcount").textContent = parts.length ? "· " + parts.length : "";
+  $("plist").innerHTML = parts.slice(0, 14).map((p) => `<div class="${p === selected ? "sel" : ""}">${esc(p.userData.name)}</div>`).join("") + (parts.length > 14 ? `<div>+ ${parts.length - 14} more</div>` : "");
+  $("cLook").textContent = look.toUpperCase(); $("cLook").classList.toggle("on", look !== "solid");
+  $("cExp").textContent = "EXPLODE " + Math.round(explode * 100) + "%"; $("cExp").classList.toggle("on", explode > .02);
+  $("cCut").classList.toggle("on", section > 0); $("cSpin").classList.toggle("on", spin !== 0);
+}
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+
+function report() {
+  if (!TOKEN || HOLO) return;
+  const sel = selected ? { name: selected.userData.name, size: partSize(selected) } : null;
+  fetch(q("/cad/info"), { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: TOKEN, json: JSON.stringify({ name: fileName, size_mm: sizeMM.map((v) => +v.toFixed(1)), parts: parts.length,
+      part_names: parts.slice(0, 40).map((p) => p.userData.name), selected: sel, explode, look }) }) }).catch(() => {});
+}
+function partSize(p) {
+  const b = new THREE.Box3().setFromBufferAttribute(p.geometry.attributes.position).getSize(new THREE.Vector3());
+  return [b.x, b.z, b.y].map((v) => +v.toFixed(1));
+}
+
+function setLook(l) {
+  look = l;
+  for (const p of parts) { p.material = p.userData.mats[l]; p.userData.edges.material.opacity = l === "holo" ? .9 : l === "wire" ? .0 : .55; }
+  hud(); report();
+}
+
+function select(p) {
+  selected = p;
+  for (const x of parts) {
+    const m = x.userData.mats;
+    const dim = p && x !== p;
+    for (const k of ["solid", "wire", "holo"]) { m[k].transparent = dim || k !== "solid"; m[k].opacity = dim ? .12 : k === "solid" ? 1 : k === "wire" ? .55 : .16; }
+    if (m.solid.emissive) m.solid.emissive.setHex(x === p ? 0x3a0e06 : 0x000000);
+  }
+  $("selName").textContent = p ? p.userData.name : "";
+  $("selDims").textContent = p ? partSize(p).map(mm).join(" × ") + " mm" : "";
+  hud(); report();
+}
+
+// ---------- loading ----------
+let loadId = 0;
+async function loadBuffer(buf, name) {
+  const my = ++loadId;
+  fileName = name; clear();
+  const ext = name.toLowerCase().split(".").pop();
+  msg("LOADING", name);
+  try {
+    if (ext === "stl") {
+      const g = new STLLoader().parse(buf); addMeshes(new THREE.Mesh(g), name);
+    } else if (ext === "obj") {
+      addMeshes(new OBJLoader().parse(new TextDecoder().decode(buf)), name);
+    } else if (ext === "glb" || ext === "gltf") {
+      const gl = await new Promise((res, rej) => new GLTFLoader().parse(buf, "", res, rej)); addMeshes(gl.scene, name);
+    } else if (ext === "3mf") {
+      addMeshes(new ThreeMFLoader().parse(buf), name);
+    } else if (["step", "stp", "iges", "igs"].includes(ext)) {
+      const occt = await getOcct();
+      const r = ext.startsWith("i") ? occt.ReadIgesFile(new Uint8Array(buf), null) : occt.ReadStepFile(new Uint8Array(buf), null);
+      if (my !== loadId) return;   // a newer file was opened while this one was reading
+      if (!r.success) throw new Error("couldn't read the STEP file");
+      const root = new THREE.Group();
+      r.meshes.forEach((m, i) => {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(m.attributes.position.array, 3));
+        if (m.attributes.normal) g.setAttribute("normal", new THREE.Float32BufferAttribute(m.attributes.normal.array, 3));
+        g.setIndex(new THREE.BufferAttribute(Uint32Array.from(m.index.array), 1));
+        const mesh = new THREE.Mesh(g); mesh.name = m.name || `Part ${i + 1}`; root.add(mesh);
+      });
+      addMeshes(root, name);
+    } else throw new Error("unknown file type " + ext);
+    msg("");
+  } catch (e) { msg("COULDN'T OPEN IT", String(e.message || e)); }
+}
+let occtP = null;
+function getOcct() {
+  if (!occtP) occtP = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/occt-import-js@0.0.22/dist/occt-import-js.js";
+    s.onload = () => window.occtimportjs({ locateFile: (f) => "https://cdn.jsdelivr.net/npm/occt-import-js@0.0.22/dist/" + f }).then(res, rej);
+    s.onerror = rej; document.head.appendChild(s);
+  });
+  return occtP;
+}
+async function loadPath(path, name) {
+  msg("LOADING", name);
+  const r = await fetch(q("/cad/file?path=" + encodeURIComponent(path)));
+  if (!r.ok) return msg("CAN'T OPEN THAT FILE", await r.text());
+  await loadBuffer(await r.arrayBuffer(), name);
+}
+function msg(big, small = "") {
+  $("msg").innerHTML = big ? `<div class="big">${esc(big)}</div><div class="small">${esc(small)}</div>` : "";
+}
+addEventListener("dragover", (e) => e.preventDefault());
+addEventListener("drop", async (e) => {
+  e.preventDefault(); const f = e.dataTransfer.files[0];
+  if (f) loadBuffer(await f.arrayBuffer(), f.name);
+});
+
+// ---------- commands from Jarvis ----------
+function command(c) {
+  if (c.cmd === "load") loadPath(c.path, c.name);
+  else if (c.cmd === "explode") explodeTarget = +c.value;
+  else if (c.cmd === "section") section = +c.value ? 1 : 0, clip.constant = section ? 0 : 10, hud();
+  else if (c.cmd === "look") setLook(c.value);
+  else if (c.cmd === "reset") { resetView(); select(null); explodeTarget = 0; }
+  else if (c.cmd === "spin") { spin = +c.value ? 0.0025 : 0; hud(); }
+  else if (c.cmd === "snapshot") snapshot();
+  else if (c.cmd === "close") { clear(); fileName = ""; hud(); }
+}
+function snapshot() {
+  renderOnce();
+  const png = renderer.domElement.toDataURL("image/png");
+  fetch(q("/cad/snapshot"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: TOKEN, png }) }).catch(() => {});
+}
+
+// ---------- hands ----------
+let hands = [];
+const hs = { pinch: [false, false], prev: null, pinchStart: 0, pinchMoved: 0, vel: [0, 0], palmsPrev: null };
+const D = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const palm = (h) => D(h[5], h[17]) || 1e-6;
+function isPinch(h, was) { const r = D(h[4], h[8]) / palm(h); return was ? r < .5 : r < .33; }
+function extended(h, tip, pip) { return D(h[tip], h[0]) > D(h[pip], h[0]) * 1.15; }
+function isFist(h) { return ![[8, 6], [12, 10], [16, 14], [20, 18]].some(([t, p]) => extended(h, t, p)) && D(h[4], h[8]) / palm(h) > .25; }
+function isPalm(h) { return [[8, 6], [12, 10], [16, 14], [20, 18]].every(([t, p]) => extended(h, t, p)); }
+const mid = (h) => [(h[4][0] + h[8][0]) / 2, (h[4][1] + h[8][1]) / 2];
+const knuck = (h) => [(h[5][0] + h[9][0] + h[0][0]) / 3, (h[5][1] + h[9][1] + h[0][1]) / 3];
+
+function rotate(dx, dy) {
+  const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx);
+  const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy);
+  holder.quaternion.premultiply(qy).premultiply(qx);
+}
+function roll(a) { holder.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), a)); }
+function zoom(f) { camera.position.multiplyScalar(Math.min(1.6, Math.max(.6, f))); const d = camera.position.length(); if (d < 1.6) camera.position.setLength(1.6); if (d > 14) camera.position.setLength(14); }
+function pan(dx, dy) { const k = camera.position.length() * .45; holder.position.x += dx * k; holder.position.y -= dy * k; }
+
+function onHands(list) {
+  hands = list || [];
+  $("cHands").textContent = "HANDS " + hands.length; $("cHands").classList.toggle("on", hands.length > 0);
+  const now = performance.now();
+  const pin = hands.map((h, i) => isPinch(h, hs.pinch[i]));
+  // both palms open: spread to explode
+  if (hands.length === 2 && hands.every(isPalm) && !pin.some(Boolean)) {
+    const d = D(knuck(hands[0]), knuck(hands[1]));
+    explodeTarget = Math.max(0, Math.min(1, (d - .22) / .4));
+    hs.prev = null; hs.pinch = pin; return;
+  }
+  if (hands.length === 2 && pin[0] && pin[1]) {          // two hand pinch: zoom, slide, twist
+    const a = mid(hands[0]), b = mid(hands[1]), d = D(a, b), c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    if (hs.prev && hs.prev.kind === "two") {
+      zoom(hs.prev.d / d); pan(c[0] - hs.prev.c[0], c[1] - hs.prev.c[1]);
+      let da = ang - hs.prev.ang; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; roll(-da);
+    }
+    hs.prev = { kind: "two", d, c, ang }; hs.pinch = pin; return;
+  }
+  const i = pin.findIndex(Boolean);
+  if (i >= 0) {                                          // one hand pinch: spin it
+    const m = mid(hands[i]);
+    if (!hs.pinch[i]) { hs.pinchStart = now; hs.pinchMoved = 0; hs.prev = { kind: "one", m }; }
+    else if (hs.prev && hs.prev.kind === "one") {
+      const dx = m[0] - hs.prev.m[0], dy = m[1] - hs.prev.m[1];
+      rotate(dx * 6, dy * 6); hs.vel = [dx * 6, dy * 6]; hs.pinchMoved += Math.hypot(dx, dy);
+      hs.prev = { kind: "one", m };
+    }
+    hs.pinch = pin; return;
+  }
+  // a pinch just ended: if it was quick and still, it's a select
+  if (hs.prev && hs.prev.kind === "one" && now - hs.pinchStart < 320 && hs.pinchMoved < .02) pickAt(hs.prev.m);
+  if (hs.prev && hs.prev.kind === "one") spinVel = hs.vel.slice();
+  const f = hands.findIndex(isFist);
+  if (f >= 0) {                                          // fist: move it
+    const k = knuck(hands[f]);
+    if (hs.prev && hs.prev.kind === "fist") pan(k[0] - hs.prev.k[0], k[1] - hs.prev.k[1]);
+    hs.prev = { kind: "fist", k }; hs.pinch = pin; return;
+  }
+  const o = hands.findIndex(isPalm);
+  if (o >= 0) {                                          // open palm swipe: fling a spin
+    const k = knuck(hands[o]);
+    if (hs.prev && hs.prev.kind === "palm" && Math.abs(k[0] - hs.prev.k[0]) > .035) spinVel = [(k[0] - hs.prev.k[0]) * 4, 0];
+    hs.prev = { kind: "palm", k }; hs.pinch = pin; return;
+  }
+  hs.prev = null; hs.pinch = pin;
+}
+let spinVel = [0, 0];
+
+const ray = new THREE.Raycaster();
+function pickAt([x, y]) {
+  ray.setFromCamera(new THREE.Vector2(x * 2 - 1, -(y * 2 - 1)), camera);
+  const hit = ray.intersectObjects(parts, false)[0];
+  select(hit ? hit.object : null);
+}
+
+// mouse and touch too
+let drag = null;
+const cv = $("gl");
+cv.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, b: e.button, moved: 0 }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const dx = (e.clientX - drag.x) / innerWidth, dy = (e.clientY - drag.y) / innerHeight;
+  drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (drag.b === 2 || e.shiftKey) pan(dx, dy); else rotate(dx * 6, dy * 6);
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+cv.addEventListener("pointerup", (e) => { if (drag && drag.moved < .004) pickAt([e.clientX / innerWidth, e.clientY / innerHeight]); drag = null; });
+cv.addEventListener("contextmenu", (e) => e.preventDefault());
+cv.addEventListener("wheel", (e) => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.08 : 0.93); }, { passive: false });
+addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  if (k === "e") explodeTarget = explodeTarget > .5 ? 0 : 1;
+  if (k === "w") setLook(look === "wire" ? "solid" : "wire");
+  if (k === "h") setLook(look === "holo" ? "solid" : "holo");
+  if (k === "c") command({ cmd: "section", value: section ? 0 : 1 });
+  if (k === "r") command({ cmd: "reset" });
+  if (k === " ") { spin = spin ? 0 : .0025; hud(); }
+});
+
+// ---------- live link to Jarvis ----------
+function connect() {
+  const es = new EventSource(q("/cad/stream"));
+  es.onmessage = (e) => { try { const d = JSON.parse(e.data); if (d.cmd) command(d); if (d.hands) onHands(d.hands); } catch (err) {} };
+  es.onerror = () => { es.close(); setTimeout(connect, 2000); };
+}
+if (TOKEN) connect();
+
+// ---------- draw ----------
+const ov = $("ov"), og = ov.getContext("2d");
+function size() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = HOLO ? 1 : innerWidth / innerHeight; camera.updateProjectionMatrix();
+  ov.width = innerWidth * devicePixelRatio; ov.height = innerHeight * devicePixelRatio;
+}
+addEventListener("resize", size); size();
+
+function drawHands() {
+  const W = ov.width, H = ov.height, k = devicePixelRatio;
+  og.clearRect(0, 0, W, H);
+  if (HOLO) return;
+  const bones = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
+  hands.forEach((h, i) => {
+    const pin = hs.pinch[i];
+    og.strokeStyle = pin ? "rgba(255,184,77,.85)" : "rgba(255,110,85,.6)"; og.lineWidth = 2 * k;
+    og.shadowColor = "rgba(255,90,67,.8)"; og.shadowBlur = 12 * k;
+    for (const [a, b] of bones) { og.beginPath(); og.moveTo(h[a][0] * W, h[a][1] * H); og.lineTo(h[b][0] * W, h[b][1] * H); og.stroke(); }
+    og.shadowBlur = 0;
+    for (const p of h) { og.fillStyle = "#ffd2c4"; og.beginPath(); og.arc(p[0] * W, p[1] * H, 2.5 * k, 0, 7); og.fill(); }
+    const m = mid(h);
+    og.strokeStyle = pin ? "#ffb84d" : "#ff5a43"; og.lineWidth = 3 * k;
+    og.beginPath(); og.arc(m[0] * W, m[1] * H, (pin ? 10 : 18) * k, 0, 7); og.stroke();
+  });
+}
+
+function renderOnce() {
+  if (!HOLO) { renderer.setViewport(0, 0, innerWidth, innerHeight); renderer.setScissorTest(false); renderer.render(scene, camera); return; }
+  // hologram: 4 views around the middle for a Pepper's ghost pyramid. Bottom, left, top, right, each showing
+  // another side of the model, its top pointing away from the center and flipped, so the reflection reads upright.
+  const S = Math.min(innerWidth, innerHeight), v = S * .36, cx = innerWidth / 2, cy = innerHeight / 2;
+  renderer.setScissorTest(true); renderer.setClearColor(0x000000); renderer.setScissor(0, 0, innerWidth, innerHeight); renderer.clear();
+  const spots = [[cx - v / 2, cy + S / 2 - v], [cx - S / 2, cy - v / 2], [cx - v / 2, cy - S / 2], [cx + S / 2 - v, cy - v / 2]];
+  const dist = camera.position.length();
+  spots.forEach(([x, y], k) => {
+    const cam = new THREE.PerspectiveCamera(camera.fov, 1, .01, 100);
+    const yaw = k * Math.PI / 2;
+    cam.position.set(Math.sin(yaw) * dist, camera.position.y, Math.cos(yaw) * dist);
+    cam.lookAt(0, 0, 0);
+    cam.rotateZ(-k * Math.PI / 2 * HOLO_ROLL);
+    cam.updateProjectionMatrix();
+    cam.projectionMatrix.elements[5] *= -1;   // flip top to bottom for the reflection
+    cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+    const gy = innerHeight - y - v;
+    renderer.setViewport(x, gy, v, v); renderer.setScissor(x, gy, v, v);
+    renderer.render(scene, cam);
+  });
+}
+const HOLO_ROLL = 1;
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  explode += (explodeTarget - explode) * Math.min(1, dt * 6);
+  if (Math.abs(explode - explodeTarget) > .002 || explode > .002) {
+    for (const p of parts) p.position.copy(p.userData.home).addScaledVector(p.userData.dir, explode * 1.2);
+    $("cExp").textContent = "EXPLODE " + Math.round(explode * 100) + "%"; $("cExp").classList.toggle("on", explode > .02);
+  }
+  if (section) clip.constant += ((Math.sin(now / 2600) * .35) - clip.constant) * .03;   // the cut slowly sweeps so you see inside
+  if (Math.abs(spinVel[0]) + Math.abs(spinVel[1]) > .0005) { rotate(spinVel[0], spinVel[1]); spinVel = spinVel.map((v) => v * .93); }
+  else if (spin && !hands.length && !drag) holder.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), spin);
+  ring.rotation.z += dt * .25; ring2.rotation.z -= dt * .12;
+  ringM.opacity = .35 + .2 * Math.sin(now / 700);
+  renderOnce(); drawHands();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+hud();
+window.__cad = { loadBuffer, command, onHands, select: (i) => select(parts[i] || null),
+  state: () => ({ q: holder.quaternion.toArray().map((v) => +v.toFixed(3)), dist: +camera.position.length().toFixed(3), explodeTarget,
+                  pos: holder.position.toArray().map((v) => +v.toFixed(3)), selected: selected ? selected.userData.name : null }) };   // for previews and tests
+</script>
+</body>
+</html>

@@ -235,7 +235,8 @@ class Bridge:
                 q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
                 n = int(self.headers.get("Content-Length") or 0)
                 if n:
-                    raw = self.rfile.read(min(n, 20000)).decode("utf-8", "ignore")
+                    cap = 40_000_000 if u.path == "/cad/snapshot" else 20000   # a model picture is a few MB
+                    raw = self.rfile.read(min(n, cap)).decode("utf-8", "ignore")
                     try:
                         q.update({k: str(v) for k, v in json.loads(raw).items()})
                     except Exception:

@@ -246,7 +246,7 @@ as a second screen), and a second webcam next to it looking down (`DESK_CAMERA_I
 | Say | What happens |
 |---|---|
 | "desk mode" / "desk off" | the Jarvis desk opens full screen on the projector and the down camera starts |
-| "calibrate the desk" | projects 4 markers, the camera finds them, done in a second. Redo it if you move anything |
+| "calibrate the desk" | projects 9 markers, the camera finds them, done in a second. Redo it if you move anything |
 | "print my desk cards" | opens the marker cards to print: FOCUS, MUSIC, VOLUME knob, TIMER dial, STUDY, PARTY, GAME |
 | "hologram mode" | the Jarvis core in 4 views for a Pepper's ghost pyramid |
 
@@ -256,8 +256,41 @@ start a focus session, pick it up to end it. Turn the VOLUME card like a knob. T
 minutes and pick it up to start. Panels: next event with a leave countdown, music, focus ring, weather,
 today's log, season, people in the room, protocols. The core in the middle spins faster when Jarvis listens or talks.
 
+Mounting the down camera: lower is better (your fingertip is more pixels), it just needs to see the whole
+projected area, so a low mount wants a wide lens (about 90 to 120 degrees). Any position or tilt works, the
+calibration sorts it out, and the 3 x 3 calibration grid straightens most of a wide lens's edge bend.
+Keep it out of the projector's beam so it doesn't cast its own shadow.
+
 Holograms: `python jarvis.py --desk` prints the links. The 4 view page goes on the iPad (or any flat screen)
 under an acrylic Pepper's ghost pyramid. `?single=1` is one big view for a holographic LED fan or a transparent OLED.
+
+## The workshop: CAD with your hands (`jarvis_cad.py`, `cad.html`)
+
+Opens STEP, STP, IGES, STL, 3MF, OBJ, GLB and GLTF from Downloads, Documents, Desktop, OneDrive and your vault.
+Export from Fusion, Onshape or SolidWorks as STEP to keep every part separate.
+
+| Hands (monitor camera) | What happens |
+|---|---|
+| pinch and move | spin the model |
+| two hands pinching | pull apart or push together to zoom, move both to slide it, twist to roll it |
+| fist and move | move the model |
+| both palms open | spread them to explode the parts, bring them together to put it back |
+| quick pinch on a part | select it: its name and real size, everything else fades |
+| open palm swipe | fling it into a spin |
+
+| Say | What happens |
+|---|---|
+| "open my cad" / "open the cabinet model" / "next model" | newest file, or the best name match |
+| "explode it" / "put it back together" | exploded view |
+| "cut it open" / "close the cut" | a section cut that sweeps through so you see inside |
+| "wireframe" / "solid" / "hologram look" | how it's drawn |
+| "how big is it" / "what's this part" | real dimensions in mm and inches, and the selected part |
+| "hologram the model" | your model in 4 views for the Pepper's ghost pyramid |
+| "take a picture of it" | saves a PNG to `CAD/` in your vault |
+| "reset the view" / "close the model" | |
+
+Mouse works too: drag to spin, right drag to slide, scroll to zoom, click a part, keys E W H C R and space.
+You can also drag a file onto the window.
 
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 

@@ -38,8 +38,12 @@ DESK_GLOW = 12               # 0 = pure black desk. A little glow lets the down 
 CALIB_FILE = os.path.join(HERE, ".cache", "desk_calib.json")
 # ArUco 4x4 marker ids printed on the cards
 CARDS = {0: "focus", 1: "music", 2: "volume", 3: "timer", 4: "study", 5: "party", 6: "game"}
-CAL_IDS = (40, 41, 42, 43)
-CAL_POS = ((0.1, 0.12), (0.9, 0.12), (0.9, 0.88), (0.1, 0.88))   # where the calibration markers are projected
+# 9 calibration markers in a 3 x 3 grid, row by row. Each of the 4 cells gets its own correction, which
+# straightens out the bend a wide angle camera lens puts near the edges (a low mounted camera needs a wide lens).
+_GX, _GY = (0.1, 0.5, 0.9), (0.12, 0.5, 0.88)
+CAL_IDS = tuple(range(40, 49))
+CAL_POS = tuple((x, y) for y in _GY for x in _GX)
+CELLS = ((0, 1, 4, 3), (1, 2, 5, 4), (3, 4, 7, 6), (4, 5, 8, 7))   # corner indexes of each cell, clockwise
 # ---------------------------------------------------------------------------
 
 
@@ -66,13 +70,28 @@ def apply(H, pt):
     return ((H[0][0] * x + H[0][1] * y + H[0][2]) / d, (H[1][0] * x + H[1][1] * y + H[1][2]) / d)
 
 
+def inside(pt, quad):
+    """Is pt inside the convex quad (4 points in order)?"""
+    sign = 0
+    for i in range(4):
+        (x1, y1), (x2, y2) = quad[i], quad[(i + 1) % 4]
+        c = (x2 - x1) * (pt[1] - y1) - (y2 - y1) * (pt[0] - x1)
+        if c:
+            if sign and (c > 0) != (sign > 0):
+                return False
+            sign = c
+    return True
+
+
 class Calibration:
     def __init__(self, path=None):
         self.path = path or CALIB_FILE
         self.H = None
+        self.cells = []   # [(camera quad, H)] for the 3 x 3 grid
         try:
             with open(self.path) as f:
-                self.H = json.load(f)["H"]
+                d = json.load(f)
+            self.H, self.cells = d["H"], [(c["quad"], c["H"]) for c in d.get("cells", [])]
         except Exception:
             pass
 
@@ -81,13 +100,23 @@ class Calibration:
         return self.H is not None
 
     def fit(self, cam_pts, proj_pts):
-        self.H = homography(cam_pts, proj_pts).tolist()
+        self.H = homography(cam_pts, proj_pts).tolist()   # one overall fit, used outside the grid
+        self.cells = []
+        if len(cam_pts) == 9:
+            for cell in CELLS:
+                quad = [list(map(float, cam_pts[i])) for i in cell]
+                self.cells.append((quad, homography(quad, [proj_pts[i] for i in cell]).tolist()))
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         with open(self.path, "w") as f:
-            json.dump({"H": self.H, "when": time.strftime("%Y-%m-%d %H:%M")}, f)
+            json.dump({"H": self.H, "cells": [{"quad": q, "H": h} for q, h in self.cells], "when": time.strftime("%Y-%m-%d %H:%M")}, f)
 
     def to_desk(self, pt):
-        return apply(self.H, pt) if self.H else None
+        if not self.H:
+            return None
+        for quad, h in self.cells:
+            if inside(pt, quad):
+                return apply(h, pt)
+        return apply(self.H, pt)
 
 
 # ================= markers =================
