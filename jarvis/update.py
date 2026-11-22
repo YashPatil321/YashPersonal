@@ -96,24 +96,40 @@ def update():
     return len(files)
 
 
-def install_extras(pip_run=None):
-    """Camera and screenshot packages, one at a time. A package that fails just stays off."""
+def install_extras(pip_run=None, force=False):
+    """Camera and screenshot packages, one at a time. A package that fails just stays off, and isn't retried
+    for a week (so a package that can't install on this PC never slows every start down). --extras forces a retry."""
+    import json
+    import time
     path = os.path.join(HERE, "requirements-extras.txt")
     if not os.path.exists(path):
         return []
     import importlib.util
     mods = {"pillow": "PIL", "opencv-python": "cv2", "mediapipe": "mediapipe"}
+    failed_file = os.path.join(HERE, ".extras_failed.json")
+    try:
+        failed = json.load(open(failed_file))
+    except Exception:
+        failed = {}
     done = []
     for line in open(path):
         pkg = line.split("#")[0].strip()
         if not pkg or importlib.util.find_spec(mods.get(pkg, pkg)):
             continue
-        print(f"update: installing {pkg}")
-        r = (pip_run or (lambda p: subprocess.run([sys.executable, "-m", "pip", "install", "-q", p], creationflags=NO_WINDOW)))(pkg)
+        if not force and time.time() - failed.get(pkg, 0) < 7 * 86400:
+            continue
+        print(f"update: installing {pkg} (one time, can take a few minutes)", flush=True)
+        r = (pip_run or (lambda p: subprocess.run([sys.executable, "-m", "pip", "install", "-q", p], creationflags=NO_WINDOW, timeout=1800)))(pkg)
         if getattr(r, "returncode", 0) == 0:
             done.append(pkg)
+            failed.pop(pkg, None)
         else:
-            print(f"update: {pkg} didn't install, that feature stays off")
+            print(f"update: {pkg} didn't install, that feature stays off. Retry with: python update.py --extras")
+            failed[pkg] = time.time()
+    try:
+        json.dump(failed, open(failed_file, "w"))
+    except OSError:
+        pass
     return done
 
 
@@ -123,6 +139,6 @@ if __name__ == "__main__":
         print("update waiting" if w else "up to date")
         sys.exit(10 if w else 0)
     if "--extras" in sys.argv:
-        install_extras()
+        install_extras(force=True)
     else:
         update()
