@@ -2593,6 +2593,15 @@ def hard_exit(code, why=""):
         sys.stderr.flush()
     except Exception:
         pass
+    if IS_WIN:
+        # os._exit still lets the sound and GPU drivers run their shutdown code, and one of them can deadlock there,
+        # which left Jarvis frozen on "restarting into the update". TerminateProcess skips all of that.
+        try:
+            import ctypes
+            k = ctypes.windll.kernel32
+            k.TerminateProcess(k.GetCurrentProcess(), code)
+        except Exception:
+            pass
     os._exit(code)
 
 
