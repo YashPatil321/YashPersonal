@@ -2,6 +2,22 @@
 
 Say "hey jarvis" (or clap twice), hear a chime, talk, get a spoken answer. Runs on your PC.
 
+## Install or fix everything with one command
+
+Open PowerShell and paste:
+
+```
+irm https://raw.githubusercontent.com/YashPatil321/YashPersonal/claude/hopeful-bohr-1ramsu/jarvis/install.ps1 | iex
+```
+
+It installs Git and Python if missing, gets the latest code into `C:\yash-system`, updates `C:\jarvis` (your
+`local_settings.py`, `CLAUDE.md` and notes are never touched, and anything it replaces is backed up), installs
+packages, adds Jarvis to your Startup folder, and starts it. Run it again any time something seems off.
+
+After that Jarvis updates itself every time it starts, at 4 AM, and when you say "hey jarvis, update yourself".
+The startup entry is a shortcut called **Jarvis** in your Startup folder (Win+R, `shell:startup`), not a Task
+Scheduler task.
+
 ## Setup (once, about 15 minutes)
 
 1. Install Python 3.12 from python.org (check "Add to PATH").
