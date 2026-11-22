@@ -4,3 +4,11 @@ dist
 .DS_Store
 .vercel
 .env*
+jarvis/.phone_token
+jarvis/.brain.json
+jarvis/.screentime.json
+jarvis/.session.json
+jarvis/.spotify.json
+jarvis/.cache/
+jarvis/local_settings.py
+jarvis/__pycache__/

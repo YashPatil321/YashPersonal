@@ -159,6 +159,28 @@ Every wake writes a line to the daily note, so the vault becomes a journal of yo
 
 During a focus session, if you sit on YouTube, Instagram or TikTok for 90 seconds, Jarvis calls you out.
 
+## Your iPhone (`jarvis_phone.py`)
+
+Run `python jarvis.py --phone` for your links, your token and the step by step shortcut setup.
+
+| Say | What happens |
+|---|---|
+| "set an alarm on my phone for 6:45" | a push on your phone, one tap sets the alarm |
+| "put my phone on do not disturb for 2 hours" / "turn off do not disturb on my phone" | tap and Focus changes |
+| "timer on my phone for 10 minutes" | tap and the timer starts |
+| "remind me on my phone to text coach at 5" | tap and it goes in Reminders with an alert |
+| "find my phone" | the loudest push ntfy can send |
+| "send this to my phone" / "text my phone ..." | your clipboard or the words go to your phone, links open on tap |
+
+Apple doesn't let anything set an alarm on your iPhone from outside it. A push you tap once, which runs your
+`Jarvis Do` shortcut, is as close as it gets.
+
+The other way round: "Hey Siri, Jarvis" runs a shortcut that sends what you say to Jarvis on the PC and Siri
+reads you the answer. Anything you can say to Jarvis works. Phone automations tell Jarvis when you get home,
+leave, stop your alarm (your room wakes up and gives the brief) or start Sleep Focus (goodnight).
+When you're away from the desk, leave reminders and important mail also go to your phone.
+The PC only answers your home network (and Tailscale) with the secret token in `.phone_token`.
+
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 
 Media keys work out of the box. To play a specific song by name:

@@ -34,3 +34,6 @@
 # WAKE_PLAYLIST = ""             # alarm music. Empty = your room playlist
 # WAKE_VOLUME = (10, 45)
 # COUNTDOWNS = {"uc": ("2026-11-30", "UC applications are due"), "signing day": ("2027-02-03", "signing day")}
+# PHONE_SHORTCUT = "Jarvis Do"   # the shortcut a phone push runs
+# PHONE_SERVER = True            # "Hey Siri, Jarvis" and phone automations
+# MIRROR_TO_PHONE = True         # leave reminders and important mail go to your phone when you're away

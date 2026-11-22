@@ -654,6 +654,7 @@ class Brain:
         self.guest = False        # guest mode: nothing private out loud
         self.hold_until = 0       # protocols hold notifications until this time
         self.last_brief_day = load_state().get("brief_day")
+        self.mirror = None        # mirror(title, text): push to your phone when you're away, set by jarvis.py
 
     def hold(self, secs):
         self.hold_until = time.time() + secs if secs else 0
@@ -805,6 +806,8 @@ class Brain:
                 self.say(" ".join(lines[:3]))
             else:
                 self.news += lines
+                if self.mirror and not self.guest:
+                    self.mirror("Mail that matters", " ".join(lines[:3]))
         elif spoken_if_none:
             self.say("Nothing important in your mail today.")
         return fresh

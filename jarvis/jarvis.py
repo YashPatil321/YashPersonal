@@ -44,6 +44,7 @@ import jarvis_brain
 import jarvis_claude
 import jarvis_extras
 import jarvis_orb
+import jarvis_phone
 import jarvis_room
 import jarvis_screen
 
@@ -92,7 +93,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -289,7 +290,14 @@ class Speaker:
             import pyttsx3
             self.engine = pyttsx3.init()
 
+    capture = threading.local()   # a request from your phone collects the answer here instead of speaking
+
     def say(self, text):
+        cap = getattr(Speaker.capture, "lines", None)
+        if cap is not None:
+            cap.append(re.sub(r"[*#`_>\[\]]", "", text))
+            if not getattr(Speaker.capture, "speak", False):
+                return
         jarvis_orb.send("speaking")
         try:
             self._say(text)
@@ -583,7 +591,7 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_brain.route_brain(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -935,6 +943,7 @@ class Jarvis:
         self.restart_for_update = False
         self.brain = None
         self.extras = None
+        self.lock = threading.RLock()   # voice and phone requests take turns
         self.record_long = None   # set in main: records up to 3 minutes and returns the text
 
     def ask_once(self, prompt, tools=None):
@@ -945,6 +954,17 @@ class Jarvis:
         self.brain = jarvis_brain.Brain(self.speaker.say, self.ask_once, chime=self.speaker.chime, launch=self.pc.launch, screen=sc)
         self.brain.play = lambda q: self.spotify.play(q, launch=self.pc.launch) if self.spotify.ready else self.pc.launch("spotify:search:" + urllib.parse.quote(q))
         self.brain.restore_windows = restore_windows
+        jarvis_phone.NTFY_TOPIC = jarvis_phone.NTFY_TOPIC or NTFY_TOPIC
+        self.phone = jarvis_phone.Phone(self.speaker.say, clipboard=jarvis_extras.clipboard_text)
+        if jarvis_phone.MIRROR_TO_PHONE:
+            self.brain.mirror = lambda title, text: jarvis_phone.push(text, title, priority=4, tags="bell")
+            spoken = self.brain.planner.say
+
+            def planner_say(line):
+                spoken(line)
+                if self.brain.presence.away and line.lower().startswith(("heads up", "leave in", "time to go")):
+                    jarvis_phone.push(line, "Leave reminder", priority=5, tags="car")
+            self.brain.planner.say = planner_say
         self.extras = jarvis_extras.Extras(self.speaker.say, self.ask_once, pc=self.pc, spotify=self.spotify, brain_=self.brain,
                                            record_long=self.record_long, screen_cmd=sc, room_playlist=jarvis_room.ROOM_PLAYLIST)
         return self.brain
@@ -988,6 +1008,46 @@ class Jarvis:
             self.last_brief_day = today
             answer, _ = ask_claude(MORNING_PROMPT, None, self.claude)
             self.speaker.say(answer)
+
+    def remote_ask(self, text, speak=False):
+        """A request from your phone. Returns what Jarvis would have said."""
+        with self.lock:
+            Speaker.capture.lines, Speaker.capture.speak = [], speak
+            try:
+                log(f"phone: {text}")
+                self.handle(text)
+                return " ".join(Speaker.capture.lines) or "Done."
+            finally:
+                Speaker.capture.lines = None
+
+    def phone_event(self, name):
+        log(f"phone event: {name}")
+        b = self.brain
+        if name == "home":
+            if b:
+                b.presence.arrived_at = time.time()
+                b.vault.log("Got home")
+            return "Welcome home. Clap when you walk in."
+        if name == "leave":
+            if b:
+                b.presence.before_leaving = jarvis_brain.window_snapshot()[:8]
+                b.vault.log("Left home")
+            return "Have a good one."
+        if name == "awake":
+            if jarvis_brain.quiet_now() and time.localtime().tm_hour < 4:
+                return "It's the middle of the night. Go back to sleep."
+            threading.Thread(target=lambda: self.lock.acquire() or self._wake_unlocked(), daemon=True).start()
+            return "Morning. Waking up your room."
+        if name == "bed":
+            threading.Thread(target=lambda: self.remote_ask("goodnight", speak=True), daemon=True).start()
+            return "Goodnight. Shutting the room down."
+        return "Unknown event."
+
+    def _wake_unlocked(self):
+        try:
+            self.wake_room()
+        finally:
+            self.lock.release()
 
     def handle(self, text):
         """Returns False to quit."""
@@ -1101,6 +1161,11 @@ class Jarvis:
             if action == "focus" and jarvis_brain.FOCUS_MUSIC and sp.ready:
                 threading.Thread(target=lambda: sp.play(jarvis_brain.FOCUS_MUSIC, launch=pc.launch), daemon=True).start()
             self.brain.handle(action, arg)
+            return True
+        if action == "phone":
+            if not self.brain:
+                self.make_brain()
+            self.phone.handle(arg)
             return True
         if action in ("weather", "protocol", "journal", "screentime", "countdown", "training", "training_week", "clipboard", "look",
                       "alarm", "alarm_off", "roast"):
@@ -1263,6 +1328,10 @@ def main():
         return doctor()
     if "--levels" in sys.argv:
         return levels()
+    if "--phone" in sys.argv:
+        jarvis_phone.NTFY_TOPIC = jarvis_phone.NTFY_TOPIC or NTFY_TOPIC
+        print(jarvis_phone.setup_text())
+        return
     if "--spotify-login" in sys.argv:
         return Spotify().login()
     if "--say" in sys.argv:
@@ -1291,6 +1360,11 @@ def main():
     BRAIN = jarvis.make_brain()
     BRAIN.start()
     jarvis.extras.start()
+    if jarvis_phone.PHONE_SERVER:
+        try:
+            jarvis_phone.Bridge(jarvis.remote_ask, jarvis.phone_event).start()
+        except Exception as e:
+            log(f"phone bridge off: {e}")
     claps = ClapDetector()
     mic, _ = resolve_devices()
 
@@ -1345,7 +1419,9 @@ def main():
                 jarvis_orb.send("idle")
                 continue
             try:
-                if not jarvis.handle(text):
+                with jarvis.lock:
+                    keep = jarvis.handle(text)
+                if not keep:
                     jarvis_orb.send("quit")
                     return
             except Exception as e:
