@@ -84,9 +84,18 @@ def update():
             write_version()
         return 0
     old_req = open(os.path.join(HERE, "requirements.txt")).read() if os.path.exists(os.path.join(HERE, "requirements.txt")) else ""
+    installed = load_installed()
     for f in files:
-        shutil.copy2(f, os.path.join(HERE, os.path.basename(f)))
-        print("update: new", os.path.basename(f))
+        name = os.path.basename(f)
+        dst = os.path.join(HERE, name)
+        if os.path.exists(dst) and name in installed and file_hash(dst) != installed[name]:
+            # changed here since the last update (by you, or by Jarvis improving itself): keep it
+            print(f"update: kept your own changes to {name} (the new version is in the repo copy if you want it)")
+            continue
+        shutil.copy2(f, dst)
+        installed[name] = file_hash(dst)
+        print("update: new", name)
+    save_installed(installed)
     # first time only: give the person a settings file that updates will never overwrite
     if not os.path.exists(os.path.join(HERE, "local_settings.py")) and os.path.exists(os.path.join(REPO, "jarvis", "local_settings.example.py")):
         shutil.copy2(os.path.join(REPO, "jarvis", "local_settings.example.py"), os.path.join(HERE, "local_settings.py"))
@@ -97,6 +106,29 @@ def update():
     install_extras()
     write_version()
     return len(files)
+
+
+def file_hash(p):
+    import hashlib
+    with open(p, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def load_installed():
+    """What each managed file looked like when the updater last put it here."""
+    import json
+    try:
+        return json.load(open(os.path.join(HERE, ".installed.json")))
+    except Exception:
+        return {}
+
+
+def save_installed(d):
+    import json
+    try:
+        json.dump(d, open(os.path.join(HERE, ".installed.json"), "w"))
+    except OSError:
+        pass
 
 
 def write_version():

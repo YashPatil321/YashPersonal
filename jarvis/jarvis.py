@@ -754,9 +754,38 @@ def push_phone(text):
         log(f"push failed: {e}")
 
 
+# Commands that do something you'd notice right away. If the sentence is really about changing, setting up or asking
+# about something ("change my wake up song", "how do I lock my screen", "why did the music stop"), it goes to Claude
+# instead, which understands the whole sentence.
+SENSITIVE = {"hq", "lock", "sleep", "goodnight", "monitor_off", "update", "reset", "play_pause", "next", "prev", "spotify_play",
+             "spotify_queue", "protocol", "camera", "gestures", "touch", "desk", "face_learn", "face_forget", "alarm", "alarm_off",
+             "phone", "hush", "test_pc", "cad_open", "cad_close", "focus", "focus_end", "whatsapp", "session_send", "mute",
+             "now_playing", "browser", "site", "app", "tab_close", "tabs_close_others", "ui_click", "handbook", "game_result"}
+META = re.compile(r"\b(?:change|changing|edit|rename|configure|customi[sz]e|replace|swap|instead|different|default|settings?|"
+                  r"automatically|set (?:my|the|it|up|a new)|make (?:my|it|the|that) (?:\w+ )?(?:be|into|to|more|less|different)|"
+                  r"switch (?:my|the) .+ to|update (?:my|the) (?!yourself)|how (?:do|does|can|would|should|come)|why|what does|"
+                  r"explain|is it possible|can (?:i|we) (?:make|change|set|get)|remember to|next time|from now on|whenever|every time)\b")
+
+
 def route(text):
     """Turn a spoken line into a local command, or None to send it to Claude.
     Returns (action, arg). Only actions from this list can ever run by voice."""
+    t = re.sub(r"\s+", " ", re.sub(r"[^\w\s']", " ", text.lower())).strip()
+    t = re.sub(r"^\s*(hey\s+)?(jarvis|" + re.escape(ASSISTANT_NAME.lower()) + r")\s*", "", t)
+    for mod in MODS:   # your own add ons (mods folder) get first say
+        try:
+            r = mod.route(t) if hasattr(mod, "route") else None
+            if r:
+                return ("mod", (mod, r))
+        except Exception as e:
+            log(f"mod {mod.__name__} route: {e}")
+    cmd = _route(text)
+    if cmd and cmd[0] in SENSITIVE and META.search(t):
+        return None   # it's a request about the thing, not the thing itself
+    return cmd
+
+
+def _route(text):
     t = re.sub(r"[^\w\s']", " ", text.lower())
     t = re.sub(r"^\s*(hey\s+)?(jarvis|" + re.escape(ASSISTANT_NAME.lower()) + r")\s*", "", t)
     t = re.sub(r"\b(please|can you|could you|for me|real quick)\b", " ", t)
@@ -815,9 +844,10 @@ def route(text):
         return ("session_send", (m.group(1), m.group(2)))
     if re.search(r"\bnew conversation\b|\bstart over\b|\bfresh start\b", t):
         return ("reset", None)
-    if re.search(r"\b(open|show|pull up) (the )?hq\b|\bwake (everything|up the room|up)\b|\bi'?m (home|back)\b", t):
+    if re.fullmatch(r"(?:open|show|pull up) (?:the )?hq|wake (?:everything|the room|up the room|up)(?: everything)?|wake everything up|"
+                    r"(?:ok(?:ay)? )?i'?m (?:home|back)|wakey wakey|rise and shine|systems? on(?:line)?", t):
         return ("hq", None)
-    if re.search(r"\block (the |my )?(screen|computer|pc)\b", t):
+    if re.fullmatch(r"lock (?:the |my )?(?:screen|computer|pc)(?: now)?", t):
         return ("lock", None)
 
     # music
@@ -1145,6 +1175,53 @@ def write_claude_permissions(full=None):
     return path
 
 
+def code_files():
+    out = [os.path.join(WORKDIR, f) for f in os.listdir(WORKDIR) if (f.startswith("jarvis") and f.endswith(".py")) or f == "local_settings.py"]
+    mods = os.path.join(WORKDIR, "mods")
+    if os.path.isdir(mods):
+        out += [os.path.join(mods, f) for f in os.listdir(mods) if f.endswith(".py")]
+    return out
+
+
+def snapshot_code():
+    """Jarvis's own code and settings as they are now, so a bad self edit can be put back."""
+    snap = {}
+    for p in code_files():
+        try:
+            with open(p, "rb") as f:
+                snap[p] = f.read()
+        except OSError:
+            pass
+    return snap
+
+
+def check_code_changes(before):
+    """After Claude ran: which files changed, and do they still compile? Broken ones get their old version back.
+    Returns None if nothing changed, else (broken_names, good_names)."""
+    import py_compile
+    now = snapshot_code()
+    changed = [p for p in set(before) | set(now) if before.get(p) != now.get(p)]
+    if not changed:
+        return None
+    broken, good = [], []
+    for p in changed:
+        if p not in now:
+            good.append(os.path.basename(p))
+            continue
+        try:
+            py_compile.compile(p, doraise=True)
+            good.append(os.path.basename(p))
+        except py_compile.PyCompileError as e:
+            log(f"self edit broke {os.path.basename(p)}: {str(e)[:200]}")
+            if p in before:
+                with open(p, "wb") as f:
+                    f.write(before[p])
+            else:
+                os.remove(p)
+            broken.append(os.path.basename(p))
+    return broken, good
+
+
 def describe_denied(denied):
     """'run a command: Get-ScheduledTask ...' in a few spoken words."""
     if not denied:
@@ -1160,6 +1237,27 @@ def describe_denied(denied):
 
 
 ACTIVITY = None   # set in main: what he's doing right now, added to every question
+MODS = []         # add ons in C:\jarvis\mods, loaded at start
+
+
+def load_mods():
+    """Every .py file in the mods folder. A mod can have route(t) -> (action, arg) or None, and handle(jarvis, action, arg).
+    Updates never touch this folder, so it's where Jarvis (or you) adds new features."""
+    import importlib.util
+    folder = os.path.join(WORKDIR, "mods")
+    os.makedirs(folder, exist_ok=True)
+    out = []
+    for fn in sorted(os.listdir(folder)):
+        if fn.endswith(".py") and not fn.startswith("_"):
+            try:
+                spec = importlib.util.spec_from_file_location("mod_" + fn[:-3], os.path.join(folder, fn))
+                m = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(m)
+                out.append(m)
+                log(f"mod loaded: {fn}")
+            except Exception as e:
+                log(f"mod {fn} failed to load, skipped: {e}")
+    return out
 
 
 def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=None, model=None):
@@ -1182,6 +1280,16 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
                   "Take a screenshot with it and read the image when you need to see the screen. You can also SEE YASH: "
                   "jarvis_ctl.py camera saves a photo from his webcam and prints its path, read that image whenever a question "
                   "needs eyes (what he's holding, wearing, doing, how many fingers). Never say you don't have a camera. "
+                  f"Your own settings (wake up music = ROOM_PLAYLIST, alarm music = WAKE_PLAYLIST, party = PARTY_PLAYLIST, "
+                  f"pregame = GAMEDAY_PLAYLIST, focus music = FOCUS_MUSIC, voice = VOICE, your name = ASSISTANT_NAME, mic gain "
+                  f"and more) are Python lines like NAME = \"value\" in {os.path.join(WORKDIR, 'local_settings.py')}. To change "
+                  "one, edit that file (add the line if it's missing; playlists are Spotify links, find them with the Spotify "
+                  "tools or web search). You can also improve yourself: your code is the jarvis*.py files in "
+                  f"{WORKDIR}. For a new feature, prefer a mod: a .py file in {os.path.join(WORKDIR, 'mods')} with "
+                  "route(t) returning (action, arg) or None for the lowercase spoken line t, and handle(jarvis, action, arg) "
+                  "that does it (jarvis.speaker.say(text) talks, jarvis.pc has key/launch/open_url). Edit the main files only "
+                  "for real fixes. Your edits survive updates. After you change any of these files Jarvis checks they compile, "
+                  "puts back anything broken, and restarts itself to load the change, so just say what you changed. "
                   "Do what he asks; don't tell him to do it himself.")
     if ACTIVITY:
         try:
@@ -1609,8 +1717,17 @@ class Jarvis:
             spoken.append(sentence)
             self.speaker.say(sentence)
             return not self.speaker.interrupted
+        before = snapshot_code()
         answer, self.session_id = ask_claude(text, self.session_id, self.claude, full=full, on_text=speak if STREAM else None)
         save_session(self.session_id)
+        changed = check_code_changes(before)
+        if changed is not None:
+            broken, good = changed
+            if broken:
+                self.speaker.say("That change broke my code, so I put the old version back: " + ", ".join(broken) + ".")
+            if good:
+                log("code or settings changed: " + ", ".join(good) + ". Restarting to load it.")
+                threading.Timer(4.0, lambda: setattr(self, "restart_for_update", True)).start()
         denied = list(LAST_DENIED)
         real = [x for x in spoken if x not in ("One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.")]
         if STREAM and real and not denied:
@@ -1654,6 +1771,14 @@ class Jarvis:
             # or a new window when you asked for one. No focus tricks needed.
             pc.open_url(url, app_window=None if kind == "window" else False)
             say(("New window." if kind == "window" else "New tab.") if not site else f"Opening {site} in a new tab.")
+            return True
+        if action == "mod":
+            mod, (act, a) = arg
+            try:
+                mod.handle(self, act, a)
+            except Exception as e:
+                log(f"mod {mod.__name__}: {e}")
+                say("My add on for that broke. Ask me to fix it.")
             return True
         if action == "handbook":
             pc.open_url(HANDBOOK_URL)
@@ -2186,7 +2311,8 @@ def main():
     BRAIN = jarvis.make_brain()
     BRAIN.start()
     jarvis.extras.start()
-    global ACTIVITY
+    global ACTIVITY, MODS
+    MODS = load_mods()
     ACTIVITY = jarvis_activity.Activity(sample=jarvis_extras.foreground_window, music=jarvis.pc.spotify_title,
                                         at_desk=lambda: (jarvis.vision.seconds_since_face() < 60) if jarvis.vision and jarvis.vision.ok and jarvis.vision.enabled else None,
                                         idle=jarvis_brain.idle_seconds).start()

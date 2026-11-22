@@ -36,11 +36,12 @@ CAMERA_SIZE = (640, 360)
 GESTURES = True
 AIR_MOUSE = False            # index finger drives the cursor, pinch clicks. Fun, but off by default
 HOLD_SECONDS = 1.0           # how long a pose must be held before it counts
-COOLDOWN_SECONDS = 2.0
+COOLDOWN_SECONDS = 2.5
+ARM_SECONDS = 0.5            # a hand has to appear and hold still this long before any gesture counts
 # Gestures only count when you hold your hand up toward the camera on purpose: big enough in the picture (close)
 # and not down at the bottom edge (hands on the keyboard, scratching your face, waving at someone).
-MIN_HAND = 0.10              # palm width as a share of the picture width
-MAX_WRIST_Y = 0.85           # wrist above this line (0 top, 1 bottom)
+MIN_HAND = 0.11              # palm width as a share of the picture width (close to the camera, on purpose)
+MAX_WRIST_Y = 0.62           # wrist above this line (0 top, 1 bottom): hand raised to about shoulder height or higher
 PRESENCE_FROM_CAMERA = True
 # ---------------------------------------------------------------------------
 
@@ -110,11 +111,21 @@ class GestureReader:
         self.clock = clock
         self.cur, self.since, self.last_fire, self.fired_cur = None, 0.0, -1e9, False
         self.track = deque()   # (t, x) of the open palm center, for swipes and waves
+        self.arm_since = self.arm_pos = None
 
     def feed(self, lm):
         now = self.clock()
         if lm is not None and (_d(lm[INDEX_MCP], lm[PINKY_MCP]) < MIN_HAND or lm[WRIST][1] > MAX_WRIST_Y):
             lm = None   # not held up on purpose
+        if lm is not None:
+            # arming: the hand has to show up and hold fairly still for ARM_SECONDS before anything counts
+            c = (lm[WRIST][0], lm[WRIST][1])
+            if self.arm_since is None or self.arm_pos is None or (now - self.arm_since < ARM_SECONDS and _d(c, self.arm_pos) > 0.06):
+                self.arm_since, self.arm_pos = now, c
+            if now - self.arm_since < ARM_SECONDS:
+                return None
+        else:
+            self.arm_since = self.arm_pos = None
         if lm is None:
             self.cur, self.fired_cur = None, False
             self.track.clear()
@@ -245,7 +256,7 @@ class Detectors:
         V = vision.RunningMode.VIDEO
         self.hands = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=V, num_hands=2,
-            min_hand_detection_confidence=0.6, min_tracking_confidence=0.5)) if hands else None
+            min_hand_detection_confidence=0.75, min_hand_presence_confidence=0.75, min_tracking_confidence=0.6)) if hands else None
         self.faces = vision.FaceDetector.create_from_options(vision.FaceDetectorOptions(
             base_options=BaseOptions(model_asset_path=model_path("face")), running_mode=V, min_detection_confidence=0.5)) if faces else None
         self.pose = None

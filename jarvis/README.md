@@ -326,6 +326,20 @@ You can also drag a file onto the window.
 - Admin: the installer makes the Jarvis task run as administrator, so it can control every window. Apps it opens,
   like Chrome, still open as you.
 
+## Jarvis improves itself
+
+Ask for a change by voice ("add a command that opens my SolidHauz admin", "make your greetings shorter", "change my
+wake up song to SICKO MODE") and Claude edits Jarvis: settings go in `local_settings.py`, new features go in the
+`mods` folder (a mod has `route(t)` and `handle(jarvis, action, arg)`), real fixes go in the main files. After each
+change Jarvis checks the code still compiles, puts back anything broken, and restarts itself to load it.
+Updates never overwrite a file that was changed here, and never touch `mods`.
+
+## Understanding what you mean
+
+Commands that do something big (wake up, lock, music, camera...) only fire when that's what you said, not when
+the words show up inside a bigger request. "Change my wake up song" or "how do I lock my screen automatically"
+go to Claude, which understands the whole sentence.
+
 ## Jarvis on HQ (the iPad)
 
 HQ's top strip has a JARVIS cell: what Jarvis is doing right now ("Locked in, 32 min left", "In the workshop: drone
