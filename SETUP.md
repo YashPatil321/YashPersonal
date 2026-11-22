@@ -19,8 +19,8 @@ Open PowerShell (Start, type PowerShell) and paste:
 irm https://raw.githubusercontent.com/YashPatil321/YashPersonal/claude/hopeful-bohr-1ramsu/jarvis/install.ps1 | iex
 ```
 
-That installs or updates Jarvis in `C:\jarvis`, makes it start when you log in (a shortcut named Jarvis in
-`shell:startup`), and starts it. From then on it updates itself. The older manual steps are below if you need them.
+That installs or updates Jarvis in `C:\jarvis`, makes it start when you log in (a Task Scheduler task named
+Jarvis), and starts it. From then on it updates itself. The older manual steps are below if you need them.
 
 ## 1. PC: update Jarvis (10 minutes, at the PC)
 

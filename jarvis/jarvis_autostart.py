@@ -153,6 +153,7 @@ def check(log=print, say=None, tasks=None, session=None, quiet=None, ask=None, r
         problems.append("I'm running in Windows' background session, so I can't see or control any window.")
     tasks = jarvis_tasks() if tasks is None else tasks
     dup = startup_shortcut() if shortcut is None else shortcut
+    dup = dup or any(not needs_fix(t) for t in tasks)   # a good "Jarvis" task already starts me
     bad = [t for t in tasks if needs_fix(t)]
     for t in tasks:
         log(f"autostart task '{t['name']}': logon mode '{t['logon_mode']}'" + (" (needs fixing)" if t in bad else ""))

@@ -12,11 +12,11 @@ irm https://raw.githubusercontent.com/YashPatil321/YashPersonal/claude/hopeful-b
 
 It installs Git and Python if missing, gets the latest code into `C:\yash-system`, updates `C:\jarvis` (your
 `local_settings.py`, `CLAUDE.md` and notes are never touched, and anything it replaces is backed up), installs
-packages, adds Jarvis to your Startup folder, and starts it. Run it again any time something seems off.
+packages, creates a Task Scheduler task named Jarvis, removes any old Jarvis tasks, and starts it. Run it again any time something seems off.
 
 After that Jarvis updates itself every time it starts, at 4 AM, and when you say "hey jarvis, update yourself".
-The startup entry is a shortcut called **Jarvis** in your Startup folder (Win+R, `shell:startup`), not a Task
-Scheduler task.
+It starts from a Task Scheduler task called **Jarvis** (Task Scheduler Library). Its window is titled Jarvis and it
+shows as **Jarvis.exe** in Task Manager. To stop it starting, disable that task.
 
 ## Setup (once, about 15 minutes)
 
