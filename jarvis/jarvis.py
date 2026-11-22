@@ -47,6 +47,7 @@ import jarvis_orb
 import jarvis_phone
 import jarvis_room
 import jarvis_screen
+import jarvis_vision
 
 # ---------------- settings you might change ----------------
 MIC_DEVICE = None            # None = find the Focusrite by name. Or put a number from --devices
@@ -93,7 +94,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -591,7 +592,7 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -944,6 +945,9 @@ class Jarvis:
         self.brain = None
         self.extras = None
         self.lock = threading.RLock()   # voice and phone requests take turns
+        self.vision = None
+        self.listen_requested = False   # a peace sign to the camera works like the wake word
+        self.last_wake = 0.0
         self.record_long = None   # set in main: records up to 3 minutes and returns the text
 
     def ask_once(self, prompt, tools=None):
@@ -980,8 +984,40 @@ class Jarvis:
         t.daemon = True
         t.start()
 
+    def gesture(self, name):
+        """A hand gesture from the camera."""
+        log(f"gesture: {name}")
+        pc = self.pc
+        if name == "peace":
+            self.listen_requested = True
+        elif name == "palm":
+            pc.key("play_pause")
+        elif name == "swipe_right":
+            pc.key("next")
+        elif name == "swipe_left":
+            pc.key("prev")
+        elif name == "point_up":
+            pc.key("vol_up", 2)
+        elif name == "point_down":
+            pc.key("vol_down", 2)
+        elif name == "fist":
+            pc.key("mute")
+        elif name == "thumbs_up":
+            if self.pending:
+                with self.lock:
+                    self.run("confirm", True)
+        elif name == "wave":
+            if time.time() - self.last_wake > 600:
+                with self.lock:
+                    self.wake_room()
+            else:
+                self.speaker.say("Hey.")
+        if name not in ("point_up", "point_down", "peace", "wave"):
+            threading.Thread(target=lambda: self.speaker.chime(1480), daemon=True).start()
+
     def wake_room(self):
         """The walk in scene. Opening HQ here also tells HQ on the iPad to wake up."""
+        self.last_wake = time.time()
         self.pc.nudge_display()
         snd = threading.Thread(target=lambda: self.speaker.powerup(), daemon=True)
         snd.start()
@@ -1162,6 +1198,29 @@ class Jarvis:
                 threading.Thread(target=lambda: sp.play(jarvis_brain.FOCUS_MUSIC, launch=pc.launch), daemon=True).start()
             self.brain.handle(action, arg)
             return True
+        if action in ("reps", "reps_stop", "camera", "air_mouse", "gestures_help"):
+            v = self.vision
+            if action == "gestures_help":
+                say(jarvis_vision.GESTURE_HELP if v else "The camera is off. Install mediapipe and opencv, then set VISION to True.")
+            elif not v:
+                say("The camera isn't set up. Install mediapipe and opencv, then set VISION to True in local settings.")
+            elif action == "reps":
+                def done(ex, n):
+                    if self.brain and n:
+                        jarvis_extras.Training(self.brain.vault).add(f"{n} {ex}", None, None)
+                    say(f"{n} {ex}. " + ("Logged it. " if n else "") + ("Strong set." if n >= 20 else "Nice." if n else "I didn't count any. Get your whole body in the camera."))
+                v.count(arg, done)
+                say(f"Counting {arg}. Get your whole body in the camera. Say done when you're finished.")
+            elif action == "reps_stop":
+                if not v.stop_count():
+                    say("I wasn't counting anything.")
+            elif action == "camera":
+                v.enabled = arg
+                say("Camera on." if arg else "Camera off. Say camera on to bring it back.")
+            elif action == "air_mouse":
+                jarvis_vision.AIR_MOUSE = arg
+                say("Air mouse on. Point to move, pinch to click. Say air mouse off to stop." if arg else "Air mouse off.")
+            return True
         if action == "phone":
             if not self.brain:
                 self.make_brain()
@@ -1328,6 +1387,8 @@ def main():
         return doctor()
     if "--levels" in sys.argv:
         return levels()
+    if "--vision" in sys.argv:
+        return jarvis_vision.preview()
     if "--phone" in sys.argv:
         jarvis_phone.NTFY_TOPIC = jarvis_phone.NTFY_TOPIC or NTFY_TOPIC
         print(jarvis_phone.setup_text())
@@ -1360,6 +1421,10 @@ def main():
     BRAIN = jarvis.make_brain()
     BRAIN.start()
     jarvis.extras.start()
+    if jarvis_vision.VISION:
+        jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say).start()
+        if jarvis_vision.PRESENCE_FROM_CAMERA:
+            BRAIN.presence.idle = lambda: min(jarvis_brain.idle_seconds(), jarvis.vision.seconds_since_face())
     if jarvis_phone.PHONE_SERVER:
         try:
             jarvis_phone.Bridge(jarvis.remote_ask, jarvis.phone_event).start()
@@ -1400,7 +1465,9 @@ def main():
                 drain_mic()
                 jarvis.quiet_until = time.time() + 1.0
                 continue
-            if wake.predict(frame).get(WAKE_WORD, 0) < WAKE_THRESHOLD:
+            if jarvis.listen_requested:
+                jarvis.listen_requested = False   # peace sign to the camera
+            elif wake.predict(frame).get(WAKE_WORD, 0) < WAKE_THRESHOLD:
                 continue
 
             wake.reset()

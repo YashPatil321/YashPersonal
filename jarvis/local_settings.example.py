@@ -37,3 +37,7 @@
 # PHONE_SHORTCUT = "Jarvis Do"   # the shortcut a phone push runs
 # PHONE_SERVER = True            # "Hey Siri, Jarvis" and phone automations
 # MIRROR_TO_PHONE = True         # leave reminders and important mail go to your phone when you're away
+# VISION = True                  # after: .venv\Scripts\pip install mediapipe opencv-python
+# CAMERA_INDEX = 0
+# AIR_MOUSE = False
+# GESTURES = True

@@ -181,6 +181,30 @@ leave, stop your alarm (your room wakes up and gives the brief) or start Sleep F
 When you're away from the desk, leave reminders and important mail also go to your phone.
 The PC only answers your home network (and Tailscale) with the secret token in `.phone_token`.
 
+## Camera: hand gestures, presence, rep counting (`jarvis_vision.py`)
+
+Any USB webcam on top of the monitor. Everything runs on your PC with MediaPipe. No picture is saved or sent.
+
+Setup, once:
+1. `.venv\Scripts\pip install mediapipe opencv-python`
+2. `python jarvis.py --vision` opens a test window that shows your hand and the gesture it reads (Q to quit).
+3. Put `VISION = True` in `local_settings.py` and restart Jarvis. The models (about 14 MB) download the first time.
+
+| Do | What happens |
+|---|---|
+| peace sign | Jarvis starts listening, no wake word |
+| open palm, hold | play or pause |
+| swipe right / left with an open hand | next / previous song |
+| point up / down, hold | volume up / down, keeps going while you hold |
+| thumbs up | yes, to anything Jarvis asked you to confirm |
+| fist, hold | mute |
+| wave | wakes the room, like a double clap |
+| walk in and sit down | the camera sees you, so the welcome back happens on its own |
+| "count my pushups" / "count my squats" / "count my curls" | counts out loud, "done" logs the set to Training |
+| "air mouse" / "air mouse off" | your index finger moves the cursor, pinch clicks |
+| "camera off" / "camera on" | pauses the camera completely |
+| "what gestures can I use" | reads this list |
+
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 
 Media keys work out of the box. To play a specific song by name:
