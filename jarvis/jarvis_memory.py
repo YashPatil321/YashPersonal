@@ -133,7 +133,43 @@ class Conversations:
 STOP = set("the and for what did you about that this have with from were was are your our all any tell talk talked ask asked said".split())
 
 
+# Things people say that are usually worth keeping: plans, dates, people, preferences, results, health.
+IMPORTANT = re.compile(r"\b(?:i'?m (?:going|visiting|starting|trying|thinking|planning|applying|allergic)|i (?:have|got|need|want|like|love|hate|prefer|"
+                       r"decided|started|quit|joined|finished|signed|committed|failed|passed|made|lost|won)|i've (?:been|got|decided)|"
+                       r"my (?:\w+ )?(?:is|are|was|will be|starts|ends)|my (?:mom|dad|sister|brother|coach|friend|girlfriend|boyfriend|"
+                       r"teacher|counselor|boss|client)|next (?:week|month|year|season)|tomorrow|tonight|this (?:weekend|week)|"
+                       r"on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|january|february|march|april|may|june|july|"
+                       r"august|september|october|november|december|deadline|due|appointment|interview|tryout|exam|test|birthday|"
+                       r"favorite|allergic|injured|hurt|sick|accepted|rejected|offer|scholarship|we (?:won|lost|tied)|from now on|"
+                       r"always|never)\b", re.I)
+
+
+def worth_remembering(text):
+    """A quick first pass: does this sound like something lasting? (Claude makes the real call.)"""
+    return len(text.split()) >= 4 and bool(IMPORTANT.search(text))
+
+
+def capture(text, recent, ask, brain, log=_log):
+    """Pulls lasting facts out of one thing Yash just said and saves new ones to Memory.md. Runs in the background."""
+    if not brain or not worth_remembering(text):
+        return []
+    out = ask("Yash just said this to you (Jarvis): \"" + text + "\"\nRecent conversation for context:\n" + recent[-1500:] +
+              "\n\nDoes it contain a lasting fact worth remembering for weeks (a plan or date, a person and who they are, a "
+              "preference, a decision, a result, something about his health, school, soccer, college or SolidHauz)? If yes, "
+              "write each fact as one short line starting with '- ', in third person (Yash ...), at most 3 lines. "
+              "If it's only a command, a question or small talk, reply NONE.")
+    facts = [l[2:].strip() for l in (out or "").splitlines() if l.strip().startswith("- ")][:3]
+    have = brain.vault.memory(20000).lower()
+    new = [f for f in facts if f.lower()[:60] not in have]
+    for f in new:
+        brain.vault.remember(f)
+        log("remembered: " + f)
+    return new
+
+
 def route_memory(t):
+    if re.fullmatch(r"what do you (?:know|remember) about me|what have you (?:learned|remembered) about me|what do you remember", t):
+        return ("memory_about", None)
     m = re.fullmatch(r"what did (?:we|i) (?:talk|chat|speak) about(?: (yesterday|today|earlier|this morning|last night|before))?|"
                      r"what were we (?:talking|saying) about|remind me what we (?:talked|said) about(?: (yesterday|today|earlier))?", t)
     if m:

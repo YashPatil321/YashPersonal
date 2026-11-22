@@ -25,8 +25,68 @@ MANAGED = ["jarvis.py", "jarvis_*.py", "update.py", "requirements.txt", "require
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
+ZIP_URL = "https://codeload.github.com/YashPatil321/YashPersonal/zip/refs/heads/" + BRANCH
+
+
 def git(*args):
-    return subprocess.run(["git", "-C", REPO, *args], capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+    # safe.directory=*: running as administrator vs as you makes Git refuse a folder "owned by someone else". Don't.
+    return subprocess.run(["git", "-c", "safe.directory=*", "-C", REPO, *args], capture_output=True, text=True, timeout=180,
+                          creationflags=NO_WINDOW)
+
+
+def status(ok, error="", source=""):
+    """What the last update attempt found, for Jarvis to say out loud if something's wrong."""
+    import json
+    import time
+    try:
+        json.dump({"ok": ok, "error": error, "source": source, "when": time.time()}, open(os.path.join(HERE, ".update_status.json"), "w"))
+    except OSError:
+        pass
+    if error:
+        print("update:", error)
+
+
+def sync_source():
+    """Gets the newest code and returns the folder holding it. Git first; if Git fails for any reason, a zip from GitHub.
+    Returns None only if both fail (offline)."""
+    err = ""
+    if have_git():
+        if not os.path.isdir(os.path.join(REPO, ".git")):
+            if os.path.isdir(REPO) and os.listdir(REPO):
+                shutil.rmtree(REPO, ignore_errors=True)   # a broken half copy: start clean
+            r = subprocess.run(["git", "-c", "safe.directory=*", "clone", "-q", "-b", BRANCH, "https://github.com/YashPatil321/YashPersonal.git", REPO],
+                               capture_output=True, text=True, timeout=600, creationflags=NO_WINDOW)
+            if r.returncode != 0:
+                err = "git clone failed: " + r.stderr.strip()[:160]
+        if not err:
+            r = git("fetch", "-q", "origin", BRANCH)
+            if r.returncode == 0:
+                r = git("reset", "-q", "--hard", "origin/" + BRANCH)   # the copy matches GitHub exactly, nothing to merge
+            if r.returncode == 0:
+                status(True, source="git")
+                return os.path.join(REPO, "jarvis")
+            err = "git couldn't update: " + (r.stderr.strip() or r.stdout.strip())[:160]
+    else:
+        err = "Git isn't installed"
+    # fallback: download the code as a zip, no Git needed
+    try:
+        import io
+        import urllib.request
+        import zipfile
+        data = urllib.request.urlopen(ZIP_URL, timeout=120).read()
+        dest = os.path.join(HERE, ".cache", "src")
+        shutil.rmtree(dest, ignore_errors=True)
+        zipfile.ZipFile(io.BytesIO(data)).extractall(dest)
+        top = [d for d in os.listdir(dest) if os.path.isdir(os.path.join(dest, d))]
+        src = os.path.join(dest, top[0], "jarvis") if top else None
+        if src and os.path.isdir(src):
+            status(True, error=f"({err}, used the zip download instead)", source="zip")
+            return src
+        err += "; the zip download had no jarvis folder"
+    except Exception as e:
+        err += f"; the zip download failed too ({e})"
+    status(False, error=err)
+    return None
 
 
 def have_git():
@@ -50,17 +110,25 @@ def ensure_repo():
 
 
 def waiting():
-    """True if the remote has commits this machine doesn't."""
-    if not os.path.isdir(os.path.join(REPO, ".git")):
-        return have_git()   # never set up: an update is definitely waiting
-    if git("fetch", "-q", "origin", BRANCH).returncode != 0:
+    """True if newer code is waiting (anything that differs from what's running here, apart from files Jarvis edited itself)."""
+    src = sync_source()
+    if not src:
         return False
-    local, remote = git("rev-parse", "HEAD").stdout.strip(), git("rev-parse", "origin/" + BRANCH).stdout.strip()
-    return bool(remote) and local != remote or bool(changed_files())
+    keep = local_changes()
+    return any(os.path.basename(f) not in keep for f in changed_files(src))
 
 
-def changed_files():
-    src = os.path.join(REPO, "jarvis")
+def local_changes():
+    """Files Jarvis deliberately edited itself (it records them). Updates leave those alone."""
+    import json
+    try:
+        return set(json.load(open(os.path.join(HERE, ".local_changes.json"))))
+    except Exception:
+        return set()
+
+
+def changed_files(src=None):
+    src = src or os.path.join(REPO, "jarvis")
     out = []
     for pat in MANAGED:
         for f in glob.glob(os.path.join(src, pat)):
@@ -71,13 +139,11 @@ def changed_files():
 
 
 def update():
-    if not ensure_repo():
+    src = sync_source()
+    if not src:
+        print("update: couldn't get the new code, running the current version")
         return 0
-    git("checkout", "-q", BRANCH)
-    r = git("pull", "-q", "--ff-only", "origin", BRANCH)
-    if r.returncode != 0:
-        print("update: could not pull (offline or local changes in the repo); running the current version.", r.stderr.strip()[:200])
-    files = changed_files()
+    files = changed_files(src)
     if not files:
         print("update: already up to date")
         if not os.path.exists(os.path.join(HERE, ".version.json")):
@@ -85,20 +151,21 @@ def update():
         return 0
     old_req = open(os.path.join(HERE, "requirements.txt")).read() if os.path.exists(os.path.join(HERE, "requirements.txt")) else ""
     installed = load_installed()
+    keep = local_changes()
     for f in files:
         name = os.path.basename(f)
         dst = os.path.join(HERE, name)
-        if os.path.exists(dst) and name in installed and file_hash(dst) != installed[name]:
-            # changed here since the last update (by you, or by Jarvis improving itself): keep it
-            print(f"update: kept your own changes to {name} (the new version is in the repo copy if you want it)")
+        if name in keep and os.path.exists(dst):
+            # Jarvis edited this one itself on purpose: keep it
+            print(f"update: kept Jarvis's own edits to {name}")
             continue
         shutil.copy2(f, dst)
         installed[name] = file_hash(dst)
         print("update: new", name)
     save_installed(installed)
     # first time only: give the person a settings file that updates will never overwrite
-    if not os.path.exists(os.path.join(HERE, "local_settings.py")) and os.path.exists(os.path.join(REPO, "jarvis", "local_settings.example.py")):
-        shutil.copy2(os.path.join(REPO, "jarvis", "local_settings.example.py"), os.path.join(HERE, "local_settings.py"))
+    if not os.path.exists(os.path.join(HERE, "local_settings.py")) and os.path.exists(os.path.join(src, "local_settings.example.py")):
+        shutil.copy2(os.path.join(src, "local_settings.example.py"), os.path.join(HERE, "local_settings.py"))
         print("update: created local_settings.py, put your mic and speaker settings there")
     if open(os.path.join(HERE, "requirements.txt")).read() != old_req:
         print("update: installing new packages")
@@ -138,6 +205,8 @@ def write_version():
     try:
         head = git("log", "-1", "--format=%H|%cI").stdout.strip().split("|")
         recent = [l for l in git("log", "-8", "--format=%s").stdout.splitlines() if l.strip()]
+        if len(head) < 2:   # came from the zip: no history, just the time
+            head, recent = ["zip", time.strftime("%Y-%m-%dT%H:%M:%S")], []
         when = time.strftime("%b %d at %I:%M %p", time.strptime(head[1][:19], "%Y-%m-%dT%H:%M:%S")).replace(" 0", " ")
         with open(os.path.join(HERE, ".version.json"), "w", encoding="utf-8") as f:
             json.dump({"commit": head[0], "when": when, "recent": recent}, f)

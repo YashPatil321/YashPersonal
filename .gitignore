@@ -23,3 +23,7 @@ jarvis/.memory_state.json
 jarvis/.installed.json
 jarvis/.version.json
 jarvis/mods/
+jarvis/.update_status.json
+jarvis/.local_changes.json
+jarvis/.extras_failed.json
+jarvis/.cache/

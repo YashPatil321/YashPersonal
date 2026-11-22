@@ -36,13 +36,16 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 
 # 2. Latest code
 Step "Getting the latest Jarvis"
+git config --global --add safe.directory "*" 2>$null   # admin vs you owning the folder must never block updates
 if (Test-Path "$Repo\.git") {
-    git -C $Repo fetch -q origin $Branch
-    git -C $Repo checkout -q $Branch
-    git -C $Repo reset -q --hard "origin/$Branch"
+    git -c safe.directory=* -C $Repo fetch -q origin $Branch
+    git -c safe.directory=* -C $Repo checkout -q $Branch
+    git -c safe.directory=* -C $Repo reset -q --hard "origin/$Branch"
 } else {
-    git clone -q -b $Branch https://github.com/YashPatil321/YashPersonal.git $Repo
+    if (Test-Path $Repo) { Remove-Item $Repo -Recurse -Force }
+    git -c safe.directory=* clone -q -b $Branch https://github.com/YashPatil321/YashPersonal.git $Repo
 }
+if (-not (Test-Path "$Repo\jarvis\jarvis.py")) { throw "Couldn't download Jarvis. Check the internet connection and run this again." }
 
 # 3. Copy into C:\jarvis
 Step "Updating C:\jarvis"
@@ -50,7 +53,10 @@ New-Item -ItemType Directory -Force $Dir | Out-Null
 $src = "$Repo\jarvis"
 $backup = "$Dir\backup-" + (Get-Date -Format "yyyyMMdd-HHmm")
 $managed = Get-ChildItem $src -File | Where-Object { $_.Name -match '^(jarvis.*\.py|update\.py|requirements.*\.txt|.*\.html|README\.md|HANDOFF\.md|install\.ps1)$' }
+$keep = @()
+if (Test-Path "$Dir\.local_changes.json") { $keep = Get-Content "$Dir\.local_changes.json" -Raw | ConvertFrom-Json }
 foreach ($f in $managed) {
+    if ($keep -contains $f.Name) { Write-Host "   kept Jarvis's own edits to $($f.Name)"; continue }
     $dst = Join-Path $Dir $f.Name
     if ((Test-Path $dst) -and ((Get-FileHash $dst).Hash -ne (Get-FileHash $f.FullName).Hash)) {
         New-Item -ItemType Directory -Force $backup | Out-Null

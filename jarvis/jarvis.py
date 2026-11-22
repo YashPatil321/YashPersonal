@@ -1214,6 +1214,16 @@ def snapshot_code():
     return snap
 
 
+def mark_local_change(name):
+    path = os.path.join(WORKDIR, ".local_changes.json")
+    try:
+        names = set(json.load(open(path)))
+    except Exception:
+        names = set()
+    names.add(name)
+    json.dump(sorted(names), open(path, "w"))
+
+
 def check_code_changes(before):
     """After Claude ran: which files changed, and do they still compile? Broken ones get their old version back.
     Returns None if nothing changed, else (broken_names, good_names)."""
@@ -1230,6 +1240,8 @@ def check_code_changes(before):
         try:
             py_compile.compile(p, doraise=True)
             good.append(os.path.basename(p))
+            if os.path.basename(p).startswith("jarvis") and os.path.dirname(p) == WORKDIR:
+                mark_local_change(os.path.basename(p))   # updates keep this edit
         except py_compile.PyCompileError as e:
             log(f"self edit broke {os.path.basename(p)}: {str(e)[:200]}")
             if p in before:
@@ -1731,6 +1743,11 @@ class Jarvis:
         """Returns False to quit."""
         if CONVOS:
             CONVOS.add("you", text)
+            if self.brain and jarvis_memory.worth_remembering(text):
+                # catch important things as you say them, quietly, in the background
+                recent = CONVOS.recent(hours=2, max_chars=1500)
+                threading.Thread(target=jarvis_memory.capture, daemon=True,
+                                 args=(text, recent, lambda pr: ask_claude(pr, None, self.claude, tools="Read", model="haiku")[0], self.brain, log)).start()
         if self.brain:
             self.brain.presence.seen()
         cmd = route(text)
@@ -1812,6 +1829,14 @@ class Jarvis:
             say(ask_claude(f"Recap out loud, in under 60 words, what Yash and you talked about {when}: the main topics, what got "
                            "done, and anything still open. From this transcript:\n" + text[-10000:], None, self.claude, tools="Read")[0])
             return True
+        if action == "memory_about":
+            mem = self.brain.vault.memory(6000) if self.brain else ""
+            if len(mem.strip()) < 20:
+                say("Not much yet. Tell me things about you and I'll keep the important ones.")
+                return True
+            say(ask_claude("Out loud, in under 70 words, tell Yash the most useful things you remember about him, newest and "
+                           "most important first, from these notes:\n" + mem, None, self.claude, tools="Read")[0])
+            return True
         if action == "convo_search":
             hits = CONVOS.search(arg) if CONVOS else []
             if not hits:
@@ -1867,10 +1892,15 @@ class Jarvis:
             if update_waiting():
                 say("Updating. Back in a few seconds.")
                 self.restart_for_update = True
-            elif not shutil.which("git"):
-                say("I can't update myself because Git isn't installed. Run the installer once from PowerShell.")
             else:
-                say("I'm already on the latest version.")
+                try:
+                    st = json.load(open(os.path.join(WORKDIR, ".update_status.json")))
+                except Exception:
+                    st = {"ok": True}
+                if not st.get("ok"):
+                    say("I couldn't reach the update. " + re.sub(r"[^\w\s.,']", " ", st.get("error", ""))[:160] + ". Check the internet, or run the installer once.")
+                else:
+                    say("I'm already on the latest version.")
         elif action == "whatsapp":
             name, msg = arg
             num = next((v for k, v in WHATSAPP_CONTACTS.items() if k.lower() == name.lower()), None)
