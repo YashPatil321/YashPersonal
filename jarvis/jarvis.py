@@ -764,7 +764,7 @@ def push_phone(text):
 # Commands that do something you'd notice right away. If the sentence is really about changing, setting up or asking
 # about something ("change my wake up song", "how do I lock my screen", "why did the music stop"), it goes to Claude
 # instead, which understands the whole sentence.
-SENSITIVE = {"hq", "lock", "sleep", "goodnight", "monitor_off", "update", "reset", "play_pause", "next", "prev", "spotify_play",
+SENSITIVE = {"hq", "lock", "sleep", "goodnight", "monitor_off", "standby", "update", "reset", "play_pause", "next", "prev", "spotify_play",
              "spotify_queue", "protocol", "camera", "gestures", "vision_focus", "touch", "desk", "face_learn", "face_forget", "alarm", "alarm_off",
              "phone", "hush", "test_pc", "cad_open", "cad_close", "focus", "focus_end", "whatsapp", "session_send", "mute",
              "now_playing", "browser", "site", "app", "tab_close", "tabs_close_others", "ui_click", "handbook", "game_result"}
@@ -844,6 +844,8 @@ def _route(text):
         return ("goodnight", None)
     if re.fullmatch(r"(turn off|sleep) (the )?(monitor|screen|display)s?|(monitor|screen) off", t):
         return ("monitor_off", None)
+    if re.fullmatch(r"(?:go (?:to|into) |enter )?stand ?by(?: mode)?|night mode|screens? off|(?:turn|shut) (?:off )?(?:the |my )?screens?(?: off)?|power down(?: the screens)?", t):
+        return ("standby", None)
     if re.search(r"\b(what are|how are|status of|check on) my (claude )?(sessions|agents)\b|\bsession status\b", t):
         return ("sessions", None)
     m = re.fullmatch(r"(?:tell|message) (?:the |my )?(.+?) session (?:to |that )?(.+)", t)
@@ -1137,6 +1139,35 @@ def claude_cmd(claude):
 def one_line(text):
     """Command line safe: no new lines (Windows stops reading there) and no double quotes."""
     return re.sub(r"\s*\n\s*", " | ", text).replace('"', "'")
+
+
+STANDBY_AFTER = 10      # minutes with nobody at the desk (no face, no keyboard or mouse): screens off, Jarvis keeps watching
+STANDBY_LOCK = False    # also lock Windows when it goes into standby
+
+
+def fullscreen_app():
+    """True when the front window fills its screen (a video or a game), so standby leaves it alone."""
+    if not IS_WIN:
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        u = ctypes.windll.user32
+        hwnd = u.GetForegroundWindow()
+        if not hwnd or hwnd == u.GetShellWindow() or hwnd == u.GetDesktopWindow():
+            return False
+        r = wintypes.RECT()
+        u.GetWindowRect(hwnd, ctypes.byref(r))
+
+        class MI(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+        mi = MI()
+        mi.cbSize = ctypes.sizeof(MI)
+        u.GetMonitorInfoW(u.MonitorFromWindow(hwnd, 2), ctypes.byref(mi))
+        m = mi.rcMonitor
+        return r.left <= m.left and r.top <= m.top and r.right >= m.right and r.bottom >= m.bottom
+    except Exception:
+        return False
 
 
 GESTURE_MAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".gesture_map.json")
@@ -1569,6 +1600,59 @@ class Jarvis:
         t.daemon = True
         t.start()
 
+    # ---- standby: screens off, Jarvis awake. A PC that's really asleep can't hear or see anything, so Jarvis keeps
+    # Windows from sleeping and does this instead. Clap, say the wake word, or just sit down and it wakes up. ----
+    standby = False
+
+    def enter_standby(self, why="asked"):
+        if self.standby:
+            return
+        self.standby, self.standby_at = True, time.time()
+        log(f"standby ({why}): screens off, still listening and watching")
+        if self.vision:
+            self.vision.low_power = True
+        if STANDBY_LOCK:
+            self.pc.lock()
+        time.sleep(0.5)
+        self.pc.monitor_off()
+        jarvis_orb.send("idle")
+
+    def leave_standby(self, why="input", greet=True):
+        if not self.standby:
+            return False
+        self.standby = False
+        gone = int((time.time() - getattr(self, "standby_at", time.time())) / 60)
+        log(f"awake ({why}) after {gone} min in standby")
+        if self.vision:
+            self.vision.low_power = False
+        self.pc.nudge_display()
+        if greet and why == "face":
+            b = self.brain
+            if b:
+                threading.Thread(target=b.presence.tick, daemon=True).start()   # the welcome back, right away
+            elif not jarvis_brain.quiet_now():
+                self.speaker.say("Welcome back.")
+        return True
+
+    def standby_watch(self):
+        """Goes into standby after STANDBY_AFTER minutes with nobody at the desk; wakes on keyboard or mouse."""
+        while True:
+            time.sleep(15)
+            try:
+                idle = jarvis_brain.idle_seconds()
+                if self.standby:
+                    if idle < 5:
+                        self.leave_standby("keyboard or mouse", greet=False)
+                    continue
+                if not STANDBY_AFTER or not (self.vision and self.vision.ok):
+                    continue   # without the camera Windows' own screen timeout does this job
+                away = min(idle, self.vision.seconds_since_face())
+                if away > STANDBY_AFTER * 60 and not self.speaker.speaking and not fullscreen_app() \
+                        and not (self.brain and self.brain.focus_started):
+                    self.enter_standby("nobody here")
+            except Exception as e:
+                log(f"standby watch: {e}")
+
     def phone_nudge(self, seconds):
         """Your phone's been out during a focus session."""
         b = self.brain
@@ -1630,6 +1714,16 @@ class Jarvis:
                 return   # heads move all the time; only an answer to a question counts
             with self.lock:
                 self.run("confirm", name == "nod")
+        elif name == "push":
+            if self.pending:
+                with self.lock:
+                    self.run("confirm", True)
+            else:
+                pc.key("play_pause")
+        elif name in ("circle_cw", "circle_ccw"):
+            pc.key("vol_up" if name == "circle_cw" else "vol_down", 4)
+        elif name in ("three", "four"):
+            return   # yours to map: "when I hold up three fingers, open my SolidHauz dashboard"
         elif name == "both_palms":
             self.speaker.stop()
             self.pending = None
@@ -1733,6 +1827,8 @@ class Jarvis:
             jarvis_phone.push("Someone was at your PC while you were gone, so I locked it.", "Jarvis security", priority=5, tags="lock")
             return
         log(f"people: +{sorted(arrived)} -{sorted(left)}")
+        if self.standby and (F.OWNER in arrived or (not room.owner_known and arrived)):
+            self.leave_standby("face")
         if not room.owner_known and arrived and getattr(self, "asked_face_day", "") != time.strftime("%Y-%m-%d"):
             self.asked_face_day = time.strftime("%Y-%m-%d")
             self.speaker.say("I can see you, but I don't know your face yet. Say: hey jarvis, learn my face.")
@@ -1758,6 +1854,7 @@ class Jarvis:
     def wake_room(self):
         """The walk in scene. Opening HQ here also tells HQ on the iPad to wake up."""
         self.last_wake = time.time()
+        self.leave_standby("clap", greet=False)
         self.pc.nudge_display()
         snd = threading.Thread(target=lambda: self.speaker.powerup(), daemon=True)
         snd.start()
@@ -2050,10 +2147,13 @@ class Jarvis:
                 recap = self.brain.goodnight()
                 if recap:
                     say(recap)
-            say("Goodnight Yash. Shutting the room down.")
-            pc.monitor_off()
+            say("Goodnight Yash. Shutting the room down. Clap or say my name and I'm back.")
+            self.enter_standby("goodnight")
         elif action == "monitor_off":
-            pc.monitor_off()
+            self.enter_standby("asked")
+        elif action == "standby":
+            say("Standing by. Clap, say my name, or sit down and I'll wake up.")
+            self.enter_standby("asked")
         elif action == "sessions":
             say("Checking your sessions.")
             ans, _ = ask_claude("Give me a spoken status of my Claude Code cloud sessions: which are working, which are waiting on me, "
@@ -2624,6 +2724,7 @@ def main():
 
         threading.Thread(target=nightly_update_watch, args=(jarvis,), daemon=True).start()
         threading.Thread(target=reactive_watch, args=(jarvis,), daemon=True).start()
+        threading.Thread(target=jarvis.standby_watch, daemon=True).start()
         while True:
             frame = audio_q.get()
             if jarvis.restart_for_update:
@@ -2645,6 +2746,7 @@ def main():
                 continue
 
             wake.reset()
+            jarvis.leave_standby("voice", greet=False)
             if speaker.speaking:
                 speaker.stop()
             drain_mic()

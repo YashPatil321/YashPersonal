@@ -91,6 +91,10 @@ def pose_name(lm):
     size = _d(lm[WRIST], lm[MIDDLE_MCP]) or 1e-6
     if n4 == 4 and f["thumb"]:
         return "palm"
+    if n4 == 4:
+        return "four"
+    if f["index"] and f["middle"] and f["ring"] and not f["pinky"]:
+        return "three"
     if n4 == 0 and f["thumb"] and lm[THUMB_TIP][1] < min(p[1] for i, p in enumerate(lm) if i > 4) - size * 0.05:
         return "thumbs_up"
     if n4 == 0 and not f["thumb"]:
@@ -115,6 +119,8 @@ def fuse(label, lm):
     mine = pose_name(lm)
     if label is None:
         return mine
+    if mine in ("three", "four") and label in ("", "palm"):
+        return mine   # the model has no three or four, it calls them palm or nothing
     if label == "point_up" and mine == "point_down":
         return "point_down"
     if label == "" and mine in ("point_down", "point_up"):
@@ -148,6 +154,7 @@ class GestureReader:
         self.votes = deque()
         self.mtrack = deque()
         self.dial, self.progress = None, 0.0
+        self.ztrack, self.ctrack, self.last_push, self.last_circle = deque(), deque(), -1e9, -1e9
         self.swiped_at, self.last_swipe, self.last_wave, self.present_since = -1e9, None, -1e9, 0.0
         self.face = None
         self.seen_at = None
@@ -182,8 +189,11 @@ class GestureReader:
                 self.why = "hand low: only a big deliberate swipe counts down there"
                 return m
         if lm is not None:
-            # swipes and waves come first and skip arming: you raise your hand and go, no pause needed
+            # swipes, waves and circles come first and skip arming: you raise your hand and go, no pause needed
             m = self._sweep(now, lm, label)
+            if m:
+                return m
+            m = self._circle_feed(now, lm, label)
             if m:
                 return m
         else:
@@ -204,6 +214,23 @@ class GestureReader:
             self.votes.clear()
             self.seen_at = None
             return None
+        # push: the hand moves toward the camera (looks a lot bigger, fast) without moving sideways, like pressing a button
+        size = hand_size(lm)
+        hx, hy = lm[MIDDLE_MCP]
+        self.ztrack.append((now, size, hx, hy))
+        while self.ztrack and now - self.ztrack[0][0] > 0.45:
+            self.ztrack.popleft()
+        zs = list(self.ztrack)
+        if len(zs) >= 7 and now - self.last_push > 1.5 and sum(fingers(lm)[k] for k in ("index", "middle", "ring", "pinky")) >= 3:
+            a, b = zs[:3], zs[-3:]
+            s0, s1 = sum(z[1] for z in a) / 3, sum(z[1] for z in b) / 3
+            x0, y0 = sum(z[2] for z in a) / 3, sum(z[3] for z in a) / 3
+            steady_growth = sum(1 for p, q in zip(zs, zs[1:]) if q[1] >= p[1] * 0.97) >= len(zs) - 2
+            if s1 > s0 * 1.35 and steady_growth and math.hypot(hx - x0, hy - y0) < s0 * 0.9:
+                self.last_push = now
+                self.ztrack.clear()
+                self.cur, self.fired_cur = None, True
+                return "push"
         # OK sign (thumb and index touching, other fingers up) then move up or down: a volume dial
         f = fingers(lm)
         if pinching(lm) and f["middle"] and f["ring"]:
@@ -261,11 +288,62 @@ class GestureReader:
             return None
         if self.fired_cur and name not in self.REPEATS:
             return None
+        if name in self.REPEATS and len(self.ctrack) > 4:
+            xs, ys = [p[1] for p in self.ctrack if now - p[0] < 0.5], [p[2] for p in self.ctrack if now - p[0] < 0.5]
+            if xs and max(max(xs) - min(xs), max(ys) - min(ys)) > hand_size(lm) * 0.5:
+                return None   # the finger is drawing, not holding
         gap = 0.45 if name in self.REPEATS else self.cooldown
         if now - self.last_fire < gap:
             return None
         self.last_fire, self.fired_cur = now, True
         return name
+
+    def _circle_feed(self, now, lm, label):
+        """Draw a circle in the air with your index finger."""
+        if pose_name(lm) == "point_up" or label == "point_up":
+            self.ctrack.append((now, lm[INDEX_TIP][0], lm[INDEX_TIP][1]))
+            while self.ctrack and now - self.ctrack[0][0] > 1.8:
+                self.ctrack.popleft()
+            c = self._circle(hand_size(lm))
+            if c and now - self.last_circle > 1.2:
+                self.last_circle = now
+                self.ctrack.clear()
+                self.cur, self.fired_cur = None, True
+                return c
+        else:
+            self.ctrack.clear()
+        return None
+
+    def _circle(self, size):
+        """'circle_cw' or 'circle_ccw' once the fingertip has gone most of the way around a loop at least half a hand wide."""
+        pts = list(self.ctrack)
+        if len(pts) < 10:
+            return None
+        cx, cy = sum(p[1] for p in pts) / len(pts), sum(p[2] for p in pts) / len(pts)
+        radii = [math.hypot(p[1] - cx, p[2] - cy) for p in pts]
+        r = sorted(radii)[len(radii) // 2]
+        if r < size * 0.35:
+            return None
+        ring = [p for p, rad in zip(pts, radii) if rad > r * 0.4]   # points near the middle (the start, a pause) don't count
+        if len(ring) < 8:
+            return None
+        xr = max(p[1] for p in ring) - min(p[1] for p in ring)
+        yr = max(p[2] for p in ring) - min(p[2] for p in ring)
+        if min(xr, yr) < max(xr, yr) * 0.45:
+            return None   # a line (wagging the finger), not a loop
+        total, jumps = 0.0, 0
+        for a, b in zip(ring, ring[1:]):
+            d = math.atan2(b[2] - cy, b[1] - cx) - math.atan2(a[2] - cy, a[1] - cx)
+            d = (d + math.pi) % (2 * math.pi) - math.pi
+            if abs(d) > 1.4:
+                jumps += 1   # cut straight across the middle: not going around
+                continue
+            total += d
+        if jumps > len(ring) * 0.15:
+            return None
+        if abs(total) > math.radians(320):
+            return "circle_cw" if total > 0 else "circle_ccw"   # picture y points down, so positive is clockwise
+        return None
 
     def _sweep(self, now, lm, label, strict=False):
         """Swipe or wave from how the hand moves over the last ~0.7 s, whatever shape it blurs into on the way.
@@ -733,6 +811,8 @@ class Vision:
             if not self.enabled:
                 time.sleep(0.5)
                 continue
+            if getattr(self, "low_power", False):
+                time.sleep(0.12)   # standby: a few frames a second is plenty to notice you walk in
             frame = grab.next(timeout=1.0)   # always the newest picture, never a stale one from the buffer
             if frame is None:
                 continue
@@ -767,7 +847,7 @@ class Vision:
                         face_seen = seen
                         if self.on_face:
                             self.on_face(seen)
-                if not det.hands:
+                if not det.hands or getattr(self, "low_power", False):
                     continue
                 if self.cad and self.cad.active:
                     self.cad.set_hands(det.hands_all(rgb, ts))
@@ -1170,6 +1250,10 @@ GESTURE_WORDS = [
     (r"(?:a )?wink", "wink"), (r"(?:a )?nod|nod my head", "nod"), (r"(?:a )?head shake|shake my head", "shake"),
     (r"raise my eyebrows|(?:raised? )?eyebrows|eyebrow raise", "brows"),
     (r"both (?:palms|hands)(?: up)?|two palms|hands up", "both_palms"),
+    (r"(?:a )?push|push forward|(?:a )?press|tap the air|air tap", "push"),
+    (r"three(?: fingers)?", "three"), (r"four(?: fingers)?", "four"),
+    (r"(?:a )?circle(?: clockwise)?|clockwise(?: circle)?|draw a circle", "circle_cw"),
+    (r"(?:a )?(?:counter ?clockwise|anti ?clockwise)(?: circle)?|(?:a )?circle (?:counter ?clockwise|backwards?)", "circle_ccw"),
 ]
 _GW = "|".join(f"(?:{w})" for w, _ in GESTURE_WORDS)
 
