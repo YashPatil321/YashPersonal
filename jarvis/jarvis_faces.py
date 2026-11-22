@@ -33,7 +33,7 @@ GUEST_AFTER = 15
 MATCH = 0.40                 # cosine similarity to count as the same person (SFace's own cutoff is 0.363)
 MARGIN = 0.06                # and this much closer than anyone else it knows (so your brother isn't you)
 STRONG = 0.55                # a match this strong counts even without the margin
-MIN_FACE_PX = 36             # faces smaller than this (far away) aren't judged at all, they just wait for a better look
+MIN_FACE_PX = 30             # faces smaller than this (far away) aren't judged at all, they just wait for a better look
 MIN_SHARPNESS = 35           # motion blur check on the face crop
 MAX_SAMPLES = 80             # samples kept per person (it keeps learning you in new light)
 ADAPT = True                 # keep learning known faces from confident sightings
@@ -230,9 +230,9 @@ class FaceID:
             if ok:
                 feat = self.feature(bgr, face)
                 name, score = self.book.best(feat)
-            dets.append((cx, cy, float(face[2]), size, ok, name, score, feat))
+            dets.append((cx, cy, float(face[2]), size, ok, name, score, feat, float(face[3])))
         used, out = set(), []
-        for cx, cy, fw, size, ok, name, score, feat in sorted(dets, key=lambda d: -d[3]):
+        for cx, cy, fw, size, ok, name, score, feat, fh in sorted(dets, key=lambda d: -d[3]):
             tr = None
             for t in self.tracks:
                 if id(t) not in used and ((t["cx"] - cx) ** 2 + (t["cy"] - cy) ** 2) ** 0.5 < max(fw, t["w"]) * 1.2:
@@ -242,7 +242,7 @@ class FaceID:
                 tr = {"votes": [], "name": None, "sure": False}
                 self.tracks.append(tr)
             used.add(id(tr))
-            tr.update(cx=cx, cy=cy, w=fw, t=now)
+            tr.update(cx=cx, cy=cy, w=fw, h=fh, t=now)
             if ok:
                 tr["votes"] = (tr["votes"] + [(name, score)])[-6:]
                 tally = {}
