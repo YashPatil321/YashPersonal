@@ -251,8 +251,9 @@ Only fingerprints of faces (128 numbers each) are kept in `.cache/faces`, never 
 | "forget mom's face" | deletes them |
 
 Then: only your face counts as you being at the desk, so welcomes are for you. People it knows get a
-"Hey Mom". Anyone else in view turns on guest mode until they leave (`AUTO_GUEST`). If someone who isn't
-you sits at your PC for a minute while you're gone, it locks the screen and pings your phone (`AUTO_LOCK`).
+"Hey Mom". Someone it doesn't know in view for 15 seconds turns on guest mode until they leave (`AUTO_GUEST`).
+Optional: `AUTO_LOCK = True` locks the screen when a stranger is at your PC and you haven't been seen for 2 minutes.
+None of this happens until you've said "learn my face", because before that it can't tell you from anyone else.
 
 ## The projected desk and the hologram (`jarvis_desk.py`, `desk.html`, `holo.html`)
 

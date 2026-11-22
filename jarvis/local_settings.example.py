@@ -42,8 +42,8 @@
 # GESTURES = True
 # FACES = True                   # face ID, needs VISION
 # AUTO_GUEST = True              # guest mode while anyone else is in view
-# AUTO_LOCK = True               # lock the PC if someone else sits there while you're gone
-# LOCK_AFTER = 60
+# AUTO_LOCK = False              # True = lock the PC if a stranger sits there while you're gone (only after 'learn my face')
+# LOCK_AFTER = 120
 # TOUCH_REGION = (0.18, 0.15, 0.82, 0.80)   # smaller box = less reaching
 # TOUCH_SMOOTH = 0.35
 # DESK_CAMERA_INDEX = 1          # the camera looking down at the desk

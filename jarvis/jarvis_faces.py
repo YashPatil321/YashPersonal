@@ -24,9 +24,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # ---------------- settings (override in local_settings.py) ----------------
 FACES = True
 OWNER = "yash"
-AUTO_GUEST = True            # unknown face or family in view: guest mode until they leave
-AUTO_LOCK = True             # someone who isn't you at the desk for LOCK_AFTER seconds while you're gone: lock the PC
-LOCK_AFTER = 60
+# Both of these only ever act after you've said "learn my face". Until then Jarvis can't tell you from a stranger,
+# so it does nothing (it used to lock you out of your own PC and switch on guest mode).
+AUTO_GUEST = True            # someone it doesn't know in view, for 15 seconds, while you're there: guest mode until they leave
+AUTO_LOCK = False            # off by default. True = lock the PC if a stranger is at it and you haven't been seen for LOCK_AFTER
+LOCK_AFTER = 120
+GUEST_AFTER = 15
 MATCH = 0.40                 # cosine similarity to count as the same person (SFace's own cutoff is 0.363)
 FACE_DIR = os.path.join(HERE, ".cache", "faces")
 MODEL_URLS = {
@@ -189,9 +192,20 @@ class Room:
     def others(self):
         return {n for n in self.present if n != OWNER}
 
+    owner_known = False   # set by the camera loop: has "learn my face" been done?
+
     def should_lock(self):
-        """Someone who isn't you at the desk for LOCK_AFTER seconds while you're not in view."""
-        return bool(AUTO_LOCK and self.stranger_since and not self.owner_here() and self.clock() - self.stranger_since >= LOCK_AFTER)
+        """A stranger at the desk for LOCK_AFTER seconds while you haven't been seen. Never before you've enrolled."""
+        if not (AUTO_LOCK and self.owner_known and self.stranger_since) or self.owner_here():
+            return False
+        gone = self.clock() - self.seen.get(OWNER, 0)
+        return self.clock() - self.stranger_since >= LOCK_AFTER and gone >= LOCK_AFTER
+
+    def guests(self):
+        """People who should switch on guest mode: strangers in view for GUEST_AFTER seconds. Never before you've enrolled."""
+        if not (AUTO_GUEST and self.owner_known and self.stranger_since):
+            return False
+        return self.clock() - self.stranger_since >= GUEST_AFTER
 
 
 NOT_NAMES = set("""it that this me amazing cool sick crazy insane fire good bad great awesome wrong right fine perfect broken weird
@@ -199,7 +213,8 @@ funny hard easy so too really not the a what why how lit dope trash mid nice""".
 
 
 def route_faces(t):
-    if re.fullmatch(r"(?:learn|remember|scan|save) my face|(?:this is|it'?s) me|face id setup|set up face id", t):
+    if re.fullmatch(r"(?:(?:learn|remember|scan|save|memorize|know) (?:my|this|this is my) face|(?:remember )?(?:that )?this is (?:me|my face)|"
+                    r"(?:it'?s|its) me|face id(?: setup)?|set up face id|(?:remember|learn) (?:what i look like|me))(?: please)?", t):
         return ("face_learn", OWNER)
     m = re.fullmatch(r"this is my (.+)|(?:meet|say hi to) (?:my )?(.+)|(?:learn|remember|scan) (?:my )?(.+?)'?s face|this is (\w+)", t)
     if m:

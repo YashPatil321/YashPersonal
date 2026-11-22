@@ -35,8 +35,12 @@ CAMERA_INDEX = 0             # the camera to try first. If it isn't there, Jarvi
 CAMERA_SIZE = (640, 360)
 GESTURES = True
 AIR_MOUSE = False            # index finger drives the cursor, pinch clicks. Fun, but off by default
-HOLD_SECONDS = 0.6           # how long a pose must be held before it counts
-COOLDOWN_SECONDS = 1.5
+HOLD_SECONDS = 1.0           # how long a pose must be held before it counts
+COOLDOWN_SECONDS = 2.0
+# Gestures only count when you hold your hand up toward the camera on purpose: big enough in the picture (close)
+# and not down at the bottom edge (hands on the keyboard, scratching your face, waving at someone).
+MIN_HAND = 0.10              # palm width as a share of the picture width
+MAX_WRIST_Y = 0.85           # wrist above this line (0 top, 1 bottom)
 PRESENCE_FROM_CAMERA = True
 # ---------------------------------------------------------------------------
 
@@ -109,6 +113,8 @@ class GestureReader:
 
     def feed(self, lm):
         now = self.clock()
+        if lm is not None and (_d(lm[INDEX_MCP], lm[PINKY_MCP]) < MIN_HAND or lm[WRIST][1] > MAX_WRIST_Y):
+            lm = None   # not held up on purpose
         if lm is None:
             self.cur, self.fired_cur = None, False
             self.track.clear()
@@ -166,7 +172,7 @@ class GestureReader:
         recent = [(t, x) for t, x in pts if now - t <= 0.5]
         if len(recent) >= 3:
             dx = recent[-1][1] - recent[0][1]
-            if abs(dx) > 0.25 and turns <= 1:
+            if abs(dx) > 0.30 and turns <= 1:
                 return "swipe_right" if dx > 0 else "swipe_left"
         return None
 
@@ -438,7 +444,11 @@ class Vision:
         owner_known = jarvis_faces.OWNER in self.faceid.book.people
         if found and (not owner_known or jarvis_faces.OWNER in self.last_seen_names):
             self.last_face = time.time()
+        self.room.owner_known = owner_known
         arrived, left = self.room.feed(self.last_seen_names)
+        if self.room.guests() != getattr(self, "_guests_was", False):
+            self._guests_was = self.room.guests()
+            arrived = arrived or {"?"}   # tell Jarvis so guest mode follows
         if (arrived or left) and self.on_people:
             threading.Thread(target=self.on_people, args=(arrived, left, self.room), daemon=True).start()
         if self.room.should_lock() and self.on_people:
@@ -540,10 +550,15 @@ def route_vision(t):
     if re.fullmatch(r"(?:turn |switch )?(?:the |your |my )?camera(?: mode)? (?:back )?on|(?:turn|switch) on (?:the |your |my )?camera(?: mode)?|"
                     r"start (?:watching|looking)|(?:enable|open) (?:the |your )?camera|open your eyes?|you can look again", t):
         return ("camera", True)
-    if re.fullmatch(r"can you see me|do you see me|what (?:am i|i'?m) doing|what do you see|what can you see|look at me|describe me|"
+    t = re.sub(r"\s+(?:right now|now|at the moment|currently)$", "", t)
+    if re.fullmatch(r"(?:can you )?see me|(?:do |can )?you see me|(?:can you )?see what (?:i'?m|i am) doing|(?:can you )?tell what (?:i'?m|i am) doing|what (?:am i|i'?m) doing|what do you see|what can you see|look at me|describe me|"
                     r"how do i look|what am i (?:holding|wearing|eating|drinking)|who(?:'s| is) (?:with me|behind me|in the room with me)|"
                     r"what(?:'s| is) (?:behind me|in my hand)|what(?:'s| is) this(?: thing)?(?: i'?m holding)?|check me out", t):
         return ("camera_look", t)
+    if re.fullmatch(r"(?:turn |switch )?(?:off |stop )?(?:the )?(?:hand )?gestures?(?: off)?|(?:turn|switch) off (?:the )?(?:hand )?gestures|stop (?:the )?gestures|no more gestures", t) and "on" not in t.split():
+        return ("gestures", False)
+    if re.fullmatch(r"(?:turn |switch )?(?:the )?(?:hand )?gestures? on|(?:turn|switch) on (?:the )?(?:hand )?gestures", t):
+        return ("gestures", True)
     if re.fullmatch(r"(?:what|which) gestures?(?: can i use| do you know| are there)?|show me (?:the )?gestures", t):
         return ("gestures_help", None)
     return None

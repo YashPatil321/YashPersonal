@@ -685,6 +685,7 @@ def route(text):
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
     cc = cc or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+        or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
     if cc:
@@ -1172,6 +1173,8 @@ class Jarvis:
 
     def gesture(self, name):
         """A hand gesture from the camera."""
+        if not getattr(jarvis_vision, "GESTURES_ON", True):
+            return
         log(f"gesture: {name}")
         pc = self.pc
         if self.speaker.speaking and name in ("palm", "fist"):
@@ -1274,6 +1277,8 @@ class Jarvis:
     def people(self, arrived, left, room, lock=False):
         """Face ID: who came and went."""
         F, b = jarvis_faces, self.brain
+        if lock and not (F.AUTO_LOCK and room.owner_known):
+            return   # can't tell you from a stranger yet, so never lock
         if lock:
             log("someone else at the desk while you're away, locking")
             self.pc.lock()
@@ -1282,7 +1287,10 @@ class Jarvis:
             jarvis_phone.push("Someone was at your PC while you were gone, so I locked it.", "Jarvis security", priority=5, tags="lock")
             return
         log(f"people: +{sorted(arrived)} -{sorted(left)}")
-        others = room.others()
+        if not room.owner_known and arrived and getattr(self, "asked_face_day", "") != time.strftime("%Y-%m-%d"):
+            self.asked_face_day = time.strftime("%Y-%m-%d")
+            self.speaker.say("I can see you, but I don't know your face yet. Say: hey jarvis, learn my face.")
+        others = room.guests()   # only once your face is learned, and only after 15 seconds
         if b and F.AUTO_GUEST:
             if others and not b.guest:
                 b.guest = True
@@ -1676,6 +1684,10 @@ class Jarvis:
                 except OSError:
                     pass
             say(ans)
+            return True
+        if action == "gestures":
+            jarvis_vision.GESTURES_ON = arg
+            say("Hand gestures on. Hold your hand up toward the camera to use them." if arg else "Hand gestures off. The camera still sees you. Say gestures on to bring them back.")
             return True
         if action in ("reps", "reps_stop", "camera", "gestures_help"):
             v = self.vision
