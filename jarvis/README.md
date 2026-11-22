@@ -292,6 +292,20 @@ Export from Fusion, Onshape or SolidWorks as STEP to keep every part separate.
 Mouse works too: drag to spin, right drag to slide, scroll to zoom, click a part, keys E W H C R and space.
 You can also drag a file onto the window.
 
+## When computer control isn't working
+
+Say "hey jarvis, test the computer", or run `python jarvis.py --test-pc`. It opens Notepad, moves it, brings it
+to the front, types into it and sends a shortcut, then says exactly what failed and how to fix it (also saved to
+`pc-test.txt`). Everything Jarvis does is also written to `jarvis.log`.
+
+The usual causes:
+- **The startup task runs Jarvis in the background session.** Task Scheduler, the Jarvis task, General tab:
+  pick "Run only when user is logged on". In the background session it can't see or touch your desktop.
+- **The window is running as administrator** (Task Manager, some installers, a terminal you opened as admin).
+  Windows won't let a normal program move or type into it. Tick "Run with highest privileges" on the task.
+- **Focus lock.** Windows sometimes refuses to bring a window to the front. Jarvis now retries a different way
+  and tells you out loud if Windows still says no.
+
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 
 Media keys work out of the box. To play a specific song by name:

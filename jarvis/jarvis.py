@@ -131,8 +131,20 @@ SPOKEN_STYLE = (
 )
 
 
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jarvis.log")
+
+
 def log(msg):
-    print(time.strftime("%H:%M:%S"), msg, flush=True)
+    """Prints, and keeps a copy in jarvis.log so problems are findable even when the window is hidden."""
+    line = time.strftime("%Y-%m-%d %H:%M:%S ") + str(msg)
+    print(line[11:], flush=True)
+    try:
+        if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > 2_000_000:
+            os.replace(LOG_FILE, LOG_FILE + ".old")
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
 
 
 # ================= audio devices =================
@@ -595,6 +607,8 @@ def route(text):
     t = re.sub(r"\b(please|can you|could you|for me|real quick)\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
 
+    if re.fullmatch(r"(?:test|check) (?:the |my )?(?:computer|pc|screen) control|run (?:a )?(?:self ?test|diagnostics?)|(?:test|check) yourself", t):
+        return ("test_pc", None)
     if re.fullmatch(r"(go to sleep|shut down jarvis)", t) or t == "go to sleep":
         return ("sleep", None)
     if re.fullmatch(r"(yes|yeah|yep|do it|send it|confirm|go ahead)", t):
@@ -608,7 +622,11 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    # screen and Claude commands first: "type the weather is nice" must type, not check the weather
+    cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
+    cc = cc or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) \
+        or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
+        or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -1225,6 +1243,15 @@ class Jarvis:
                 say("Cancelled.")
             return True
         self.pending = None
+        if action == "test_pc":
+            say("Testing computer control. I'll open Notepad and move it around. Don't touch the mouse for a few seconds.")
+            res = jarvis_screen.selftest(log=log, launch=pc.launch)
+            bad = [(n, fix) for n, ok, fix in res if not ok]
+            if not bad:
+                say("Everything works. Moving windows, focus, typing and shortcuts all passed.")
+            else:
+                say(f"{len(bad)} problem{'s' if len(bad) > 1 else ''}. First one: {bad[0][0]}. {bad[0][1]} The full list is in the Jarvis log.")
+            return True
         if action == "update":
             if update_waiting():
                 say("Updating. Back in a few seconds.")
@@ -1630,6 +1657,12 @@ def main():
         return doctor()
     if "--levels" in sys.argv:
         return levels()
+    if "--test-pc" in sys.argv:
+        res = jarvis_screen.selftest()
+        with open(os.path.join(WORKDIR, "pc-test.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join(("PASS " if ok else "FAIL ") + n + ("" if ok else "  fix: " + fix) for n, ok, fix in res))
+        print("\nSaved to pc-test.txt")
+        return
     if "--desk" in sys.argv:
         ip, tok = jarvis_phone.lan_ip(), jarvis_phone.token()
         base = f"http://{ip}:{jarvis_phone.PHONE_PORT}"

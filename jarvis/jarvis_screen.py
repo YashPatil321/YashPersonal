@@ -108,6 +108,7 @@ class Screen:
     """Talks to Windows through user32. Swapped for a recorder in tests."""
     def __init__(self):
         self.log = []
+        self.problems = []   # what Windows refused, in plain words
 
     # ---- windows ----
     def windows(self):
@@ -184,7 +185,8 @@ class Screen:
         l = t = r = b = 0
         if ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(vis), ctypes.sizeof(vis)) == 0:   # DWMWA_EXTENDED_FRAME_BOUNDS
             l, t, r, b = vis.left - outer.left, vis.top - outer.top, outer.right - vis.right, outer.bottom - vis.bottom
-        u.SetWindowPos(hwnd, 0, x - l, y - t, w + l + r, h + t + b, 0x0004 | 0x0040)   # no z order change, show
+        if not u.SetWindowPos(hwnd, 0, x - l, y - t, w + l + r, h + t + b, 0x0004 | 0x0040):   # no z order change, show
+            self._blocked("move", ctypes.windll.kernel32.GetLastError())
 
     def show(self, hwnd, cmd):
         self.log.append(("show", hwnd, cmd))
@@ -212,6 +214,22 @@ class Screen:
         u.SetFocus(hwnd)
         if a and a != b:
             u.AttachThreadInput(b, a, False)
+        if u.GetForegroundWindow() != hwnd:
+            # Windows' focus lock said no. Minimizing and restoring a window always brings it to the front.
+            u.ShowWindow(hwnd, 6)
+            time.sleep(0.08)
+            u.ShowWindow(hwnd, 9)
+            time.sleep(0.12)
+            u.SetForegroundWindow(hwnd)
+        if u.GetForegroundWindow() != hwnd:
+            self._blocked("focus", 0)
+            return False
+        return True
+
+    def _blocked(self, what, err):
+        msg = {5: "Windows blocked it. That window is probably running as administrator, so Jarvis has to run as administrator too.",
+               1400: "that window closed before I could move it."}.get(err, f"Windows refused to {what} that window (error {err}).")
+        self.problems.append(msg)
 
     def foreground(self):
         if not IS_WIN:
@@ -253,8 +271,11 @@ class Screen:
             for flags in (0x0004, 0x0004 | 0x0002):   # KEYEVENTF_UNICODE, then key up
                 inp = INPUT(type=1)
                 inp.ki = KI(0, ord(ch), flags, 0, None)
-                ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+                if not ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)):
+                    self._blocked("type into", ctypes.windll.kernel32.GetLastError() or 5)
+                    return False
             time.sleep(0.004)
+        return True
 
 
 def zone_rect(area, zone):
@@ -291,6 +312,14 @@ class ScreenControl:
         return h
 
     def handle(self, action, arg):
+        self.s.problems = []
+        try:
+            return self._handle(action, arg)
+        finally:
+            if self.s.problems:
+                self.say(self.s.problems[0])
+
+    def _handle(self, action, arg):
         area = self.s.work_area()
         if action == "snap":
             app, zone = arg
@@ -330,3 +359,83 @@ class ScreenControl:
             self.s.chord(KEYS[arg])
         elif action == "type":
             self.s.type_text(clean_typing(arg))
+
+
+# ================= self test =================
+def selftest(log=print, launch=None):
+    """Checks every piece of computer control on this PC and says what to fix. python jarvis.py --test-pc"""
+    import os
+    results = []
+
+    def check(name, ok, fix=""):
+        results.append((name, ok, fix))
+        log(("PASS  " if ok else "FAIL  ") + name + ("" if ok or not fix else "\n        fix: " + fix))
+
+    if not IS_WIN:
+        log("This only runs on Windows.")
+        return results
+    import ctypes
+    from ctypes import wintypes
+    u, k = ctypes.windll.user32, ctypes.windll.kernel32
+    admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+    log(f"user {os.environ.get('USERNAME')}, running as admin: {admin}")
+    sid = wintypes.DWORD()
+    k.ProcessIdToSessionId(k.GetCurrentProcessId(), ctypes.byref(sid))
+    check("Jarvis runs on your desktop (not in the background session)", sid.value != 0,
+          "the startup task is set to 'Run whether user is logged on or not'. In Task Scheduler, set it to 'Run only when user is logged on'.")
+    try:
+        aw = u.GetAwarenessFromDpiAwarenessContext(u.GetThreadDpiAwarenessContext())
+        check("DPI aware (windows land in the right place with display scaling)", aw == 2, "update Jarvis, jarvis_screen.py sets this")
+    except Exception:
+        pass
+    sc = Screen()
+    wins = sc.windows()
+    check(f"can see open windows ({len(wins)} found)", len(wins) > 0, "nothing visible, see the desktop session check above")
+    area = sc.work_area()
+    log(f"main screen work area: {area}")
+    # a test window we own: Notepad
+    before = {h for h, _, _ in wins}
+    (launch or (lambda t: os.startfile(t)))("notepad")
+    h = None
+    for _ in range(30):
+        time.sleep(0.3)
+        for hh, exe, title in sc.windows():
+            if exe == "notepad.exe" and hh not in before:
+                h = hh
+                break
+        if h:
+            break
+    h = h or sc.find("notepad")
+    check("open an app (Notepad)", bool(h), "Notepad didn't open")
+    if not h:
+        return results
+    time.sleep(0.6)
+    sc.problems = []
+    sc.place(h, zone_rect(area, "left"))
+    time.sleep(0.3)
+    r = wintypes.RECT()
+    u.GetWindowRect(h, ctypes.byref(r))
+    want = zone_rect(area, "left")
+    moved = abs(r.left - want[0]) < 40 and abs((r.right - r.left) - want[2]) < 60
+    check("move and resize a window (Notepad to the left half)", moved and not sc.problems, sc.problems[0] if sc.problems else "it didn't land where it should")
+    sc.place(h, zone_rect(area, "right"))
+    focused = sc.focus(h)
+    check("bring a window to the front", bool(focused), "Windows' focus lock blocked it. Try: run Jarvis as administrator, or turn off Focus Assist")
+    time.sleep(0.3)
+    typed = sc.type_text("Jarvis test, you can close this without saving.")
+    check("type text into the active window", bool(typed), sc.problems[-1] if sc.problems else "")
+    sc.chord(["CONTROL", "A"])
+    check("send a keyboard shortcut (Ctrl+A)", not sc.problems, sc.problems[-1] if sc.problems else "")
+    # an admin window we can't touch?
+    elevated = []
+    for hh, exe, title in sc.windows():
+        if not exe and title:
+            elevated.append(title[:40])
+    if elevated and not admin:
+        log("windows Jarvis can't read (probably running as admin): " + ", ".join(elevated[:5]))
+        log("        Jarvis can't move or type into those unless it runs as administrator too.")
+    bad = [n for n, ok, _ in results if not ok]
+    log("")
+    log("All computer control works." if not bad else f"{len(bad)} problem(s). The fixes are listed above.")
+    log("Close the Notepad window without saving.")
+    return results

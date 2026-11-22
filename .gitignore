@@ -13,3 +13,6 @@ jarvis/.cache/
 jarvis/local_settings.py
 jarvis/__pycache__/
 jarvis/.ntfy_topic
+jarvis/jarvis.log
+jarvis/jarvis.log.old
+jarvis/pc-test.txt
