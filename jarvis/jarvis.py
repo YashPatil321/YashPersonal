@@ -48,6 +48,8 @@ import jarvis_phone
 import jarvis_room
 import jarvis_screen
 import jarvis_vision
+import jarvis_faces
+import jarvis_touch
 
 # ---------------- settings you might change ----------------
 MIC_DEVICE = None            # None = find the Focusrite by name. Or put a number from --devices
@@ -94,7 +96,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -592,7 +594,7 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    cc = jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -1015,6 +1017,36 @@ class Jarvis:
         if name not in ("point_up", "point_down", "peace", "wave"):
             threading.Thread(target=lambda: self.speaker.chime(1480), daemon=True).start()
 
+    def people(self, arrived, left, room, lock=False):
+        """Face ID: who came and went."""
+        F, b = jarvis_faces, self.brain
+        if lock:
+            log("someone else at the desk while you're away, locking")
+            self.pc.lock()
+            if b:
+                b.vault.log("Locked the PC, someone else was at the desk")
+            jarvis_phone.push("Someone was at your PC while you were gone, so I locked it.", "Jarvis security", priority=5, tags="lock")
+            return
+        log(f"people: +{sorted(arrived)} -{sorted(left)}")
+        others = room.others()
+        if b and F.AUTO_GUEST:
+            if others and not b.guest:
+                b.guest = True
+                b.auto_guest = True
+            elif not others and getattr(b, "auto_guest", False):
+                b.guest, b.auto_guest = False, False
+                b.flush_news()
+        greeted = getattr(self, "greeted", {})
+        self.greeted = greeted
+        for n in arrived:
+            if n in ("?", F.OWNER):
+                continue
+            if time.time() - greeted.get(n, 0) > 1800 and not jarvis_brain.quiet_now():
+                greeted[n] = time.time()
+                self.speaker.say(f"Hey {F.spoken_name(n)}.")
+            if b:
+                b.vault.log(f"{F.spoken_name(n)} came by")
+
     def wake_room(self):
         """The walk in scene. Opening HQ here also tells HQ on the iPad to wake up."""
         self.last_wake = time.time()
@@ -1198,7 +1230,49 @@ class Jarvis:
                 threading.Thread(target=lambda: sp.play(jarvis_brain.FOCUS_MUSIC, launch=pc.launch), daemon=True).start()
             self.brain.handle(action, arg)
             return True
-        if action in ("reps", "reps_stop", "camera", "air_mouse", "gestures_help"):
+        if action in ("touch", "face_learn", "face_forget", "face_who", "face_list"):
+            v = self.vision
+            if not v or not v.ok:
+                say("The camera isn't running. Install mediapipe and opencv, then set VISION to True in local settings.")
+            elif action == "touch":
+                if arg:
+                    v.touch = (jarvis_touch.TouchController(), jarvis_touch.WindowsTouch(on_exit=lambda: self.run("touch", False)))
+                    say("Touch mode. Move your hand to drive, pinch to click, hold the pinch to drag, make a fist to grab a window. "
+                        "Hold your palm open for two seconds to stop.")
+                else:
+                    was, v.touch = v.touch, None
+                    say("Touch mode off." if was else "Touch mode wasn't on.")
+            elif not v.faceid:
+                say("Face ID didn't load. Check the Jarvis window for the reason.")
+            elif action == "face_learn":
+                who = "you" if arg == jarvis_faces.OWNER else jarvis_faces.spoken_name(arg)
+                say(f"Look at the camera, {'' if who == 'you' else who + ', '}and turn your head a little side to side.")
+
+                def done(name, n):
+                    if not name:
+                        say("I couldn't see a face. Get closer to the camera and try again.")
+                    elif name == jarvis_faces.OWNER:
+                        say(f"Got you, Yash. I'll know it's you from now on.")
+                    else:
+                        say(f"Nice to meet you, {jarvis_faces.spoken_name(name)}.")
+                v.learn_face(arg, done)
+            elif action == "face_forget":
+                ok = v.faceid.book.forget(arg)
+                say("Forgotten." if ok else f"I don't know {jarvis_faces.spoken_name(arg)}.")
+            elif action == "face_who":
+                names = v.last_seen_names
+                if not names:
+                    say("I don't see anyone.")
+                else:
+                    known = [("you, Yash" if n == jarvis_faces.OWNER else jarvis_faces.spoken_name(n)) for n in names if n]
+                    unknown = sum(1 for n in names if not n)
+                    parts = known + ([f"{unknown} person I don't know" if unknown == 1 else f"{unknown} people I don't know"] if unknown else [])
+                    say("I see " + " and ".join(parts) + ".")
+            elif action == "face_list":
+                ppl = [("you" if n == jarvis_faces.OWNER else jarvis_faces.spoken_name(n)) for n in v.faceid.book.people]
+                say("I know " + ", ".join(ppl) + "." if ppl else "I don't know anyone yet. Say learn my face.")
+            return True
+        if action in ("reps", "reps_stop", "camera", "gestures_help"):
             v = self.vision
             if action == "gestures_help":
                 say(jarvis_vision.GESTURE_HELP if v else "The camera is off. Install mediapipe and opencv, then set VISION to True.")
@@ -1217,9 +1291,6 @@ class Jarvis:
             elif action == "camera":
                 v.enabled = arg
                 say("Camera on." if arg else "Camera off. Say camera on to bring it back.")
-            elif action == "air_mouse":
-                jarvis_vision.AIR_MOUSE = arg
-                say("Air mouse on. Point to move, pinch to click. Say air mouse off to stop." if arg else "Air mouse off.")
             return True
         if action == "phone":
             if not self.brain:
@@ -1422,7 +1493,7 @@ def main():
     BRAIN.start()
     jarvis.extras.start()
     if jarvis_vision.VISION:
-        jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say).start()
+        jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say, on_people=jarvis.people).start()
         if jarvis_vision.PRESENCE_FROM_CAMERA:
             BRAIN.presence.idle = lambda: min(jarvis_brain.idle_seconds(), jarvis.vision.seconds_since_face())
     if jarvis_phone.PHONE_SERVER:

@@ -234,7 +234,7 @@ class Detectors:
         self.mp, self.vision, self.Base = mp, vision, BaseOptions
         V = vision.RunningMode.VIDEO
         self.hands = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=V, num_hands=1,
+            base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=V, num_hands=2,
             min_hand_detection_confidence=0.6, min_tracking_confidence=0.5)) if hands else None
         self.faces = vision.FaceDetector.create_from_options(vision.FaceDetectorOptions(
             base_options=BaseOptions(model_asset_path=model_path("face")), running_mode=V, min_detection_confidence=0.5)) if faces else None
@@ -248,9 +248,13 @@ class Detectors:
         self.last_ts = max(int(ts), self.last_ts + 1)   # VIDEO mode needs strictly rising timestamps
         return self.last_ts
 
-    def hand(self, rgb, ts):
+    def hands_all(self, rgb, ts):
         r = self.hands.detect_for_video(self._img(rgb), self._ts(ts))
-        return [(p.x, p.y) for p in r.hand_landmarks[0]] if r.hand_landmarks else None
+        return [[(p.x, p.y) for p in h] for h in r.hand_landmarks]
+
+    def hand(self, rgb, ts):
+        hs = self.hands_all(rgb, ts)
+        return max(hs, key=lambda h: _d(h[INDEX_MCP], h[PINKY_MCP])) if hs else None
 
     def face(self, rgb, ts):
         return bool(self.faces.detect_for_video(self._img(rgb), self._ts(ts)).detections)
@@ -265,8 +269,13 @@ class Detectors:
 
 
 class Vision:
-    def __init__(self, on_gesture=None, on_face=None, say=None):
-        self.on_gesture, self.on_face, self.say = on_gesture, on_face, say
+    def __init__(self, on_gesture=None, on_face=None, say=None, on_people=None):
+        self.on_gesture, self.on_face, self.say, self.on_people = on_gesture, on_face, say, on_people
+        self.touch = None          # (TouchController, WindowsTouch) while touch mode is on
+        self.faceid = None
+        self.room = None
+        self.enroll = None         # (name, feats list, until, done callback) while learning a face
+        self.last_seen_names = []
         self.last_face = 0.0
         self.enabled = True
         self.reps = None          # RepCounter while counting
@@ -306,6 +315,13 @@ class Vision:
         if not cap.isOpened():
             _log(f"no camera at index {CAMERA_INDEX}")
             return
+        try:
+            import jarvis_faces
+            if jarvis_faces.FACES:
+                self.faceid, self.room = jarvis_faces.FaceID(), jarvis_faces.Room()
+                _log(f"face id on, knows: {', '.join(self.faceid.book.people) or 'nobody yet, say learn my face'}")
+        except Exception as e:
+            _log(f"face id off: {e}")
         self.ok = True
         _log("camera on")
         n, face_seen, pinch_was = 0, False, False
@@ -328,7 +344,12 @@ class Vision:
                         k = self.reps.reps
                         threading.Thread(target=self.say, args=(str(k) if k % 5 else f"{k}. Keep going.",), daemon=True).start()
                     continue
-                if det.faces and n % 10 == 0:   # faces about twice a second is plenty
+                if self.enroll:
+                    self._enroll_step(frame)
+                    continue
+                if self.faceid and n % 12 == 0:   # who's here, about once a second
+                    self._faces_step(frame)
+                elif det.faces and not self.faceid and n % 10 == 0:   # faces about twice a second is plenty
                     seen = det.face(rgb, ts)
                     if seen:
                         self.last_face = time.time()
@@ -337,6 +358,10 @@ class Vision:
                         if self.on_face:
                             self.on_face(seen)
                 if not det.hands:
+                    continue
+                if self.touch:
+                    ctl, exe = self.touch
+                    exe.run(ctl.feed(det.hands_all(rgb, ts)))
                     continue
                 lm = det.hand(rgb, ts)
             except Exception as e:
@@ -353,6 +378,35 @@ class Vision:
             g = self.reader.feed(lm)
             if g and self.on_gesture:
                 threading.Thread(target=self.on_gesture, args=(g,), daemon=True).start()
+
+    # ---- faces ----
+    def learn_face(self, name, done, seconds=6.0):
+        self.enroll = (name, [], time.time() + seconds, done)
+
+    def _enroll_step(self, frame):
+        name, feats, until, done = self.enroll
+        if self.faceid:
+            f = self.faceid.biggest_feature(frame)
+            if f is not None:
+                feats.append(f)
+        if time.time() >= until or len(feats) >= 20:
+            self.enroll = None
+            saved = self.faceid.book.add(name, feats[2:] if len(feats) > 5 else feats) if self.faceid and feats else None
+            done(saved, len(feats))
+
+    def _faces_step(self, frame):
+        import jarvis_faces
+        found = self.faceid.who(frame)
+        self.last_seen_names = [n for n, _, _ in found]
+        owner_known = jarvis_faces.OWNER in self.faceid.book.people
+        if found and (not owner_known or jarvis_faces.OWNER in self.last_seen_names):
+            self.last_face = time.time()
+        arrived, left = self.room.feed(self.last_seen_names)
+        if (arrived or left) and self.on_people:
+            threading.Thread(target=self.on_people, args=(arrived, left, self.room), daemon=True).start()
+        if self.room.should_lock() and self.on_people:
+            self.room.stranger_since = None
+            threading.Thread(target=self.on_people, args=(set(), set(), self.room, True), daemon=True).start()
 
     def _mouse(self, lm):
         if not IS_WIN:
@@ -391,17 +445,14 @@ def route_vision(t):
         return ("camera", False)
     if re.fullmatch(r"(?:turn |switch )?(?:the )?camera (?:back )?on|start watching", t):
         return ("camera", True)
-    if re.fullmatch(r"(?:turn on |start |enable )?air mouse(?: on)?", t):
-        return ("air_mouse", True)
-    if re.fullmatch(r"(?:turn off |stop |disable )?air mouse off|(?:turn off|stop|disable) air mouse", t):
-        return ("air_mouse", False)
     if re.fullmatch(r"(?:what|which) gestures?(?: can i use| do you know| are there)?|show me (?:the )?gestures", t):
         return ("gestures_help", None)
     return None
 
 
 GESTURE_HELP = ("Peace sign and I start listening. Open palm, play or pause. Swipe right or left for the next or last song. "
-                "Point up or down for volume. Thumbs up says yes. A fist mutes. Wave to wake the room.")
+                "Point up or down for volume. Thumbs up says yes. A fist mutes. Wave to wake the room. "
+                "Say touch mode to control the whole screen with your hands.")
 
 
 def preview():

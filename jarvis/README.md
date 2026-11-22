@@ -201,9 +201,42 @@ Setup, once:
 | wave | wakes the room, like a double clap |
 | walk in and sit down | the camera sees you, so the welcome back happens on its own |
 | "count my pushups" / "count my squats" / "count my curls" | counts out loud, "done" logs the set to Training |
-| "air mouse" / "air mouse off" | your index finger moves the cursor, pinch clicks |
+| "touch mode" / "touch mode off" | control the whole screen with your hands, see below |
 | "camera off" / "camera on" | pauses the camera completely |
 | "what gestures can I use" | reads this list |
+
+### Touch mode (`jarvis_touch.py`)
+
+Say "touch mode". Your hand in the air becomes a mouse for the whole ultrawide.
+
+| Do | What happens |
+|---|---|
+| move your hand | the cursor follows your knuckles, so pinching doesn't make it jump |
+| pinch thumb and index | click. Twice fast = double click |
+| pinch and hold, then move | drag: select text, move files, sliders |
+| pinch thumb and middle | right click |
+| fist | grab the window under the cursor and carry it. Open your hand to drop it |
+| fist, then throw left or right | snaps the window to that half of the screen |
+| two fingers up, move up or down | scroll |
+| both hands pinching, pull apart or push together | zoom in or out (browser, VS Code, Figma) |
+| open palm for 2 seconds | leaves touch mode |
+
+Tune it in `local_settings.py`: `TOUCH_REGION` (how far you have to reach), `TOUCH_SMOOTH`, `SCROLL_SPEED`.
+
+### Face ID (`jarvis_faces.py`)
+
+Only fingerprints of faces (128 numbers each) are kept in `.cache/faces`, never pictures.
+
+| Say | What happens |
+|---|---|
+| "learn my face" | look at the camera for 6 seconds, turn your head a bit. Do it once in daylight and once at night |
+| "this is my mom" / "meet Arjun" / "learn dad's face" | they look at the camera, Jarvis remembers them |
+| "who's here" / "who am I" / "who do you know" | says who it sees or knows |
+| "forget mom's face" | deletes them |
+
+Then: only your face counts as you being at the desk, so welcomes are for you. People it knows get a
+"Hey Mom". Anyone else in view turns on guest mode until they leave (`AUTO_GUEST`). If someone who isn't
+you sits at your PC for a minute while you're gone, it locks the screen and pings your phone (`AUTO_LOCK`).
 
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 

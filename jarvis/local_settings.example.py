@@ -39,5 +39,10 @@
 # MIRROR_TO_PHONE = True         # leave reminders and important mail go to your phone when you're away
 # VISION = True                  # after: .venv\Scripts\pip install mediapipe opencv-python
 # CAMERA_INDEX = 0
-# AIR_MOUSE = False
 # GESTURES = True
+# FACES = True                   # face ID, needs VISION
+# AUTO_GUEST = True              # guest mode while anyone else is in view
+# AUTO_LOCK = True               # lock the PC if someone else sits there while you're gone
+# LOCK_AFTER = 60
+# TOUCH_REGION = (0.18, 0.15, 0.82, 0.80)   # smaller box = less reaching
+# TOUCH_SMOOTH = 0.35
