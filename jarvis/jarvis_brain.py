@@ -34,6 +34,17 @@ QUIET_HOURS = (23, 6)        # no automatic welcomes or reminders from 11 PM to 
 FOCUS_MUSIC = ""             # optional, e.g. "lofi beats". Played when a focus session starts
 PLAN_REFRESH_HOURS = (7, 12, 15, 18)   # re-read the calendar for reminders at these hours
 STATE_FILE = os.path.join(HERE, ".brain.json")
+GAMEDAY_PLAYLIST = ""        # Spotify link or name for "pregame" and game day mornings, e.g. "pregame hype"
+WIND_DOWN = "22:30"          # nightly wind down nudge if you're at the desk. None = off
+WEEKLY_REVIEW = (6, "18:00") # Sunday (Mon=0 ... Sun=6) at 6 PM: weekly review into Weekly/. None = off
+BREAK_AFTER_HOURS = 3        # nudge to take a break after this long at the desk without one
+MAIL_WATCH_MINUTES = 15      # check for mail that matters this often (7 AM to 10 PM). None = off
+# who counts as important: coaches, parents, SolidHauz. Add your parents' emails in local_settings.py
+IMPORTANT_SENDERS = ["orielly", "rielly", "roty"]
+IMPORTANT_TOPICS = ["soccer", "DN Boys", "SolidHauz", "quote", "deposit", "Babson", "admission"]
+SHOP_TOOLS = "mcp__claude_ai_Solidhauz__today,mcp__claude_ai_Solidhauz__business_overview,mcp__claude_ai_Solidhauz__jobs_behind"
+PHONE_IP = ""                # optional: your iPhone's fixed IP on home WiFi, so Jarvis knows when you get home
+GAME_BAG = "cleats, shin guards, both jerseys, water and your warmup"
 # ---------------------------------------------------------------------------
 
 
@@ -219,11 +230,86 @@ class Season:
                 w, l, t = w + (cells[2] == "W"), l + (cells[2] == "L"), t + (cells[2] == "T")
         return w, l, t
 
+    def add_stat(self, kind, n=1):
+        if not os.path.exists(self.v.path(SEASON_NOTE)):
+            self.v._write(SEASON_NOTE, "# Del Norte Varsity Soccer 2026-27\n\n| Date | Opponent | Result | Score | Notes |\n|---|---|---|---|---|\n", "w")
+        self.v._write(SEASON_NOTE, f"\n- stat: {n} {kind} ({self.v.now('%b %d').replace(' 0', ' ')})\n")
+        self.v.log(f"{n} {kind}{'s' if n != 1 else ''}")
+
+    def stats(self):
+        out = {"goal": 0, "assist": 0, "clean sheet": 0}
+        for m in re.finditer(r"^- stat: (\d+) (goal|assist|clean sheet)", self.v.read(SEASON_NOTE), re.M):
+            out[m.group(2)] += int(m.group(1))
+        return out
+
     def spoken(self):
         w, l, t = self.record()
         if not (w or l or t):
             return "No games logged yet. After a game say, we won 2 1 against whoever."
-        return f"You're {w} and {l}" + (f" and {t}" if t else "") + " this season."
+        st = self.stats()
+        extra = ""
+        if st["goal"] or st["assist"]:
+            extra = f" You've got {st['goal']} goal{'s' if st['goal'] != 1 else ''} and {st['assist']} assist{'s' if st['assist'] != 1 else ''}."
+        return f"You're {w} and {l}" + (f" and {t}" if t else "") + " this season." + extra
+
+
+# ================= streaks and weekly =================
+def day_notes(vault, days, today=None):
+    """[(date_str, text)] for the last `days` days, newest first."""
+    base = today or time.time()
+    out = []
+    for i in range(days):
+        d = time.strftime("%Y-%m-%d", time.localtime(base - i * 86400))
+        out.append((d, vault.read(vault.daily_rel(d))))
+    return out
+
+
+def focus_minutes(text):
+    return sum(int(x) for x in re.findall(r"Focus done, (\d+) min", text))
+
+
+def bed_time(text):
+    m = re.findall(r"^- (\d\d):(\d\d) Goodnight", text, re.M)
+    return (int(m[-1][0]), int(m[-1][1])) if m else None
+
+
+def streaks(vault, today=None):
+    """{'focus': days in a row with 25+ focus minutes, 'early bed': goodnights before 11 PM, 'logged': days with any log}"""
+    notes = day_notes(vault, 60, today)
+    tests = {
+        "focus": lambda t: focus_minutes(t) >= 25,
+        "early bed": lambda t: (lambda b: b is not None and (b[0] < 23 and b[0] >= 18))(bed_time(t)),
+        "logged": lambda t: "\n- " in t,
+    }
+    out = {}
+    for name, ok in tests.items():
+        n, start = 0, 0
+        if not ok(notes[0][1]):
+            start = 1   # today isn't over yet, count from yesterday
+        for _, text in notes[start:]:
+            if not ok(text):
+                break
+            n += 1
+        out[name] = n
+    return out
+
+
+def streak_line(st):
+    bits = []
+    if st.get("focus", 0) >= 2:
+        bits.append(f"{st['focus']} days locked in")
+    if st.get("early bed", 0) >= 2:
+        bits.append(f"{st['early bed']} nights in bed before 11")
+    return ("Streaks: " + " and ".join(bits) + ".") if bits else ""
+
+
+def week_digest(vault, today=None):
+    lines = []
+    for d, text in reversed(day_notes(vault, 7, today)):
+        logs = [l[2:] for l in text.splitlines() if l.startswith("- ")]
+        if logs:
+            lines.append(f"{d}: " + " | ".join(logs[:25]))
+    return "\n".join(lines)
 
 
 # ================= presence =================
@@ -267,6 +353,8 @@ class Presence:
         self.before_leaving = st.get("before_leaving", [])
         self.away = False
         self.on_return = None   # called with minutes away when you sit back down
+        self.active_since = clock()
+        self.arrived_at = None  # when your phone joined home WiFi
 
     def seen(self):
         self.last_active = self.clock()
@@ -285,6 +373,8 @@ class Presence:
         idle = self.idle()
         now = self.clock()
         if idle < 90:
+            if self.away:
+                self.active_since = now - idle
             if self.away and self.on_return:
                 gone = int((now - idle - self.last_active) / 60)
                 self.away = False
@@ -313,6 +403,17 @@ class Presence:
                 self.tick()
             except Exception as e:
                 _log(f"presence: {e}")
+
+
+def phone_home(ip, timeout_ms=800):
+    if not ip:
+        return None
+    import subprocess
+    args = ["ping", "-n", "1", "-w", str(timeout_ms), ip] if IS_WIN else ["ping", "-c", "1", "-W", "1", ip]
+    try:
+        return subprocess.run(args, capture_output=True, timeout=5, creationflags=0x08000000 if IS_WIN else 0).returncode == 0
+    except Exception:
+        return None
 
 
 def window_snapshot():
@@ -372,6 +473,8 @@ def situation_prompt(vault, presence, morning=False, now=None):
         "Check his Google Calendar for what ended while he was gone (practice, a game, school, a meeting, a trip) and what is next "
         "today and tomorrow morning. Leave blocks named 'Leave for ...' matter most.",
     ]
+    if presence.arrived_at and time.time() - presence.arrived_at < 3 * 3600:
+        parts.append("His phone joined home WiFi at " + time.strftime("%I:%M %p", time.localtime(presence.arrived_at)).lstrip("0") + ".")
     if presence.before_leaving:
         parts.append("Before he left, his screen had: " + "; ".join(presence.before_leaving[:6]) + ".")
     log = vault.today_log() if vault else ""
@@ -380,12 +483,16 @@ def situation_prompt(vault, presence, morning=False, now=None):
     if morning:
         parts.append("This is his first wake of the day, so fold in a short morning brief: his first event and leave time, how many "
                      "other events, and any unread email from a real person that needs him.")
+    parts.append("If he has a game today, open with 'Game day.' and the kickoff and leave time. If he just came back from practice or "
+                 "a game, ask how it went in a few words and nudge food, water or stretching. If he was gone for days, catch him up. "
+                 "If something at SolidHauz is urgent today (use the SolidHauz tools if you have them), mention it in one short line, "
+                 "otherwise skip the shop. If it is after 10 PM, keep it short and point him to bed.")
     parts.append(
         "Reply with ONLY a JSON object, no other text: "
         '{"greeting": "what Jarvis says out loud, under 55 words, warm and natural, like a friend who knows his day. '
         "Name what he just did if you can tell (for example: welcome back from practice, how did the game go). "
         "Then the next thing he needs and when to leave. No hyphens, no lists, no markdown.\", "
-        '"just_did": "practice | game | school | other | unknown", '
+        '"just_did": "practice | game | school | other | unknown", "game_today": true or false, '
         '"events": [{"title": "...", "start": "HH:MM 24h today", "leave": true or false}]}'
         " where events are the rest of TODAY only, in order.")
     return "\n\n".join(parts)
@@ -411,8 +518,8 @@ def parse_json(text):
 # ================= planner =================
 class Planner:
     """Speaks reminders before events. events come from the calendar through Claude."""
-    def __init__(self, say, chime=None, clock=time.time, timer=threading.Timer):
-        self.say, self.chime, self.clock, self.timer = say, chime, clock, timer
+    def __init__(self, say, chime=None, clock=time.time, timer=threading.Timer, busy=lambda: False):
+        self.say, self.chime, self.clock, self.timer, self.busy = say, chime, clock, timer, busy
         self.armed = {}
 
     @staticmethod
@@ -423,7 +530,8 @@ class Planner:
         if ev.get("leave") or low.startswith("leave"):
             what = re.sub(r"^leave (for )?", "", title, flags=re.I) or "it"
             what = re.sub(r"^(game|practice|school)\b", r"the \1", what, flags=re.I)
-            return [(30, f"Heads up. You leave for {what} in 30 minutes. Start packing."),
+            pack = f" Pack {GAME_BAG}." if "game" in what.lower() else " Start packing."
+            return [(30, f"Heads up. You leave for {what} in 30 minutes.{pack}"),
                     (10, f"Leave in 10 minutes for {what}."),
                     (0, f"Time to go. Leave for {what} now.")]
         if "game" in low or " vs " in low or " at " in low and "soccer" in low:
@@ -455,7 +563,8 @@ class Planner:
         return n
 
     def _fire(self, line):
-        if quiet_now() and not line.lower().startswith(("time to go", "leave in")):
+        urgent = line.lower().startswith(("time to go", "leave in", "heads up. you leave"))
+        if (quiet_now() or self.busy()) and not urgent:
             return
         try:
             if self.chime:
@@ -489,6 +598,26 @@ def route_brain(t):
         return ("focus", int(mins))
     if re.fullmatch(r"(?:stop|end|cancel) (?:the )?focus(?: session| mode)?|i'?m done focusing", t):
         return ("focus_end", None)
+    m = re.fullmatch(r"i (?:scored|got|had) (a|an|one|two|three|four|\d+)? ?(goals?|assists?|clean sheet)(?: today| tonight)?", t)
+    if m:
+        kind = m.group(2).rstrip("s") if m.group(2) != "clean sheet" else "clean sheet"
+        return ("stat", (kind, int(_num(m.group(1) or "one"))))
+    if re.fullmatch(r"i scored(?: today| tonight)?", t):
+        return ("stat", ("goal", 1))
+    if re.search(r"\b(?:what are|how are|check) my streaks?\b|\bmy streaks\b", t):
+        return ("streaks", None)
+    if re.fullmatch(r"(?:hype me up|pregame|pre game|game day mode|get me hyped|pump me up)", t):
+        return ("pregame", None)
+    if re.fullmatch(r"(?:bring back|restore|reopen) my (?:stuff|windows|screen|work)|put (?:everything|my stuff) back|where was i", t):
+        return ("restore", None)
+    if re.search(r"\b(?:anything (?:at|from) the shop|how'?s (?:the shop|solid ?hauz)|shop update|solid ?hauz update|what'?s going on (?:at|with) (?:the shop|solid ?hauz))\b", t):
+        return ("shop", None)
+    if re.search(r"\bwhat(?:'?s| is| do i have) due\b|\bany (?:deadlines|homework)\b|\bwhat'?s coming up\b", t):
+        return ("due", None)
+    if re.fullmatch(r"(?:do (?:my |the |a )?)?weekly review|how was my week|review my week", t):
+        return ("weekly", None)
+    if re.fullmatch(r"(?:any|check (?:my |for )?)(?:important|new important) (?:mail|email|emails|messages)|anything important(?: in my (?:mail|email))?|(?:any )?(?:mail|email) that matters", t):
+        return ("mail_check", None)
     if re.fullmatch(r"(?:log|add to (?:my )?(?:log|daily note)) (.+)", t):
         return ("vault_log", re.sub(r"^(?:log|add to (?:my )?(?:log|daily note)) ", "", t))
     if re.fullmatch(r"(?:what'?s )?(?:my|the) plan(?: for)?(?: today| tonight)?|what should i (?:do|work on) (?:now|tonight|today)", t):
@@ -514,9 +643,13 @@ class Brain:
         self.vault = vault or Vault()
         self.presence = presence or Presence(snapshot=window_snapshot)
         self.season = Season(self.vault)
-        self.planner = Planner(say, chime)
+        self.planner = Planner(say, chime, busy=lambda: bool(self.focus_started))
         self.focus_timer = None
         self.focus_started = 0
+        self.news = []            # important mail held while you were away or focusing
+        self.play = None          # play(query) through Spotify, set by jarvis.py
+        self.restore_windows = None   # restore(titles) -> count, set by jarvis.py
+        self.last_break_nudge = 0
         self.last_brief_day = load_state().get("brief_day")
 
     def start(self):
@@ -524,6 +657,7 @@ class Brain:
             self.presence.on_return = self.auto_welcome
         threading.Thread(target=self.presence.watch, daemon=True).start()
         threading.Thread(target=self._plan_refresh, daemon=True).start()
+        threading.Thread(target=self._routines, daemon=True).start()
         _log(f"vault: {self.vault.root}" + ("" if self.vault.is_obsidian else " (not an Obsidian vault yet, it still works)"))
 
     def context_for_claude(self):
@@ -549,7 +683,7 @@ class Brain:
 
         def work():
             try:
-                result["text"] = self.ask(prompt)
+                result["text"] = self.ask(prompt, tools=SHOP_TOOLS)
             except Exception as e:
                 result["text"] = ""
                 _log(f"situation: {e}")
@@ -581,7 +715,105 @@ class Brain:
             n = self.planner.load(data["events"])
             if n:
                 _log(f"{n} reminders armed")
+        if data and data.get("game_today") and morning and GAMEDAY_PLAYLIST and self.play:
+            threading.Thread(target=self.play, args=(GAMEDAY_PLAYLIST,), daemon=True).start()
+        self.flush_news()
         return line
+
+    def flush_news(self):
+        if self.news and not self.focus_started:
+            items, self.news = self.news[:3], self.news[3:]
+            self.say("While you were out. " + " ".join(items))
+
+    def present(self):
+        return self.presence.idle() < 10 * 60 and not self.presence.away
+
+    # background routines: wind down, weekly review, breaks, mail, phone
+    def _routines(self):
+        done, last_mail, phone_was = set(), 0, None
+        while True:
+            time.sleep(60)
+            try:
+                lt = time.localtime()
+                hm, today = time.strftime("%H:%M", lt), time.strftime("%Y-%m-%d", lt)
+                if WIND_DOWN and hm == WIND_DOWN and ("wind", today) not in done and self.present():
+                    done.add(("wind", today))
+                    self.wind_down()
+                if WEEKLY_REVIEW and lt.tm_wday == WEEKLY_REVIEW[0] and hm >= WEEKLY_REVIEW[1] and ("week", today) not in done and self.present():
+                    done.add(("week", today))
+                    self.weekly(spoken=True)
+                active_h = (time.time() - self.presence.active_since) / 3600
+                if (BREAK_AFTER_HOURS and active_h >= BREAK_AFTER_HOURS and not self.focus_started and self.present()
+                        and time.time() - self.last_break_nudge > 3600 and not quiet_now()):
+                    self.last_break_nudge = time.time()
+                    self.say(f"You've been at the desk {int(active_h)} hours straight. Stand up, water, ten minutes away from the screen.")
+                if MAIL_WATCH_MINUTES and 7 <= lt.tm_hour < 22 and time.time() - last_mail > MAIL_WATCH_MINUTES * 60:
+                    last_mail = time.time()
+                    self.check_mail()
+                if PHONE_IP:
+                    home = phone_home(PHONE_IP)
+                    if home and phone_was is False:
+                        self.presence.arrived_at = time.time()
+                        self.vault.log("Got home")
+                    if home is not None:
+                        phone_was = home
+            except Exception as e:
+                _log(f"routines: {e}")
+
+    def check_mail(self, spoken_if_none=False):
+        st = load_state()
+        seen = set(st.get("mail_seen", []))
+        q = "newer_than:1d -category:promotions -category:social (" + " OR ".join(
+            [f"from:{x}" for x in IMPORTANT_SENDERS] + [f'"{x}"' if " " in x else x for x in IMPORTANT_TOPICS]) + ")"
+        text = self.ask(f"Search my Gmail with this query: {q}\nSkip newsletters, receipts and automated mail. Reply with ONLY JSON: "
+                        '{"items": [{"id": "the thread id", "line": "one spoken sentence: who it is from and what they need"}]} '
+                        "Newest first, at most 5. Empty list if nothing real.")
+        data = parse_json(text) or {}
+        fresh = [i for i in data.get("items", []) if i.get("id") and i["id"] not in seen and i.get("line")]
+        if fresh:
+            st["mail_seen"] = (list(seen) + [i["id"] for i in fresh])[-300:]
+            save_state(st)
+            for i in fresh:
+                self.vault.log("Mail: " + i["line"])
+            lines = [i["line"] for i in fresh]
+            if self.present() and not self.focus_started and not quiet_now():
+                if self.chime:
+                    self.chime(740)
+                self.say(" ".join(lines[:3]))
+            else:
+                self.news += lines
+        elif spoken_if_none:
+            self.say("Nothing important in your mail today.")
+        return fresh
+
+    def wind_down(self):
+        st = streak_line(streaks(self.vault))
+        text = self.ask("It's wind down time for Yash. In under 45 spoken words: tomorrow's first event and when he needs to wake or "
+                        "leave, from his Google Calendar, and tell him to start getting ready for bed. Warm, no hyphens."
+                        + (f" Mention this: {st}" if st else ""))
+        if text:
+            self.say(text)
+            self.vault.log("Wind down")
+
+    def weekly(self, spoken=True):
+        digest = week_digest(self.vault)
+        season = self.season.spoken()
+        st = streaks(self.vault)
+        focus_total = sum(focus_minutes(t) for _, t in day_notes(self.vault, 7))
+        text = self.ask(
+            "Write my weekly review as an Obsidian note in Markdown with these sections: Wins, What slipped, Soccer, Next week (from my "
+            "Google Calendar, the next 7 days, with leave times for games), One focus for next week. Keep it tight. Then on the very "
+            "last line write SPOKEN: and a 50 word spoken summary with no hyphens.\n\n"
+            f"Season: {season}\nFocus minutes this week: {focus_total}\nStreaks: {st}\nDaily logs:\n{digest or '(no logs yet)'}")
+        body, _, spoken_part = (text or "").rpartition("SPOKEN:")
+        if not body:
+            body, spoken_part = text or "", ""
+        rel = f"Weekly/{time.strftime('%G-W%V')}.md"
+        self.vault._write(rel, f"---\ntags: [weekly]\n---\n# Week {time.strftime('%V')}, {time.strftime('%B %d').replace(' 0', ' ')}\n\n" + body.strip() + "\n", "w")
+        self.vault.log(f"Weekly review written to {rel}")
+        if spoken:
+            self.say((spoken_part.strip() or "Your weekly review is in Obsidian.") + " The full review is in your Weekly folder.")
+        return rel
 
     def auto_welcome(self, gone):
         if gone < AUTO_WELCOME_AFTER or quiet_now():
@@ -610,9 +842,10 @@ class Brain:
         text = self.ask("Yash is going to bed. In under 45 spoken words: one line on how today went from this log, then tomorrow's first "
                         "event and the time he needs to leave or wake for it, from his Google Calendar. Warm, no lists, no hyphens.\n\n"
                         "Today's log:\n" + (self.vault.today_log(30) or "(empty)"))
+        st = streak_line(streaks(self.vault))
         if text and not text.lstrip().startswith("{"):
             self.vault.log("Goodnight. " + text)
-            return text
+            return text + (" " + st if st else "")
         self.vault.log("Goodnight.")
         return ""
 
@@ -656,6 +889,45 @@ class Brain:
             self.start_focus(arg)
         elif action == "focus_end":
             self.end_focus(early=True)
+        elif action == "stat":
+            kind, n = arg
+            self.season.add_stat(kind, n)
+            st = self.season.stats()
+            hype = {"goal": "Let's go.", "assist": "Nice ball.", "clean sheet": "Wall."}[kind]
+            say(f"{hype} That's {st['goal']} goals and {st['assist']} assists this season.")
+        elif action == "streaks":
+            st = streaks(self.vault)
+            say(f"Focus streak {st['focus']} days. In bed before 11, {st['early bed']} nights. You've logged {st['logged']} days in a row.")
+        elif action == "pregame":
+            if GAMEDAY_PLAYLIST and self.play:
+                threading.Thread(target=self.play, args=(GAMEDAY_PLAYLIST,), daemon=True).start()
+            say(self.ask("Hype Yash up for his game in under 40 spoken words, like a teammate, not a coach. Use his next game from his "
+                         "Google Calendar (opponent, kickoff) and his season record: " + self.season.spoken() +
+                         " No hyphens, no cringe, end with the leave time."))
+        elif action == "restore":
+            titles = self.presence.before_leaving
+            if not titles:
+                return say("I don't have a snapshot from before you left.")
+            n = self.restore_windows(titles) if self.restore_windows else 0
+            names = sorted({t.split(":", 1)[0] for t in titles})[:4]
+            say(f"Brought back {n} windows." if n else "Before you left you had " + ", ".join(names) + " open.")
+        elif action == "shop":
+            say(self.ask("Out loud in under 60 words: what's happening at SolidHauz today. Jobs behind, new leads, payments, consults "
+                         "today, anything urgent first. Use the SolidHauz tools.", tools=SHOP_TOOLS))
+        elif action == "due":
+            inbox = [l for l in v.read(f"{JARVIS_FOLDER}/Inbox.md").splitlines() if l.startswith("- [ ]")][-10:]
+            say(self.ask("Out loud in under 60 words: what's due for me in the next 7 days from my Google Calendar (all day Due events "
+                         "and deadlines), soonest first, then the one thing to do tonight. Open items from my inbox:\n"
+                         + ("\n".join(inbox) or "(none)")))
+        elif action == "weekly":
+            say("Pulling your week together.")
+            self.weekly(spoken=True)
+        elif action == "mail_check":
+            say("Checking.")
+            fresh = self.check_mail(spoken_if_none=True)
+            if fresh and (not self.present() or self.focus_started):
+                self.news, lines = [], self.news
+                say(" ".join(lines[:3]))
         elif action == "what_now":
             say(self.ask("Out loud in under 50 words: what should I do right now? Use my Google Calendar for the rest of today, "
                          "the time now, and what I've told you to remember. Pick ONE thing, say why, and say when I need to stop for "
@@ -689,4 +961,6 @@ class Brain:
         self.vault.log(f"Focus done, {mins} min")
         if self.chime:
             self.chime(988)
-        self.say(f"Focus done. {mins} minutes, {total} today. Take a 10 minute break. Say log, and what you got done.")
+        st = streak_line(streaks(self.vault))
+        self.say(f"Focus done. {mins} minutes, {total} today. " + (st + " " if st else "") + "Take a 10 minute break. Say log, and what you got done.")
+        self.flush_news()

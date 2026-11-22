@@ -910,6 +910,18 @@ MORNING_PROMPT = ("Give me a morning brief I can hear in about 20 seconds: my fi
                   "If you can't reach my calendar, just say so in one sentence.")
 
 
+def restore_windows(titles):
+    """Un-minimize the windows that were open before you left. Only windows that still exist."""
+    scr = jarvis_screen.Screen()
+    want = {t.split(": ", 1)[-1] for t in titles}
+    n = 0
+    for h, _, title in scr.windows():
+        if title[:80] in want:
+            scr.show(h, "restore")
+            n += 1
+    return n
+
+
 # ================= main =================
 class Jarvis:
     def __init__(self, speaker, pc=None, spotify=None, claude=None):
@@ -927,6 +939,8 @@ class Jarvis:
     def make_brain(self):
         sc = lambda a, arg: jarvis_screen.ScreenControl(lambda *_: None, self.pc.launch, open_url=self.pc.open_url).handle(a, arg)
         self.brain = jarvis_brain.Brain(self.speaker.say, self.ask_once, chime=self.speaker.chime, launch=self.pc.launch, screen=sc)
+        self.brain.play = lambda q: self.spotify.play(q, launch=self.pc.launch) if self.spotify.ready else self.pc.launch("spotify:search:" + urllib.parse.quote(q))
+        self.brain.restore_windows = restore_windows
         return self.brain
 
     def later(self, secs, text):
@@ -1071,7 +1085,8 @@ class Jarvis:
             self.pending = send
             say(f"Send to the {name} session: {msg}. Say yes to send.")
             return True
-        if action in ("remember", "memory_list", "vault_search", "vault_open", "vault_log", "game_result", "season", "focus", "focus_end", "what_now"):
+        if action in ("remember", "memory_list", "vault_search", "vault_open", "vault_log", "game_result", "season", "focus", "focus_end", "what_now",
+                      "stat", "streaks", "pregame", "restore", "shop", "due", "weekly", "mail_check"):
             if not self.brain:
                 self.make_brain()
             if action == "focus" and jarvis_brain.FOCUS_MUSIC and sp.ready:

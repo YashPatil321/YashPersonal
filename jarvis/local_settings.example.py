@@ -24,3 +24,9 @@
 # AUTO_WELCOME_AFTER = 45
 # FOCUS_MUSIC = "lofi beats"     # played when you say lock in
 # QUIET_HOURS = (23, 6)          # no automatic welcomes or reminders overnight
+# GAMEDAY_PLAYLIST = "https://open.spotify.com/playlist/..."   # pregame music
+# IMPORTANT_SENDERS = ["orielly", "rielly", "roty", "mom@...", "dad@..."]   # mail Jarvis reads out
+# WIND_DOWN = "22:30"
+# WEEKLY_REVIEW = (6, "18:00")   # Sunday 6 PM
+# BREAK_AFTER_HOURS = 3
+# PHONE_IP = "192.168.1.50"      # iPhone: Settings, WiFi, (i), turn off Private Address, then reserve the IP in your router

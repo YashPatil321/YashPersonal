@@ -120,9 +120,21 @@ make a vault (for example `Documents\Yash`), and Jarvis finds it by itself. Set 
 | "lock in for an hour" | focus layout, quiet, logged, chime at the end with today's total |
 | "what should I work on tonight" | picks one thing from your calendar and memory |
 | "goodnight" | recap of today and tomorrow's first leave time, written to the daily note |
+| "I scored two goals" / "I had an assist" | season stats, "what's our record" includes them |
+| "hype me up" / "pregame" | pregame playlist (`GAMEDAY_PLAYLIST`) and a hype line with kickoff and leave time |
+| "bring back my stuff" / "where was I" | brings back the windows you had open before you left |
+| "anything at the shop" | SolidHauz today: jobs behind, leads, payments, urgent first |
+| "what's due" | deadlines for the next 7 days plus your open inbox items, and the one thing for tonight |
+| "anything important" | checks mail from coaches, parents and SolidHauz right now |
+| "what are my streaks" | focus days, nights in bed before 11, days logged |
+| "weekly review" | writes `Weekly/2026-W47.md` and reads you the summary |
 
 Reminders come on their own: 30 and 10 minutes before every "Leave for ..." block, then "time to go",
 and before practices, games and other events. No automatic talking from 11 PM to 6 AM (`QUIET_HOURS`).
+On its own it also: says "Game day" on game mornings and plays the pregame playlist, reads you mail that matters
+(coaches, parents, SolidHauz, Babson) every 15 minutes or holds it until you're back, tells you to take a break
+after 3 hours straight, nudges you to wind down at 10:30, and does a weekly review Sunday at 6 PM.
+Focus sessions hold everything except leave reminders. With `PHONE_IP` set it knows when you got home.
 Every wake writes a line to the daily note, so the vault becomes a journal of your days without trying.
 
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
