@@ -643,14 +643,23 @@ class Brain:
         self.vault = vault or Vault()
         self.presence = presence or Presence(snapshot=window_snapshot)
         self.season = Season(self.vault)
-        self.planner = Planner(say, chime, busy=lambda: bool(self.focus_started))
+        self.planner = Planner(say, chime, busy=lambda: self.held())
         self.focus_timer = None
         self.focus_started = 0
         self.news = []            # important mail held while you were away or focusing
         self.play = None          # play(query) through Spotify, set by jarvis.py
         self.restore_windows = None   # restore(titles) -> count, set by jarvis.py
         self.last_break_nudge = 0
+        self.fact_sources = []    # callables returning extra lines for the welcome (weather, screen time)
+        self.guest = False        # guest mode: nothing private out loud
+        self.hold_until = 0       # protocols hold notifications until this time
         self.last_brief_day = load_state().get("brief_day")
+
+    def hold(self, secs):
+        self.hold_until = time.time() + secs if secs else 0
+
+    def held(self):
+        return bool(self.focus_started) or time.time() < self.hold_until
 
     def start(self):
         if AUTO_WELCOME:
@@ -663,6 +672,8 @@ class Brain:
     def context_for_claude(self):
         """Added to every Claude prompt so answers know what Jarvis knows."""
         mem = self.vault.memory()
+        if self.guest:
+            return " Guests are in the room. Never read emails, messages, grades or private notes out loud; offer to show them on screen instead."
         out = f" His Obsidian vault is at {self.vault.root}; read it with Read, Grep and Glob when he asks about his notes."
         if mem:
             out += " Things he asked you to remember:\n" + mem
@@ -679,6 +690,18 @@ class Brain:
         today = time.strftime("%Y-%m-%d")
         morning = lt.tm_hour < 12 and self.last_brief_day != today
         prompt = situation_prompt(self.vault, self.presence, morning=morning)
+        facts = []
+        for src in self.fact_sources:
+            try:
+                f = src()
+                if f:
+                    facts.append(f)
+            except Exception:
+                pass
+        if facts:
+            prompt = prompt.replace("\n\nReply with ONLY", "\n\n" + "\n".join(facts) + "\n\nReply with ONLY", 1)
+        if self.guest:
+            prompt += "\n\nGuests are in the room: no email, no private details, just a friendly hello and the time."
         result = {}
 
         def work():
@@ -721,7 +744,7 @@ class Brain:
         return line
 
     def flush_news(self):
-        if self.news and not self.focus_started:
+        if self.news and not self.held() and not self.guest:
             items, self.news = self.news[:3], self.news[3:]
             self.say("While you were out. " + " ".join(items))
 
@@ -776,7 +799,7 @@ class Brain:
             for i in fresh:
                 self.vault.log("Mail: " + i["line"])
             lines = [i["line"] for i in fresh]
-            if self.present() and not self.focus_started and not quiet_now():
+            if self.present() and not self.held() and not self.guest and not quiet_now():
                 if self.chime:
                     self.chime(740)
                 self.say(" ".join(lines[:3]))
@@ -816,7 +839,7 @@ class Brain:
         return rel
 
     def auto_welcome(self, gone):
-        if gone < AUTO_WELCOME_AFTER or quiet_now():
+        if gone < AUTO_WELCOME_AFTER or quiet_now() or self.held():
             return
         quick, finish = self.greet("sat down")
         self.say(quick)

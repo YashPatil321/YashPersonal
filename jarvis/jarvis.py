@@ -42,6 +42,7 @@ import numpy as np
 
 import jarvis_brain
 import jarvis_claude
+import jarvis_extras
 import jarvis_orb
 import jarvis_room
 import jarvis_screen
@@ -91,7 +92,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -215,12 +216,13 @@ def frame_stats(frame):
     return peak, rms
 
 
-def record_until_silence(noise_floor):
+def record_until_silence(noise_floor, silence=None, max_secs=None, wait_for_voice=5):
     """Record after the wake word until the speaker goes quiet."""
     threshold = max(noise_floor * 3.0, 300)
     chunks, silent_for, heard_voice = [], 0.0, False
     start = time.time()
-    while time.time() - start < MAX_RECORD_SECONDS:
+    silence, max_secs = silence or SILENCE_SECONDS, max_secs or MAX_RECORD_SECONDS
+    while time.time() - start < max_secs:
         chunk = audio_q.get()
         chunks.append(chunk)
         loud = np.sqrt(np.mean(chunk.astype(np.float32) ** 2)) > threshold
@@ -228,9 +230,9 @@ def record_until_silence(noise_floor):
             heard_voice, silent_for = True, 0.0
         else:
             silent_for += FRAME / RATE
-        if heard_voice and silent_for >= SILENCE_SECONDS:
+        if heard_voice and silent_for >= silence:
             break
-        if not heard_voice and time.time() - start > 5:
+        if not heard_voice and time.time() - start > wait_for_voice:
             return None   # woke up but nobody said anything
     return np.concatenate(chunks).astype(np.float32) / 32768.0
 
@@ -581,7 +583,7 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_brain.route_brain(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    cc = jarvis_brain.route_brain(t) or jarvis_extras.route_extras(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -932,6 +934,8 @@ class Jarvis:
         self.pending = None
         self.restart_for_update = False
         self.brain = None
+        self.extras = None
+        self.record_long = None   # set in main: records up to 3 minutes and returns the text
 
     def ask_once(self, prompt, tools=None):
         return ask_claude(prompt, None, self.claude, (CONNECTOR_TOOLS + "," + tools) if tools else CONNECTOR_TOOLS)[0]
@@ -941,6 +945,8 @@ class Jarvis:
         self.brain = jarvis_brain.Brain(self.speaker.say, self.ask_once, chime=self.speaker.chime, launch=self.pc.launch, screen=sc)
         self.brain.play = lambda q: self.spotify.play(q, launch=self.pc.launch) if self.spotify.ready else self.pc.launch("spotify:search:" + urllib.parse.quote(q))
         self.brain.restore_windows = restore_windows
+        self.extras = jarvis_extras.Extras(self.speaker.say, self.ask_once, pc=self.pc, spotify=self.spotify, brain_=self.brain,
+                                           record_long=self.record_long, screen_cmd=sc, room_playlist=jarvis_room.ROOM_PLAYLIST)
         return self.brain
 
     def later(self, secs, text):
@@ -1059,6 +1065,9 @@ class Jarvis:
             pc.key("play_pause") if pc.spotify_title() else None
             if self.brain:
                 say("One sec.")
+                if self.extras and self.extras.st.today():
+                    self.brain.vault.log("Screen time: " + self.extras.st.spoken())
+                    self.extras.st.save()
                 recap = self.brain.goodnight()
                 if recap:
                     say(recap)
@@ -1092,6 +1101,12 @@ class Jarvis:
             if action == "focus" and jarvis_brain.FOCUS_MUSIC and sp.ready:
                 threading.Thread(target=lambda: sp.play(jarvis_brain.FOCUS_MUSIC, launch=pc.launch), daemon=True).start()
             self.brain.handle(action, arg)
+            return True
+        if action in ("weather", "protocol", "journal", "screentime", "countdown", "training", "training_week", "clipboard", "look",
+                      "alarm", "alarm_off", "roast"):
+            if not self.extras:
+                self.make_brain()
+            self.extras.handle(action, arg)
             return True
         if action in ("snap", "maximize", "minimize", "focus", "layout", "keys", "type"):
             jarvis_screen.ScreenControl(say, pc.launch, open_url=pc.open_url).handle(action, arg)
@@ -1275,11 +1290,22 @@ def main():
     global BRAIN
     BRAIN = jarvis.make_brain()
     BRAIN.start()
+    jarvis.extras.start()
     claps = ClapDetector()
     mic, _ = resolve_devices()
 
     with Mic(mic):
         noise = np.median([np.sqrt(np.mean(audio_q.get().astype(np.float32) ** 2)) for _ in range(25)])
+
+        def record_long():
+            drain_mic()
+            jarvis_orb.send("listening")
+            speaker.chime(660)
+            a = record_until_silence(noise, silence=4.0, max_secs=180, wait_for_voice=10)
+            jarvis_orb.send("thinking")
+            return transcribe(whisper, a) if a is not None else ""
+        jarvis.record_long = record_long
+        jarvis.extras.record_long = record_long
         jarvis_orb.send("idle")
         log(f"listening for '{WAKE_WORD.replace('_', ' ')}'" + (" and double claps" if CLAP_WAKE else "") + f" (room noise {noise:.0f})")
 

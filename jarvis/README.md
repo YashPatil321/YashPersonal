@@ -137,6 +137,28 @@ after 3 hours straight, nudges you to wind down at 10:30, and does a weekly revi
 Focus sessions hold everything except leave reminders. With `PHONE_IP` set it knows when you got home.
 Every wake writes a line to the daily note, so the vault becomes a journal of your days without trying.
 
+## Extras (`jarvis_extras.py`)
+
+| Say | What happens |
+|---|---|
+| "what's the weather" / "weather at 7" / "do I need a jacket" | live weather for 4S Ranch, no key needed. Also in every welcome |
+| "house party protocol" | party playlist (`PARTY_PLAYLIST`), volume 80, notifications off for 3 hours |
+| "clean slate" | minimizes everything |
+| "gaming mode" | Steam and Discord, holds everything but leave times for 2 hours |
+| "study mode" | school layout plus a 50 minute focus session |
+| "movie mode" | music off, quiet for 3 hours |
+| "guest mode" / "guest mode off" | nothing private out loud while friends are over |
+| "journal" | talk for up to 3 minutes; cleaned up, titled and saved to `Journal/` in the vault |
+| "screen time" / "how long was I on YouTube" | tracked all day from the window you're using. Logged at goodnight |
+| "how many days until UC apps" | countdowns (`COUNTDOWNS`), or anything on your calendar |
+| "I ran 3 miles in 24 minutes" / "I lifted" | `Training/2026-27.md` with pace; "how many miles this week" |
+| "summarize my clipboard" / "save my clipboard" | explains what you copied, or saves it to your inbox |
+| "what am I looking at" / "explain this error" | screenshots your screens and explains. Homework gets hints, not answers |
+| "wake me up at 6:45" | music fades in on the PC, then the morning brief and weather. Survives restarts |
+| "roast me" / "how am I doing" | a friendly roast, or an honest check in, from your screen time, streaks and season |
+
+During a focus session, if you sit on YouTube, Instagram or TikTok for 90 seconds, Jarvis calls you out.
+
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 
 Media keys work out of the box. To play a specific song by name:

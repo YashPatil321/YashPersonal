@@ -30,3 +30,7 @@
 # WEEKLY_REVIEW = (6, "18:00")   # Sunday 6 PM
 # BREAK_AFTER_HOURS = 3
 # PHONE_IP = "192.168.1.50"      # iPhone: Settings, WiFi, (i), turn off Private Address, then reserve the IP in your router
+# PARTY_PLAYLIST = "https://open.spotify.com/playlist/..."
+# WAKE_PLAYLIST = ""             # alarm music. Empty = your room playlist
+# WAKE_VOLUME = (10, 45)
+# COUNTDOWNS = {"uc": ("2026-11-30", "UC applications are due"), "signing day": ("2027-02-03", "signing day")}

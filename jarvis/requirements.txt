@@ -8,3 +8,4 @@ nvidia-cudnn-cu12==9.*
 kokoro>=0.9
 soundfile
 pyttsx3
+pillow
