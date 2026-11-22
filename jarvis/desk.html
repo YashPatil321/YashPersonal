@@ -179,6 +179,24 @@ addEventListener("click", (e) => press(e.clientX / innerWidth, e.clientY / inner
 function draw(now) {
   const W = fx.width, H = fx.height, k = devicePixelRatio;
   cx.clearRect(0, 0, W, H);
+  // your hand: black it out so nothing projects on your skin, with a glowing outline instead
+  for (const hand of live.hands || []) {
+    const P = hand.map(([x, y]) => [x * W, y * H]);
+    const hull = convexHull(P);
+    if (hull.length < 3) continue;
+    const cxm = hull.reduce((a, p) => a + p[0], 0) / hull.length, cym = hull.reduce((a, p) => a + p[1], 0) / hull.length;
+    const grow = (p) => [cxm + (p[0] - cxm) * 1.18, cym + (p[1] - cym) * 1.18];   // a bit bigger than the hand
+    cx.beginPath(); hull.map(grow).forEach((p, i) => i ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1])); cx.closePath();
+    cx.fillStyle = "#000"; cx.fill();
+    cx.shadowColor = "rgba(255,90,67,.9)"; cx.shadowBlur = 18 * k;
+    cx.strokeStyle = "rgba(255,120,90,.85)"; cx.lineWidth = 2 * k; cx.stroke();
+    cx.shadowBlur = 0;
+    for (const [a, b] of [[0, 5], [5, 8], [0, 9], [9, 12], [0, 13], [13, 16], [0, 17], [17, 20], [0, 1], [1, 4]]) {   // bones, faint
+      if (!P[a] || !P[b]) continue;
+      cx.strokeStyle = "rgba(255,138,110,.35)"; cx.lineWidth = 1.5 * k;
+      cx.beginPath(); cx.moveTo(P[a][0], P[a][1]); cx.lineTo(P[b][0], P[b][1]); cx.stroke();
+    }
+  }
   for (const f of live.fingers || []) {      // fingertip rings with the press timer
     const x = f.x * W, y = f.y * H, r = 22 * k;
     cx.strokeStyle = "rgba(255,210,196,.55)"; cx.lineWidth = 1.5 * k;
@@ -207,6 +225,15 @@ function draw(now) {
   }
   drawCore(now);
   requestAnimationFrame(draw);
+}
+
+function convexHull(pts) {
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
 }
 
 // the core: rotating rings that react to Jarvis

@@ -202,7 +202,7 @@ class Desk:
         self.ask, self.key, self.state_fn, self.say = ask, key, state or (lambda: {}), say or (lambda *_: None)
         self.cal = Calibration()
         self.taps, self.cards = Taps(), Tangibles()
-        self.live = {"fingers": [], "taps": [], "cards": [], "calibrating": False, "calibrated": self.cal.ready, "seq": 0}
+        self.live = {"fingers": [], "hands": [], "taps": [], "cards": [], "calibrating": False, "calibrated": self.cal.ready, "seq": 0}
         self.running = False
         self.calibrating = False
         self.cal_done = None
@@ -291,14 +291,17 @@ class Desk:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         hands = det.hands_all(rgb, now_ms if now_ms is not None else time.time() * 1000)
         import jarvis_touch
-        fingers = []
+        fingers, outlines = [], []
         for lm in hands:
+            pts = [self.cal.to_desk((x * w, y * h)) for x, y in lm]
+            outlines.append([[round(px, 4), round(py, 4)] for px, py in pts])   # the whole hand, so the desk can black it out
             tip = lm[8]
             d = self.cal.to_desk((tip[0] * w, tip[1] * h))
             if d and -0.05 <= d[0] <= 1.05 and -0.05 <= d[1] <= 1.05:
                 fingers.append((d[0], d[1], jarvis_touch.Pinch(8).feed(lm)))
         prog, taps = self.taps.feed(fingers)
         self.live["fingers"] = prog
+        self.live["hands"] = outlines
         if taps:
             self.live["seq"] += 1
             self.live["taps"] = [{"x": x, "y": y, "how": how, "seq": self.live["seq"]} for x, y, how in taps]
