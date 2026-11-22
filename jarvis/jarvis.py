@@ -95,6 +95,8 @@ ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 # Always off in guest mode, so friends or a TV can't make it do things. Set False in local_settings.py to go back
 # to Jarvis telling you what it wants to do and you saying "yes" first.
 FULL_ACCESS = True
+AUTO_PAUSE = True            # pause music when you walk away from the desk, resume when you're back
+HANDBOOK_URL = "https://claude.ai/artifact/KNwkFv1zmBsfcPdC29e4fx"
 # What full access allows. These go in Claude Code's own allow list (C:\jarvis\.claude\settings.local.json, which
 # Jarvis writes for you) and on every call, so it works even where Claude Code ignores its "skip permissions" switch.
 FULL_TOOLS = ["Bash", "PowerShell", "Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "Glob", "Grep", "WebFetch", "WebSearch",
@@ -715,6 +717,34 @@ def nightly_update_watch(jarvis):
             return
 
 
+def reactive_watch(jarvis):
+    """Reacts to you without being asked: pauses the music when you walk away from the desk (camera doesn't see you
+    and the keyboard is untouched for 90 seconds), and resumes it when you're back."""
+    paused_by_me = False
+    while True:
+        time.sleep(5)
+        try:
+            if not AUTO_PAUSE:
+                continue
+            v = jarvis.vision
+            sees = v is not None and v.ok and v.enabled
+            away_cam = sees and v.seconds_since_face() > 90
+            idle = jarvis_brain.idle_seconds()
+            away = away_cam and idle > 90
+            back = (sees and v.seconds_since_face() < 5) or idle < 3
+            song = ACTIVITY.song if ACTIVITY else ""
+            if away and song and not paused_by_me:
+                jarvis.pc.key("play_pause")
+                paused_by_me = True
+                log("you walked away, paused the music")
+            elif paused_by_me and back:
+                jarvis.pc.key("play_pause")
+                paused_by_me = False
+                log("you're back, music on")
+        except Exception as e:
+            log(f"reactive: {e}")
+
+
 def push_phone(text):
     """Optional iPhone notification through ntfy (free app). Only a short status line is sent."""
     try:
@@ -732,6 +762,8 @@ def route(text):
     t = re.sub(r"\b(please|can you|could you|for me|real quick)\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
 
+    if re.search(r"\b(?:show|open|pull up)(?: me)? (?:the |my )?(?:jarvis )?(?:handbook|manual|cheat ?sheet|commands|gesture guide)\b|\bwhat can (?:you do|i say)\b", t):
+        return ("handbook", None)
     if re.fullmatch(r"what(?:'s| is) new|what changed|what(?:'s| is) in (?:the|this) update|what did you (?:get|learn) (?:new|in the update)", t):
         return ("whats_new", None)
     if re.fullmatch(r"what version (?:are you(?: on)?|is this)|(?:are you|is jarvis) up to date|which version", t):
@@ -1623,6 +1655,10 @@ class Jarvis:
             pc.open_url(url, app_window=None if kind == "window" else False)
             say(("New window." if kind == "window" else "New tab.") if not site else f"Opening {site} in a new tab.")
             return True
+        if action == "handbook":
+            pc.open_url(HANDBOOK_URL)
+            say("Here's the handbook. Every gesture and everything you can say.")
+            return True
         if action == "activity":
             if not ACTIVITY:
                 say("I'm not tracking that yet.")
@@ -2218,6 +2254,7 @@ def main():
         log(f"listening for '{WAKE_WORD.replace('_', ' ')}'" + (" and double claps" if CLAP_WAKE else "") + f" (room noise {noise:.0f})")
 
         threading.Thread(target=nightly_update_watch, args=(jarvis,), daemon=True).start()
+        threading.Thread(target=reactive_watch, args=(jarvis,), daemon=True).start()
         while True:
             frame = audio_q.get()
             if jarvis.restart_for_update:

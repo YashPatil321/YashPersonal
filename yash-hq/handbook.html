@@ -1,0 +1,231 @@
+<title>Jarvis Handbook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght,ROND@500..900,100&family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: a cockpit manual. A hero with the one rule that matters, then one panel per mode, each a grid of moves. Single dark look, same ember as HQ. */
+:root {
+  --bg: #0b0605; --panel: #150b09; --line: rgba(255,110,85,.22); --ink: #fff1ea; --ink2: #e4bcae; --mute: #a07c70;
+  --hot: #ff5a43; --amb: #ffb84d;
+  --fd: "Doto", "Geist Mono", ui-monospace, monospace; --fb: "Geist", system-ui, sans-serif; --fm: "Geist Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--fb); padding-block: 28px 60px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 22px; }
+.dz { font-family: var(--fd); font-variation-settings: "ROND" 100; font-weight: 900; letter-spacing: .02em; }
+body .dz { font-variation-settings: "ROND" 100; }
+header { display: grid; gap: 10px; padding: 26px 26px 22px; border: 1px solid var(--line); border-radius: 18px;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(255,90,67,.16), transparent 60%), var(--panel); }
+.eyebrow { font: 500 12px/1 var(--fm); letter-spacing: .28em; text-transform: uppercase; color: var(--hot); display: flex; gap: 10px; align-items: center; }
+.eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--hot); box-shadow: 0 0 10px var(--hot); }
+h1 { margin: 0; font-size: clamp(40px, 8vw, 76px); line-height: .95; color: var(--ink); text-shadow: 0 0 24px rgba(255,90,67,.45); }
+.lede { margin: 0; color: var(--ink2); max-width: 62ch; text-wrap: pretty; }
+.rule { display: flex; gap: 12px; align-items: flex-start; margin-top: 6px; padding: 12px 14px; border-radius: 12px; background: rgba(255,184,77,.08); border: 1px solid rgba(255,184,77,.28); color: var(--ink); }
+.rule b { color: var(--amb); font: 600 12px/1.6 var(--fm); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+nav { display: flex; flex-wrap: wrap; gap: 8px; }
+nav a { font: 500 12px/1 var(--fm); letter-spacing: .1em; text-transform: uppercase; color: var(--ink2); text-decoration: none; padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; }
+nav a:hover, nav a:focus-visible { color: var(--ink); border-color: var(--hot); outline: none; }
+section { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); padding: 22px; display: grid; gap: 16px; scroll-margin-top: 16px; }
+h2 { margin: 0; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; font: 600 22px/1.2 var(--fb); text-wrap: balance; }
+h2 small { font: 500 12px/1 var(--fm); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.how { margin: 0; color: var(--ink2); max-width: 70ch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.move { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px; border-radius: 12px; background: rgba(255,90,67,.05); border: 1px solid rgba(255,110,85,.14); }
+.move canvas { width: 62px; height: 62px; }
+.move b { display: block; font-weight: 600; color: var(--ink); }
+.move span { display: block; color: var(--ink2); font-size: 14px; line-height: 1.4; }
+.say { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px 18px; }
+.say div { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 9px 0; border-bottom: 1px dashed var(--line); min-width: 0; }
+.say q { font: 500 14px/1.4 var(--fm); color: var(--ink); quotes: "\201C" "\201D"; }
+.say span { color: var(--mute); font-size: 13.5px; }
+.tip { font: 13px/1.5 var(--fm); color: var(--mute); }
+.tip b { color: var(--amb); font-weight: 500; }
+footer { text-align: center; color: var(--mute); font: 12px var(--fm); letter-spacing: .08em; }
+@media (prefers-reduced-motion: no-preference) { .move:hover { border-color: rgba(255,110,85,.45); transform: translateY(-1px); transition: .15s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Jarvis</span>
+    <h1 class="dz">HANDBOOK</h1>
+    <p class="lede">Every hand move and every line you can say. Gestures need the monitor camera on. Everything else works by voice: start with "hey jarvis", or show a peace sign.</p>
+    <div class="rule"><b>The one rule</b><span>Gestures only count when you hold your hand <strong>up toward the camera, on purpose</strong>, and keep the shape about a second. Hands on the keyboard, scratching your face or waving at someone else are ignored.</span></div>
+    <nav aria-label="Sections"><a href="#gestures">Gestures</a><a href="#touch">Touch mode</a><a href="#workshop">CAD workshop</a><a href="#desk">Desk</a><a href="#screen">Your PC</a><a href="#eyes">Camera</a><a href="#life">Day and life</a><a href="#music">Music</a><a href="#modes">Modes</a></nav>
+  </header>
+
+  <section id="gestures">
+    <h2>Gestures <small>monitor camera</small></h2>
+    <div class="grid">
+      <div class="move"><canvas data-g="peace"></canvas><div><b>Peace sign</b><span>Jarvis starts listening. No wake word needed.</span></div></div>
+      <div class="move"><canvas data-g="palm"></canvas><div><b>Open palm, hold</b><span>Play or pause music. While Jarvis talks: stop talking.</span></div></div>
+      <div class="move"><canvas data-g="swipeR"></canvas><div><b>Swipe right</b><span>Next song. Open hand, sweep across.</span></div></div>
+      <div class="move"><canvas data-g="swipeL"></canvas><div><b>Swipe left</b><span>Previous song.</span></div></div>
+      <div class="move"><canvas data-g="up"></canvas><div><b>Point up, hold</b><span>Volume up, keeps going while you hold.</span></div></div>
+      <div class="move"><canvas data-g="down"></canvas><div><b>Point down, hold</b><span>Volume down.</span></div></div>
+      <div class="move"><canvas data-g="thumb"></canvas><div><b>Thumbs up</b><span>Yes, to anything Jarvis asked you to confirm.</span></div></div>
+      <div class="move"><canvas data-g="fist"></canvas><div><b>Fist, hold</b><span>Mute. While Jarvis talks: stop talking.</span></div></div>
+      <div class="move"><canvas data-g="wave"></canvas><div><b>Wave</b><span>Wakes the room, like a double clap.</span></div></div>
+    </div>
+    <p class="tip"><b>Say</b> "gestures off" or "gestures on" · "what gestures can I use" · "camera off" pauses everything</p>
+  </section>
+
+  <section id="touch">
+    <h2>Touch mode <small>say "touch mode"</small></h2>
+    <p class="how">Your hand in the air becomes the mouse for the whole screen. The cursor follows your knuckles, so pinching doesn't make it jump.</p>
+    <div class="grid">
+      <div class="move"><canvas data-g="point"></canvas><div><b>Move your hand</b><span>Moves the cursor.</span></div></div>
+      <div class="move"><canvas data-g="pinch"></canvas><div><b>Pinch</b><span>Click. Pinch twice fast to double click.</span></div></div>
+      <div class="move"><canvas data-g="pinchHold"></canvas><div><b>Pinch and hold, move</b><span>Drag: select text, move files, sliders.</span></div></div>
+      <div class="move"><canvas data-g="pinchMid"></canvas><div><b>Thumb to middle finger</b><span>Right click.</span></div></div>
+      <div class="move"><canvas data-g="fist"></canvas><div><b>Fist</b><span>Grab the window under the cursor and carry it. Open your hand to drop.</span></div></div>
+      <div class="move"><canvas data-g="throw"></canvas><div><b>Fist, then throw</b><span>Snaps the window to that half of the screen.</span></div></div>
+      <div class="move"><canvas data-g="two"></canvas><div><b>Two fingers, move</b><span>Scroll up and down.</span></div></div>
+      <div class="move"><canvas data-g="zoom"></canvas><div><b>Both hands pinching</b><span>Pull apart to zoom in, push together to zoom out.</span></div></div>
+      <div class="move"><canvas data-g="palm"></canvas><div><b>Open palm, 2 seconds</b><span>Leaves touch mode.</span></div></div>
+    </div>
+  </section>
+
+  <section id="workshop">
+    <h2>CAD workshop <small>say "open my cad"</small></h2>
+    <p class="how">STEP, STL, 3MF, OBJ and GLB files from Downloads, Documents, Desktop, OneDrive and your vault.</p>
+    <div class="grid">
+      <div class="move"><canvas data-g="pinch"></canvas><div><b>Pinch and move</b><span>Spin the model.</span></div></div>
+      <div class="move"><canvas data-g="zoom"></canvas><div><b>Two hands pinching</b><span>Zoom, slide, and twist to roll it.</span></div></div>
+      <div class="move"><canvas data-g="fist"></canvas><div><b>Fist and move</b><span>Move the model around.</span></div></div>
+      <div class="move"><canvas data-g="palms"></canvas><div><b>Both palms open</b><span>Spread to explode the parts, bring together to rebuild.</span></div></div>
+      <div class="move"><canvas data-g="tap"></canvas><div><b>Quick pinch on a part</b><span>Select it: name and real size.</span></div></div>
+      <div class="move"><canvas data-g="swipeR"></canvas><div><b>Open palm swipe</b><span>Fling it into a spin.</span></div></div>
+    </div>
+    <div class="say">
+      <div><q>explode it</q><span>Exploded view. "Put it back together" rebuilds.</span></div>
+      <div><q>cut it open</q><span>A section cut sweeps through.</span></div>
+      <div><q>how big is it</q><span>Millimeters and inches, plus the selected part.</span></div>
+      <div><q>hologram the model</q><span>Four views for the iPad pyramid.</span></div>
+      <div><q>wireframe / solid / hologram look</q><span>How it's drawn.</span></div>
+      <div><q>take a picture of it</q><span>PNG saved to CAD in your vault.</span></div>
+    </div>
+  </section>
+
+  <section id="desk">
+    <h2>Projected desk <small>say "desk mode"</small></h2>
+    <div class="grid">
+      <div class="move"><canvas data-g="point"></canvas><div><b>Hold a fingertip still</b><span>Presses the button under it after half a second.</span></div></div>
+      <div class="move"><canvas data-g="pinch"></canvas><div><b>Pinch over a button</b><span>Presses it right away.</span></div></div>
+      <div class="move"><canvas data-g="pinchHold"></canvas><div><b>Pinch a panel's title, move</b><span>Moves the panel. It remembers where.</span></div></div>
+      <div class="move"><canvas data-g="card"></canvas><div><b>Cards</b><span>FOCUS, MUSIC, VOLUME knob, TIMER dial, STUDY, PARTY, GAME. "Print my desk cards".</span></div></div>
+    </div>
+    <p class="tip"><b>Say</b> "calibrate the desk" after moving anything · "hologram mode" · "desk off"</p>
+  </section>
+
+  <section id="screen">
+    <h2>Your PC <small>full control</small></h2>
+    <div class="say">
+      <div><q>open a new tab</q><span>Or "new Chrome window", "open YouTube in a new tab".</span></div>
+      <div><q>close the YouTube tab</q><span>Just that one. "Close all YouTube tabs", "close the other tabs".</span></div>
+      <div><q>switch to the Gmail tab</q><span>"What tabs do I have open".</span></div>
+      <div><q>click sign in</q><span>Clicks any button, link or menu by its name.</span></div>
+      <div><q>put Chrome on the left</q><span>Zones: left, right, center, thirds, quarters, corners.</span></div>
+      <div><q>coding layout</q><span>Also room, school and focus layouts.</span></div>
+      <div><q>type see you at practice</q><span>Types into the window in front.</span></div>
+      <div><q>press enter · copy · paste · undo</q><span>Plus zoom in, go back, close this window, refresh.</span></div>
+      <div><q>open Claude Code in SolidHauz</q><span>"Continue my SolidHauz session", "what was I working on".</span></div>
+      <div><q>anything else</q><span>Claude has full access and drives the PC itself.</span></div>
+    </div>
+  </section>
+
+  <section id="eyes">
+    <h2>Camera and awareness</h2>
+    <div class="say">
+      <div><q>can you see me</q><span>One photo, described, then deleted.</span></div>
+      <div><q>how many fingers am I holding up</q><span>Also "what am I wearing", "look at this".</span></div>
+      <div><q>what have I been doing</q><span>Apps and time, from the live timeline.</span></div>
+      <div><q>what was I doing before this</q><span>The app you were in before.</span></div>
+      <div><q>learn my face</q><span>Do this once. "This is my mom" for family.</span></div>
+      <div><q>what am I looking at</q><span>Screenshot of your screens, explained.</span></div>
+      <div><q>count my pushups</q><span>Squats and curls too. "Done" logs the set.</span></div>
+      <div><q>camera off</q><span>"Camera on", "stop looking", "open your eyes".</span></div>
+    </div>
+  </section>
+
+  <section id="life">
+    <h2>Day and life</h2>
+    <div class="say">
+      <div><q>what's my day look like</q><span>Calendar, leave times, what's next.</span></div>
+      <div><q>lock in for an hour</q><span>Focus session. Calls you out if you open YouTube.</span></div>
+      <div><q>remember that coach wants me at left back</q><span>Kept in your Obsidian vault for good.</span></div>
+      <div><q>what did I write about Babson</q><span>Searches the whole vault.</span></div>
+      <div><q>journal</q><span>Talk up to 3 minutes. Cleaned up and titled.</span></div>
+      <div><q>we won 3 1 against San Pasqual</q><span>Season log and record. "I scored two goals".</span></div>
+      <div><q>what's due</q><span>Next 7 days, and the one thing to do tonight.</span></div>
+      <div><q>wake me up at 6:45</q><span>Music fades in, then the brief.</span></div>
+      <div><q>set an alarm on my phone for 6:45</q><span>One tap on your phone sets it.</span></div>
+      <div><q>anything at the shop</q><span>SolidHauz today.</span></div>
+      <div><q>weekly review</q><span>Written to Weekly in your vault.</span></div>
+      <div><q>goodnight</q><span>Recap, tomorrow's leave time, room off.</span></div>
+    </div>
+  </section>
+
+  <section id="music">
+    <h2>Music</h2>
+    <div class="say">
+      <div><q>play Drake</q><span>Any song, artist or playlist.</span></div>
+      <div><q>play SICKO MODE next</q><span>Queues it.</span></div>
+      <div><q>what's playing</q><span>Song and artist.</span></div>
+      <div><q>volume to 40</q><span>"Louder", "quieter", "mute".</span></div>
+    </div>
+  </section>
+
+  <section id="modes">
+    <h2>Modes and control</h2>
+    <div class="say">
+      <div><q>house party protocol</q><span>Playlist, volume up, notifications off.</span></div>
+      <div><q>study mode · gaming mode · movie mode</q><span>Layouts, quiet time, the right apps.</span></div>
+      <div><q>guest mode</q><span>Nothing private out loud. "Guest mode off".</span></div>
+      <div><q>stop</q><span>Stops talking. Or say "hey jarvis" mid sentence.</span></div>
+      <div><q>update yourself</q><span>"What version are you on", "what's new".</span></div>
+      <div><q>test the computer</q><span>Checks screen control and says what to fix.</span></div>
+    </div>
+  </section>
+
+  <footer>Jarvis · runs on your PC · updates itself</footer>
+</div>
+
+<script>
+// Dot matrix hand glyphs, the same look as HQ. Each is an 11x11 bitmap; # is a lit dot.
+const G = {
+  peace: ['...#...#...','...#...#...','...#...#...','...#...#...','...#####...','..#######..','..#######..','..#######..','...#####...','...#####...','...........'],
+  palm: ['..#.#.#.#..','..#.#.#.#..','..#.#.#.#..','..#######..','#.#######..','.########..','..#######..','..#######..','...#####...','...#####...','...........'],
+  fist: ['...........','...........','...........','..#######..','.#########.','.#########.','.##.#######','..########.','...######..','...#####...','...........'],
+  thumb: ['....##.....','....##.....','....##.....','....#######','...########','...#######.','...########','...#######.','...######..','...........','...........'],
+  up: ['.....#.....','.....#.....','.....#.....','.....#.....','....#####..','...#######.','...#######.','...#######.','....#####..','....#####..','...........'],
+  down: ['....#####..','....#####..','...#######.','...#######.','...#######.','....#####..','.....#.....','.....#.....','.....#.....','.....#.....','...........'],
+  point: ['....#......','....#......','....#......','....#......','....#####..','...#######.','...#######.','...#######.','....#####..','....#####..','...........'],
+  pinch: ['...........','....##.....','...#..#....','...#..#####','....########','...#######.','...#######.','....#####..','....#####..','...........','...........'],
+  pinchHold: ['...........','....##..#..','...#..#.#..','...#..#####','....#######.','...#######.','...#######.','....#####..','....#####..','..#.#.#.#..','...........'],
+  pinchMid: ['...........','....#..##..','....#.#..#.','....#.#..#.','....#######','...#######.','...#######.','....#####..','....#####..','...........','...........'],
+  two: ['.#..#.#....','###.#.#....','.#..#.#....','....#.#....','....#####..','...#######.','...#######.','.#.#######.','###.#####..','.#..#####..','...........'],
+  swipeR: ['...........','..#.#.#.#..','..#.#.#.#..','..#######..','..#######..','..#######.#','...#####.##','...#####.###','.........##','.........#.','...........'],
+  swipeL: ['...........','..#.#.#.#..','..#.#.#.#..','..#######..','..#######..','#.#######..','##.#####...','###.#####..','##.........','.#.........','...........'],
+  wave: ['#.#.#.#.#..','#.#.#.#.#..','#######....','#######..#.','.######.#..','.#####..#..','.#####...#.','...........','...........','...........','...........'],
+  throw: ['...........','...........','..######...','.########..','.########.#','..######.##','...####.###','........##.','........#..','...........','...........'],
+  zoom: ['...........','#........#.','.#......#..','..#....#...','...........','.##....##..','####..####.','####..####.','.##....##..','...........','...........'],
+  palms: ['#.#.#...#.#','#.#.#...#.#','#####...###','#####...###','####.....##','###.......#','##.........','...........','...........','...........','...........'],
+  tap: ['.....#.....','...#...#...','.....#.....','.#..###..#.','....###....','...#####...','...#####...','....###....','...........','...........','...........'],
+  card: ['...........','.#########.','.#.......#.','.#.##.##.#.','.#.##.##.#.','.#.......#.','.#.##.##.#.','.#.##.##.#.','.#.......#.','.#########.','...........'],
+};
+const dpr = Math.min(3, window.devicePixelRatio || 1);
+document.querySelectorAll('canvas[data-g]').forEach((c) => {
+  const rows = G[c.dataset.g] || G.palm, n = 11, S = 62;
+  c.width = S * dpr; c.height = S * dpr;
+  const g = c.getContext('2d'), step = S * dpr / n, r = step * 0.34;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const on = (rows[y] || '')[x] === '#';
+    g.beginPath(); g.arc(x * step + step / 2, y * step + step / 2, on ? r : r * 0.45, 0, Math.PI * 2);
+    g.fillStyle = on ? '#ffd2c4' : 'rgba(255,110,85,.16)';
+    if (on) { g.shadowColor = 'rgba(255,90,67,.8)'; g.shadowBlur = 6 * dpr; } else g.shadowBlur = 0;
+    g.fill();
+  }
+});
+</script>
