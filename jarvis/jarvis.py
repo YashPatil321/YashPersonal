@@ -53,6 +53,7 @@ import jarvis_vision
 import jarvis_cad
 import jarvis_desk
 import jarvis_faces
+import jarvis_memory
 import jarvis_hqsync
 import jarvis_touch
 import jarvis_uia
@@ -123,7 +124,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -392,8 +393,14 @@ class Speaker:
                 return
 
     capture = threading.local()   # a request from your phone collects the answer here instead of speaking
+    on_said = None                 # set in main: everything Jarvis says goes in the conversation log
 
     def say(self, text):
+        if Speaker.on_said:
+            try:
+                Speaker.on_said(text)
+            except Exception:
+                pass
         cap = getattr(Speaker.capture, "lines", None)
         if cap is not None:
             cap.append(re.sub(r"[*#`_>\[\]]", "", text))
@@ -816,7 +823,7 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_memory.route_memory(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1116,17 +1123,29 @@ def find_claude():
     return shutil.which("claude") or shutil.which("claude.exe") or shutil.which("claude.cmd")
 
 
+SESSION_HOURS = 12   # start a fresh Claude conversation after this long; the conversation log carries the context over
+
+
 def load_session():
     try:
         with open(STATE_FILE) as f:
-            return json.load(f).get("session_id")
+            d = json.load(f)
+        if time.time() - d.get("started", 0) > SESSION_HOURS * 3600:
+            return None
+        return d.get("session_id")
     except Exception:
         return None
 
 
 def save_session(sid):
+    try:
+        with open(STATE_FILE) as f:
+            old = json.load(f)
+    except Exception:
+        old = {}
+    started = old.get("started", time.time()) if sid and sid == old.get("session_id") else time.time()
     with open(STATE_FILE, "w") as f:
-        json.dump({"session_id": sid}, f)
+        json.dump({"session_id": sid, "started": started}, f)
 
 
 BRAIN = None   # set in main, adds memory and today's log to every prompt
@@ -1237,6 +1256,7 @@ def describe_denied(denied):
 
 
 ACTIVITY = None   # set in main: what he's doing right now, added to every question
+CONVOS = None     # set in main: the conversation log (short term memory, transcripts, daily lasting facts)
 MODS = []         # add ons in C:\jarvis\mods, loaded at start
 
 
@@ -1294,6 +1314,14 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
     if ACTIVITY:
         try:
             extra += " " + ACTIVITY.context()
+        except Exception:
+            pass
+    if CONVOS:
+        try:
+            recent = CONVOS.recent()
+            if recent:
+                extra += ("\n\nYour recent conversation with Yash, oldest first (includes quick commands Jarvis handled "
+                          "itself; use it for context, like what 'that' or 'it' means):\n" + recent)
         except Exception:
             pass
     cmd = [claude, "-p", "--output-format", "stream-json" if on_text else "json", "--append-system-prompt",
@@ -1701,6 +1729,8 @@ class Jarvis:
 
     def handle(self, text):
         """Returns False to quit."""
+        if CONVOS:
+            CONVOS.add("you", text)
         if self.brain:
             self.brain.presence.seen()
         cmd = route(text)
@@ -1771,6 +1801,24 @@ class Jarvis:
             # or a new window when you asked for one. No focus tricks needed.
             pc.open_url(url, app_window=None if kind == "window" else False)
             say(("New window." if kind == "window" else "New tab.") if not site else f"Opening {site} in a new tab.")
+            return True
+        if action == "convo_recap":
+            when = arg
+            day = time.strftime("%Y-%m-%d", time.localtime(time.time() - (86400 if when in ("yesterday", "last night") else 0)))
+            text = CONVOS.day_text(day) if CONVOS else ""
+            if len(text) < 40:
+                say("We didn't talk much " + ("yesterday." if day != time.strftime("%Y-%m-%d") else "today yet."))
+                return True
+            say(ask_claude(f"Recap out loud, in under 60 words, what Yash and you talked about {when}: the main topics, what got "
+                           "done, and anything still open. From this transcript:\n" + text[-10000:], None, self.claude, tools="Read")[0])
+            return True
+        if action == "convo_search":
+            hits = CONVOS.search(arg) if CONVOS else []
+            if not hits:
+                return self.run("vault_search", arg)   # not in our talks: check his notes
+            lines = "\n".join(f"{time.strftime('%a %b %d %H:%M', time.localtime(h['t']))} {'Yash' if h['who'] == 'you' else 'Jarvis'}: {h['text']}" for h in sorted(hits, key=lambda h: h['t']))
+            say(ask_claude(f"From these past conversation lines, answer out loud in under 50 words what was said about {arg}, "
+                           "with roughly when:\n" + lines, None, self.claude, tools="Read")[0])
             return True
         if action == "mod":
             mod, (act, a) = arg
@@ -2311,8 +2359,40 @@ def main():
     BRAIN = jarvis.make_brain()
     BRAIN.start()
     jarvis.extras.start()
-    global ACTIVITY, MODS
+    global ACTIVITY, MODS, CONVOS
     MODS = load_mods()
+    CONVOS = jarvis_memory.Conversations(vault=BRAIN.vault)
+    Speaker.on_said = lambda text: CONVOS.add("jarvis", text)
+
+    def daily_digest():
+        """Once a day: lasting facts from yesterday's conversations go into Memory.md."""
+        time.sleep(180)
+        while True:
+            _digest_once()
+            time.sleep(6 * 3600)   # Jarvis can run for days; check again later
+
+    def _digest_once():
+        state = os.path.join(WORKDIR, ".memory_state.json")
+        try:
+            done = set(json.load(open(state)).get("digested", []))
+        except Exception:
+            done = set()
+        for back in (2, 1):
+            day = time.strftime("%Y-%m-%d", time.localtime(time.time() - back * 86400))
+            if day in done:
+                continue
+            try:
+                facts = CONVOS.digest_day(day, lambda prompt: ask_claude(prompt, None, claude, tools="Read")[0], BRAIN)
+                log(f"remembered {len(facts)} lasting facts from {day}")
+            except Exception as e:
+                log(f"memory digest: {e}")
+                continue
+            done.add(day)
+        try:
+            json.dump({"digested": sorted(done)[-60:]}, open(state, "w"))
+        except OSError:
+            pass
+    threading.Thread(target=daily_digest, daemon=True).start()
     ACTIVITY = jarvis_activity.Activity(sample=jarvis_extras.foreground_window, music=jarvis.pc.spotify_title,
                                         at_desk=lambda: (jarvis.vision.seconds_since_face() < 60) if jarvis.vision and jarvis.vision.ok and jarvis.vision.enabled else None,
                                         idle=jarvis_brain.idle_seconds).start()

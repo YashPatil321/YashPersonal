@@ -18,3 +18,8 @@ jarvis/jarvis.log.old
 jarvis/pc-test.txt
 jarvis/.autostart.json
 jarvis/.extras_failed.json
+jarvis/.conversation.jsonl
+jarvis/.memory_state.json
+jarvis/.installed.json
+jarvis/.version.json
+jarvis/mods/

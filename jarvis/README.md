@@ -326,6 +326,17 @@ You can also drag a file onto the window.
 - Admin: the installer makes the Jarvis task run as administrator, so it can control every window. Apps it opens,
   like Chrome, still open as you.
 
+## Memory of your conversations
+
+- Everything you say and everything Jarvis says (questions, quick commands, reminders) goes in a running log. The
+  last few hours ride along with every question, so "why did you skip that" or "do that again" just work, even
+  after a restart.
+- Full transcripts: `Jarvis/Conversations/<date>.md` in your vault.
+- Once a day Jarvis rereads yesterday and saves the lasting facts (plans, people, preferences, decisions) to
+  `Jarvis/Memory.md`, which every answer already reads.
+- Claude starts a fresh conversation every 12 hours so it stays fast; the log carries the context over.
+- "What did we talk about yesterday", "what were we talking about", "what did I tell you about Babson".
+
 ## Jarvis improves itself
 
 Ask for a change by voice ("add a command that opens my SolidHauz admin", "make your greetings shorter", "change my
