@@ -309,6 +309,23 @@ Export from Fusion, Onshape or SolidWorks as STEP to keep every part separate.
 Mouse works too: drag to spin, right drag to slide, scroll to zoom, click a part, keys E W H C R and space.
 You can also drag a file onto the window.
 
+## Brain, voice and speed
+
+- Voice answers use Claude **Sonnet** (`CLAUDE_MODEL`), and Jarvis starts talking at the first finished sentence
+  instead of waiting for the whole answer (`STREAM`). If Claude takes a moment it says "one sec".
+- Personality: calm, quick, dry humor, loyal (`PERSONALITY` in `jarvis.py`, override in `local_settings.py`).
+- Hearing: Whisper is primed with your names and words (`VOCAB`, add more with `VOCAB_EXTRA`), searches wider,
+  and drops the made up "Thank you." it hears in silence.
+- Live awareness: every 10 seconds Jarvis notes the app and window in front, the music, and whether the camera
+  sees you. Every question carries a "right now" line, so it knows what you're doing. "What have I been doing",
+  "what was I doing before this", "how long have I been on this".
+- Eyes: "how many fingers am I holding up", "what am I wearing", "look at this", "can you see me". Claude can also
+  take a webcam photo itself (`jarvis_ctl.py camera`) whenever a question needs eyes.
+- Updates: checked every 30 minutes and installed when you've been away from the keyboard 15 minutes (never mid
+  task), plus nightly. "What version are you on", "what's new".
+- Admin: the installer makes the Jarvis task run as administrator, so it can control every window. Apps it opens,
+  like Chrome, still open as you.
+
 ## Jarvis on HQ (the iPad)
 
 HQ's top strip has a JARVIS cell: what Jarvis is doing right now ("Locked in, 32 min left", "In the workshop: drone

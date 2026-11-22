@@ -551,6 +551,10 @@ def route_vision(t):
                     r"start (?:watching|looking)|(?:enable|open) (?:the |your )?camera|open your eyes?|you can look again", t):
         return ("camera", True)
     t = re.sub(r"\s+(?:right now|now|at the moment|currently)$", "", t)
+    if re.search(r"\bhow many fingers\b|\bwhat (?:color|colour) (?:is|are) (?:my|this|these|the thing)\b|\bwhat(?:'s| is| am i) (?:in my hands?|on my (?:head|shirt|face|desk))\b|"
+                 r"\bdo i look\b|\bhow do i look\b|\bam i (?:wearing|holding|smiling)\b|\bwhat (?:am i|i'?m) (?:wearing|holding|pointing at|showing you)\b|"
+                 r"\bwhat(?:'s| is) (?:this|that) (?:in my hand|i'?m holding)\b|\b(?:look|check) (?:at )?(?:this|what i'?m holding)\b|\bcan you see (?:this|my|what)\b|^(?:you )?see (?:this|that|my \w+)$|\bwatch (?:me|this)\b", t):
+        return ("camera_look", t)
     if re.fullmatch(r"(?:can you )?see me|(?:do |can )?you see me|(?:can you )?see what (?:i'?m|i am) doing|(?:can you )?tell what (?:i'?m|i am) doing|what (?:am i|i'?m) doing|what do you see|what can you see|look at me|describe me|"
                     r"how do i look|what am i (?:holding|wearing|eating|drinking)|who(?:'s| is) (?:with me|behind me|in the room with me)|"
                     r"what(?:'s| is) (?:behind me|in my hand)|what(?:'s| is) this(?: thing)?(?: i'?m holding)?|check me out", t):

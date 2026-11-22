@@ -80,6 +80,8 @@ def update():
     files = changed_files()
     if not files:
         print("update: already up to date")
+        if not os.path.exists(os.path.join(HERE, ".version.json")):
+            write_version()
         return 0
     old_req = open(os.path.join(HERE, "requirements.txt")).read() if os.path.exists(os.path.join(HERE, "requirements.txt")) else ""
     for f in files:
@@ -93,7 +95,23 @@ def update():
         print("update: installing new packages")
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", os.path.join(HERE, "requirements.txt")], creationflags=NO_WINDOW)
     install_extras()
+    write_version()
     return len(files)
+
+
+def write_version():
+    """Records which code is running, so Jarvis can say its version and what's new."""
+    import json
+    import time
+    try:
+        head = git("log", "-1", "--format=%H|%cI").stdout.strip().split("|")
+        recent = [l for l in git("log", "-8", "--format=%s").stdout.splitlines() if l.strip()]
+        when = time.strftime("%b %d at %I:%M %p", time.strptime(head[1][:19], "%Y-%m-%dT%H:%M:%S")).replace(" 0", " ")
+        with open(os.path.join(HERE, ".version.json"), "w", encoding="utf-8") as f:
+            json.dump({"commit": head[0], "when": when, "recent": recent}, f)
+        print(f"update: now on the version from {when}")
+    except Exception as e:
+        print("update: couldn't record the version:", e)
 
 
 def install_extras(pip_run=None, force=False):

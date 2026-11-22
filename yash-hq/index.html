@@ -1224,7 +1224,9 @@ function renderJarvis() {
   if (!s) { T('fJa', 'Not linked'); T('fJb', 'starts when Jarvis runs'); el.classList.remove('live'); return; }
   const age = Date.now() - Number(s.updated || 0), live = age < 20 * 60e3;
   el.classList.toggle('live', live);
-  T('fJa', live ? (s.headline || 'Standing by') : 'Offline');
+  let head = live ? (s.headline || 'Standing by') : 'Offline';
+  if (live && s.since) { const m = Math.max(0, Math.round((Date.now() - Number(s.since)) / 6e4)); head += ' · ' + (m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + ' min'); }
+  T('fJa', head);
   const bits = [];
   if (live && s.focus && s.focus.total) bits.push(Math.max(0, s.focus.total - s.focus.done) + ' of ' + s.focus.total + ' min');
   if (s.camera === 'off') bits.push('camera off');

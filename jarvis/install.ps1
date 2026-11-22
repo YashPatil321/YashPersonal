@@ -12,6 +12,15 @@
 #   6. Starts Jarvis now
 
 $ErrorActionPreference = "Stop"
+# Jarvis runs as administrator (so it can control every window, admin ones too), which needs this installer to
+# run as administrator once. If it isn't, it reopens itself as administrator: click Yes on the prompt.
+$me = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "Opening as administrator. Click Yes on the Windows prompt." -ForegroundColor Cyan
+    $url = "https://raw.githubusercontent.com/YashPatil321/YashPersonal/claude/hopeful-bohr-1ramsu/jarvis/install.ps1"
+    Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-NoExit", "-Command", "irm $url | iex"
+    return
+}
 $Branch = "claude/hopeful-bohr-1ramsu"
 $Repo = "C:\yash-system"
 $Dir = "C:\jarvis"
@@ -108,7 +117,7 @@ $user = "$env:USERDOMAIN\$env:USERNAME"
 $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c start `"Jarvis`" /min `"$Dir\start.bat`"" -WorkingDirectory $Dir
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 # Interactive = runs on your desktop, so it can see and control your windows. Never "whether logged on or not".
-$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest   # admin, on your desktop
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
     -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
 $lnk = Join-Path ([Environment]::GetFolderPath("Startup")) "Jarvis.lnk"

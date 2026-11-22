@@ -40,6 +40,7 @@ import urllib.request
 
 import numpy as np
 
+import jarvis_activity
 import jarvis_autostart
 import jarvis_brain
 import jarvis_claude
@@ -68,7 +69,14 @@ BARGE_THRESHOLD = 0.7        # how sure it must be it heard the wake word to cut
 WAKE_THRESHOLD = 0.5         # raise to 0.6 or 0.7 if it triggers by accident
 WHISPER_MODEL = "large-v3-turbo"   # "small.en" if your GPU setup gives you trouble
 VOICE = "am_michael"         # kokoro voices: am_michael, am_adam, af_heart, bf_emma ...
-SILENCE_SECONDS = 1.2        # how long you pause before it stops recording
+SILENCE_SECONDS = 1.0        # how long you pause before it stops recording
+CLAUDE_MODEL = "sonnet"      # the brain for voice answers: sonnet is fast and sharp. "opus" for the deepest thinking (slower)
+STREAM = True                # start talking at the first sentence instead of waiting for the whole answer
+# words Whisper should expect, so names come out right. Add your own in local_settings.py as VOCAB_EXTRA
+VOCAB = ("Yash, Jarvis, SolidHauz, Del Norte, Nighthawks, O'Rielly, Coach Roty, Babson, UC, USC, Common App, Obsidian, "
+         "Spotify, Claude, Claude Code, Vercel, Supabase, GitHub, HQ, ProMX, San Pasqual, Torrey Pines, Calexico, 4S Ranch, "
+         "VS Code, WhatsApp, iPad, CAD, STEP file, Chrome, YouTube, Gmail, lock in, focus mode")
+VOCAB_EXTRA = ""
 MAX_RECORD_SECONDS = 30
 WORKDIR = os.path.dirname(os.path.abspath(__file__))   # Claude reads CLAUDE.md from here
 HQ_URL = "https://claude.ai/artifact/9ZQx1xYZwPMRDhDuoT5oVE"
@@ -113,7 +121,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -139,11 +147,18 @@ STATE_FILE = os.path.join(WORKDIR, ".session.json")
 SPOTIFY_FILE = os.path.join(WORKDIR, ".spotify.json")
 IS_WIN = sys.platform == "win32"
 
+PERSONALITY = (
+    "Personality: calm, quick and sharp, with a dry sense of humor. A little cocky, completely loyal, like the smart older "
+    "friend who runs his whole setup. Talk like a person, not a help desk: contractions, short sentences, real reactions. "
+    "Banter is fine (soccer, his builds, SolidHauz), corny is not, fake enthusiasm never. Call him Yash, now and then boss. "
+    "When you do something, say it's done in a few words, don't narrate how. Don't ask permission for things he asked for. "
+    "If something fails, say what you'll try next, then try it."
+)
 SPOKEN_STYLE = (
-    f"You are {ASSISTANT_NAME}, Yash's voice assistant. Everything you write is read aloud by a "
-    "text to speech engine, so answer in plain spoken sentences. No markdown, no lists, "
-    "no code blocks, no URLs, no emoji. Keep it under 80 words unless he asks for detail. "
-    "For his calendar and email use the Google Calendar and Gmail tools. Times are Pacific."
+    f"You are {ASSISTANT_NAME}, Yash's AI, living on his PC. Everything you write is read aloud by a text to speech engine, "
+    "so answer in plain spoken sentences. No markdown, no lists, no code blocks, no URLs, no emoji, no hyphens or em dashes. "
+    "Keep it under 60 words unless he asks for detail, and put the answer in the first sentence. "
+    "For his calendar and email use the Google Calendar and Gmail tools. Times are Pacific. " + PERSONALITY
 )
 
 
@@ -317,9 +332,19 @@ def load_whisper():
         return WhisperModel("small.en", device="cpu", compute_type="int8"), "cpu"
 
 
+HALLUCINATIONS = {"", "you", "thank you", "thank you.", "thanks for watching", "thanks for watching!", "bye", "bye.", ".",
+                  "thank you for watching", "subtitles by the amara.org community", "uh", "um", "hmm"}
+
+
 def transcribe(model, audio):
-    segments, _ = model.transcribe(audio, language="en", beam_size=1, vad_filter=True)
-    return " ".join(s.text.strip() for s in segments).strip()
+    """Whisper, primed with Yash's names and words, a wider search, and a filter for its made up lines on silence."""
+    prompt = "Yash talking to Jarvis, his AI. Names and words: " + VOCAB + (", " + VOCAB_EXTRA if VOCAB_EXTRA else "") + "."
+    segments, _ = model.transcribe(audio, language="en", beam_size=5, vad_filter=True, initial_prompt=prompt,
+                                   condition_on_previous_text=False, no_speech_threshold=0.6,
+                                   vad_parameters={"min_silence_duration_ms": 300})
+    segs = [s for s in segments if getattr(s, "no_speech_prob", 0) < 0.7]
+    text = " ".join(s.text.strip() for s in segs).strip()
+    return "" if text.lower().strip(" .!?") in {h.strip(" .!?") for h in HALLUCINATIONS} else text
 
 
 # ================= text to speech =================
@@ -467,6 +492,27 @@ SITES = {
 }
 
 
+def running_as_admin():
+    if not IS_WIN:
+        return False
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def launch_as_user(args):
+    """Jarvis runs as administrator, but apps it opens shouldn't: Chrome as admin breaks your profile and sign in.
+    So when Jarvis is admin, start them with a normal user's rights."""
+    if IS_WIN and running_as_admin():
+        try:
+            return subprocess.Popen(["runas", "/trustlevel:0x20000", subprocess.list2cmdline(args)], creationflags=0x08000000)
+        except Exception as e:
+            log(f"launch as user failed ({e}), launching normally")
+    return subprocess.Popen(args)
+
+
 class PC:
     """Everything that touches Windows. Swapped for a recorder in tests."""
     def key(self, name, times=1):
@@ -482,7 +528,10 @@ class PC:
 
     def launch(self, target):
         log(f"launch {target}")
-        if IS_WIN:
+        if IS_WIN and running_as_admin():
+            # explorer hands it to your normal desktop session, so the app doesn't open as admin
+            subprocess.Popen(["explorer.exe", target])
+        elif IS_WIN:
             os.startfile(target) if ":" in target else subprocess.Popen(["cmd", "/c", "start", "", target], creationflags=0x08000000)
         else:
             import webbrowser
@@ -495,7 +544,7 @@ class PC:
         if IS_WIN and exe:
             args = [exe] + (["--profile-directory=" + prof] if prof else [])
             args += ["--app=" + url, "--start-fullscreen"] if app_window else ["--new-window" if app_window is None else "", url]
-            subprocess.Popen([a for a in args if a])
+            launch_as_user([a for a in args if a])
             return
         import webbrowser
         webbrowser.open(url)
@@ -625,6 +674,15 @@ def wake_sound(sr=44100, volume=0.5):
     return np.stack([out, 0.85 * right + 0.15 * out], axis=1).astype(np.float32)
 
 
+def read_version():
+    """What update.py wrote after the last update: when, the commit, and the last few change notes."""
+    try:
+        with open(os.path.join(WORKDIR, ".version.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
 def update_waiting():
     try:
         r = subprocess.run([sys.executable, os.path.join(WORKDIR, "update.py"), "--check"], capture_output=True, timeout=180,
@@ -636,16 +694,25 @@ def update_waiting():
 
 
 def nightly_update_watch(jarvis):
-    """Once a night at AUTO_UPDATE_HOUR, if new code is waiting, ask the main loop to restart into it."""
-    done_day = None
+    """Checks for new code every 30 minutes. Restarts into it when you've been away from the keyboard for 15 minutes
+    (so it never cuts you off mid task), or at AUTO_UPDATE_HOUR no matter what."""
+    last_check, waiting = 0.0, False
     while True:
-        time.sleep(600)
+        time.sleep(60)
         lt = time.localtime()
-        if AUTO_UPDATE_HOUR is not None and lt.tm_hour == AUTO_UPDATE_HOUR and done_day != lt.tm_yday:
-            done_day = lt.tm_yday
-            if update_waiting():
-                log("update waiting, restarting into it")
-                jarvis.restart_for_update = True
+        if time.time() - last_check > 1800 or (AUTO_UPDATE_HOUR is not None and lt.tm_hour == AUTO_UPDATE_HOUR):
+            last_check = time.time()
+            waiting = update_waiting()
+            if waiting:
+                log("an update is waiting")
+        if not waiting:
+            continue
+        b = jarvis.brain
+        away = jarvis_brain.idle_seconds() > 900 and not (b and b.focus_started) and not jarvis.speaker.speaking
+        if away or (AUTO_UPDATE_HOUR is not None and lt.tm_hour == AUTO_UPDATE_HOUR):
+            log("restarting into the update")
+            jarvis.restart_for_update = True
+            return
 
 
 def push_phone(text):
@@ -665,6 +732,10 @@ def route(text):
     t = re.sub(r"\b(please|can you|could you|for me|real quick)\b", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
 
+    if re.fullmatch(r"what(?:'s| is) new|what changed|what(?:'s| is) in (?:the|this) update|what did you (?:get|learn) (?:new|in the update)", t):
+        return ("whats_new", None)
+    if re.fullmatch(r"what version (?:are you(?: on)?|is this)|(?:are you|is jarvis) up to date|which version", t):
+        return ("version", None)
     if re.fullmatch(r"(?:test|check) (?:the |my )?(?:computer|pc|screen) control|run (?:a )?(?:self ?test|diagnostics?)|(?:test|check) yourself", t):
         return ("test_pc", None)
     if re.fullmatch(r"(?:ok(?:ay)? )?(?:stop|stop talking|shut up|be quiet|quiet|enough|that's enough|hush|nevermind|never mind that)", t):
@@ -685,7 +756,7 @@ def route(text):
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
     cc = cc or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
-        or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) \
+        or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
     if cc:
@@ -1056,7 +1127,10 @@ def describe_denied(denied):
     return f"{verb}{': ' + what if what else ''}{more}"
 
 
-def ask_claude(prompt, session_id, claude=None, tools=None, full=False):
+ACTIVITY = None   # set in main: what he's doing right now, added to every question
+
+
+def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=None, model=None):
     """The question goes in on stdin, never on the command line, so nothing you say can run as a command.
     full=True lets Claude do anything on this PC (only after you said yes, or with FULL_ACCESS on)."""
     global LAST_DENIED
@@ -1073,10 +1147,21 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False):
     if full:
         extra += (f" You have full access to Yash's Windows PC. To see or control the screen (windows, tabs, buttons, typing, "
                   f"shortcuts, screenshots) run: \"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" help. "
-                  "Take a screenshot with it and read the image when you need to see something. Do what he asks; don't tell him "
-                  "to do it himself.")
-    cmd = [claude, "-p", "--output-format", "json", "--append-system-prompt", SPOKEN_STYLE + " Local time now: " + now + "." + extra,
-           "--allowedTools", tools]
+                  "Take a screenshot with it and read the image when you need to see the screen. You can also SEE YASH: "
+                  "jarvis_ctl.py camera saves a photo from his webcam and prints its path, read that image whenever a question "
+                  "needs eyes (what he's holding, wearing, doing, how many fingers). Never say you don't have a camera. "
+                  "Do what he asks; don't tell him to do it himself.")
+    if ACTIVITY:
+        try:
+            extra += " " + ACTIVITY.context()
+        except Exception:
+            pass
+    cmd = [claude, "-p", "--output-format", "stream-json" if on_text else "json", "--append-system-prompt",
+           SPOKEN_STYLE + " Local time now: " + now + "." + extra, "--allowedTools", tools]
+    if on_text:
+        cmd += ["--verbose", "--include-partial-messages"]
+    if model or CLAUDE_MODEL:
+        cmd += ["--model", model or CLAUDE_MODEL]
     if BRAIN:
         cmd += ["--add-dir", BRAIN.vault.root]
     if full:
@@ -1086,10 +1171,21 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False):
             cmd += ["--add-dir", d]
     if session_id:
         cmd += ["--resume", session_id]
+    if on_text:
+        data = stream_claude(cmd, prompt, on_text)
+        if data is None and session_id:
+            return ask_claude(prompt, None, claude, tools, full, on_text, model)   # old session gone, start a new one
+        if data is None:
+            log("streaming didn't work, asking the normal way")
+            return ask_claude(prompt, None, claude, tools, full, None, model)
+        LAST_DENIED = data.get("permission_denials") or []
+        if LAST_DENIED:
+            log("claude wanted to: " + "; ".join(describe_denied([d]) for d in LAST_DENIED[:5]))
+        return data.get("result") or "", data.get("session_id") or session_id
     r = subprocess.run(cmd, cwd=WORKDIR, input=prompt, capture_output=True, text=True, encoding="utf-8",
                        timeout=300, creationflags=0x08000000 if IS_WIN else 0)
     if r.returncode != 0 and session_id:
-        return ask_claude(prompt, None, claude, tools, full)   # old session gone, start a new one
+        return ask_claude(prompt, None, claude, tools, full, None, model)   # old session gone, start a new one
     try:
         data = json.loads(r.stdout)
     except Exception:
@@ -1099,6 +1195,90 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False):
     if LAST_DENIED:
         log("claude wanted to: " + "; ".join(describe_denied([d]) for d in LAST_DENIED[:5]))
     return data.get("result") or "I didn't get an answer back.", data.get("session_id") or session_id
+
+
+SENTENCE_END = re.compile(r"(.+?[.!?])(\s+|$)", re.S)
+
+
+def stream_claude(cmd, prompt, on_text, filler_after=2.5):
+    """Runs Claude and hands each finished sentence to on_text as it arrives, so Jarvis starts talking right away.
+    Says a quick "one sec" if nothing has come back after a couple of seconds. Returns the final result event, or None.
+    on_text returns False to stop (you interrupted)."""
+    p = subprocess.Popen(cmd, cwd=WORKDIR, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         text=True, encoding="utf-8", creationflags=0x08000000 if IS_WIN else 0)
+    lines = queue.Queue()
+
+    def pump():
+        for line in p.stdout:
+            lines.put(line)
+        lines.put(None)
+    threading.Thread(target=pump, daemon=True).start()
+    try:
+        p.stdin.write(prompt)
+        p.stdin.close()
+    except Exception:
+        pass
+    buf, result, spoke, t0, filled = "", None, False, time.time(), False
+
+    def flush(final=False):
+        nonlocal buf, spoke
+        while True:
+            m = SENTENCE_END.match(buf)
+            if not m or (len(m.group(1)) < 12 and not final and len(buf) < 60):
+                break
+            sentence, buf = m.group(1).strip(), buf[m.end():]
+            if sentence:
+                spoke = True
+                if on_text(sentence) is False:
+                    return False
+        if final and buf.strip():
+            spoke = True
+            on_text(buf.strip())
+            buf = ""
+        return True
+
+    stopped = False
+    while True:
+        try:
+            line = lines.get(timeout=0.25)
+        except queue.Empty:
+            if not spoke and not filled and time.time() - t0 > filler_after:
+                filled = True
+                on_text(random.choice(["One sec.", "On it.", "Checking.", "Give me a second.", "Working on it."]))
+            if p.poll() is not None and lines.empty():
+                break
+            continue
+        if line is None:
+            break
+        try:
+            ev = json.loads(line)
+        except Exception:
+            continue
+        kind = ev.get("type")
+        if kind == "stream_event":
+            d = (ev.get("event") or {}).get("delta") or {}
+            if d.get("type") == "text_delta" and not stopped:
+                buf += d.get("text", "")
+                if not flush():
+                    stopped = True
+                    p.kill()
+            elif (ev.get("event") or {}).get("type") == "content_block_stop" and buf.strip() and not stopped:
+                if not flush(final=True):
+                    stopped = True
+        elif kind == "result":
+            result = ev
+    if not stopped:
+        flush(final=True)
+    try:
+        p.wait(timeout=5)
+    except Exception:
+        pass
+    if result is None:
+        log(f"claude failed (code {p.returncode}): {(p.stderr.read() if p.stderr else '')[:400]}")
+        return None
+    result["_spoke"] = spoke and not filled or (spoke and filled and bool(result.get("result")))
+    result["_said_any"] = spoke
+    return result
 
 
 MORNING_PROMPT = ("Give me a morning brief I can hear in about 20 seconds: my first event today with its time, "
@@ -1389,9 +1569,20 @@ class Jarvis:
             return self.run(*cmd)
         guest = bool(self.brain and self.brain.guest)
         full = FULL_ACCESS and not guest
-        answer, self.session_id = ask_claude(text, self.session_id, self.claude, full=full)
+        spoken = []
+
+        def speak(sentence):
+            if self.speaker.interrupted:
+                return False   # you cut it off: stop reading the rest
+            spoken.append(sentence)
+            self.speaker.say(sentence)
+            return not self.speaker.interrupted
+        answer, self.session_id = ask_claude(text, self.session_id, self.claude, full=full, on_text=speak if STREAM else None)
         save_session(self.session_id)
         denied = list(LAST_DENIED)
+        real = [x for x in spoken if x not in ("One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.")]
+        if STREAM and real and not denied:
+            return True   # already said it, sentence by sentence
         if denied and not full and not guest:
             # Claude needed a permission it can't ask for on screen, so ask out loud instead
             what = describe_denied(denied)
@@ -1431,6 +1622,25 @@ class Jarvis:
             # or a new window when you asked for one. No focus tricks needed.
             pc.open_url(url, app_window=None if kind == "window" else False)
             say(("New window." if kind == "window" else "New tab.") if not site else f"Opening {site} in a new tab.")
+            return True
+        if action == "activity":
+            if not ACTIVITY:
+                say("I'm not tracking that yet.")
+            elif "before" in arg:
+                prev = ACTIVITY.before()
+                say(f"Before this you were in {prev['app']}" + (f", on {prev['title']}." if prev["title"] else ".") if prev else "This is the first thing you've done in a while.")
+            else:
+                say(ACTIVITY.spoken(180 if "today" in arg else 60))
+            return True
+        if action in ("version", "whats_new"):
+            v = read_version()
+            if not v:
+                say("I can't tell which version I'm on. Say update yourself and I'll get the latest.")
+            elif action == "version":
+                say(f"I'm on the version from {v['when']}. " + ("A newer one is waiting, say update yourself." if update_waiting() else "That's the latest."))
+            else:
+                news = [re.sub(r"^Jarvis[^:]*:\s*", "", x).split(";")[0].split(",")[0] for x in v.get("recent", [])[:3]]
+                say("Latest changes: " + ". ".join(news) + "." if news else f"I'm on the version from {v['when']}.")
             return True
         if action == "hush":
             self.pending = None
@@ -1940,6 +2150,13 @@ def main():
     BRAIN = jarvis.make_brain()
     BRAIN.start()
     jarvis.extras.start()
+    global ACTIVITY
+    ACTIVITY = jarvis_activity.Activity(sample=jarvis_extras.foreground_window, music=jarvis.pc.spotify_title,
+                                        at_desk=lambda: (jarvis.vision.seconds_since_face() < 60) if jarvis.vision and jarvis.vision.ok and jarvis.vision.enabled else None,
+                                        idle=jarvis_brain.idle_seconds).start()
+    jarvis.activity = ACTIVITY
+    v = read_version()
+    log("version: " + (f"{v['when']} ({v.get('commit', '')[:7]})" if v else "unknown, say update yourself"))
     jarvis.hqsync = jarvis_hqsync.HQSync(jarvis).start()   # what Jarvis is doing, on HQ on the iPad
     if jarvis_vision.VISION:
         jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say, on_people=jarvis.people).start()
@@ -1948,6 +2165,21 @@ def main():
     if jarvis_phone.PHONE_SERVER:
         try:
             bridge = jarvis_phone.Bridge(jarvis.remote_ask, jarvis.phone_event).start()
+            def camera_jpg(h, q):
+                path = os.path.join(WORKDIR, ".cache", "camera.jpg")
+                ok = None
+                if jarvis.vision and jarvis.vision.enabled:
+                    try:
+                        ok = jarvis.vision.snapshot(path)
+                    except Exception as e:
+                        log(f"camera snapshot: {e}")
+                body = open(ok, "rb").read() if ok else b"camera off or unavailable"
+                h.send_response(200 if ok else 503)
+                h.send_header("Content-Type", "image/jpeg" if ok else "text/plain")
+                h.send_header("Content-Length", str(len(body)))
+                h.end_headers()
+                h.wfile.write(body)
+            bridge.routes["/camera.jpg"] = camera_jpg
             jarvis.cad = jarvis_cad.CadHub(say=speaker.say)
             jarvis_cad.SNAP_DIR = os.path.join(BRAIN.vault.root, "CAD")
             if BRAIN.vault.root not in jarvis_cad.CAD_FOLDERS:

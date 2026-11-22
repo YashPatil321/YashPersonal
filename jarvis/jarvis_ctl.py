@@ -14,6 +14,7 @@ Screen control from the command line, for Claude (with full access) and for you.
   python jarvis_ctl.py tab-switch gmail | tab-close youtube [--all] | tab-close-others
   python jarvis_ctl.py open https://... | open spotify
   python jarvis_ctl.py screenshot [path]           saves a picture of every screen and prints the path (read it to see)
+  python jarvis_ctl.py camera [path]               saves a photo from the webcam (what Yash is doing) and prints the path
 """
 
 import os
@@ -141,6 +142,23 @@ def main(argv):
         if S.IS_WIN:
             os.startfile(target)
         print("opened", target)
+    elif cmd == "camera":
+        path = args[0] if args else os.path.join(HERE, ".cache", "camera_ctl.jpg")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        got = None
+        try:   # Jarvis holds the camera, so ask it for the picture
+            import urllib.request
+            import jarvis_phone
+            url = f"http://127.0.0.1:{jarvis_phone.PHONE_PORT}/camera.jpg?token={jarvis_phone.token()}"
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            data = opener.open(url, timeout=10).read()
+            with open(path, "wb") as f:
+                f.write(data)
+            got = path
+        except Exception:
+            import jarvis_vision   # Jarvis isn't running the camera: grab a frame directly
+            got = jarvis_vision.grab_frame(path)
+        print(got or "no camera picture: the camera is off, unplugged, or in use")
     elif cmd == "screenshot":
         import jarvis_extras
         path = jarvis_extras.screenshot(args[0] if args else os.path.join(HERE, ".cache", "screen.png"))

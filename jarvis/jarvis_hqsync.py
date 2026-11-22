@@ -73,6 +73,12 @@ class HQSync:
                 st.update(mode="focus", headline=f"Locked in, {max(0, total - done)} min left", focus={"total": total, "done": done})
             elif now < getattr(b, "hold_until", 0):
                 st.update(mode="hold", headline="Do not disturb")
+        act = getattr(j, "activity", None)
+        cur = act.current() if act else None
+        if cur and st["mode"] == "idle":
+            st["now"] = cur["app"]
+            st["headline"] = f"In {cur['app']}"
+            st["since"] = int((now - cur["secs"]) // 300 * 300 * 1000)   # 5 minute steps, HQ shows the running time
         cad = getattr(j, "cad", None)
         if cad and cad.active and cad.current:
             st.update(mode="cad", headline="In the workshop: " + os.path.splitext(os.path.basename(cad.current))[0])
