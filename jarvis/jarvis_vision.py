@@ -920,7 +920,8 @@ def preview():
 
 
 if __name__ == "__main__":
-    if "--preview" in sys.argv:
+    # no arguments, or anything with "preview" in it (a stray key press can sneak in): open the preview
+    if len(sys.argv) == 1 or any("preview" in a.lower() for a in sys.argv[1:]):
         preview()
     else:
         print(__doc__)
