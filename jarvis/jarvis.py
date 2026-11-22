@@ -40,6 +40,7 @@ import urllib.request
 
 import numpy as np
 
+import jarvis_brain
 import jarvis_claude
 import jarvis_orb
 import jarvis_room
@@ -90,7 +91,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -580,7 +581,7 @@ def route(text):
     m = re.fullmatch(r"(?:whatsapp|send (?:a )?whatsapp to|message|text) (.+?)(?: on whatsapp)? (?:saying |that |to say )?(.+)", t)
     if m and (t.startswith(("whatsapp", "send a whatsapp", "send whatsapp")) or "on whatsapp" in t):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
-    cc = jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
+    cc = jarvis_brain.route_brain(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t)
     if cc:
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
@@ -591,7 +592,7 @@ def route(text):
     m = re.fullmatch(r"remind me in (.+?) (minutes?|hours?) (?:to |that |about )?(.+)", t)
     if m and _num(m.group(1)) is not None:
         return ("remind", (_num(m.group(1)) * (60 if m.group(2)[0] == "m" else 3600), m.group(3)))
-    m = re.fullmatch(r"(?:take a note|note to self|make a note|write down|remember)(?: that)? (.+)", t)
+    m = re.fullmatch(r"(?:take a note|note to self|make a note|write down)(?: that)? (.+)", t)
     if m:
         return ("note", m.group(1))
     if re.fullmatch(r"(good ?night|goodnight jarvis|i'?m going to bed|bedtime)", t):
@@ -872,12 +873,24 @@ def save_session(sid):
         json.dump({"session_id": sid}, f)
 
 
+BRAIN = None   # set in main, adds memory and today's log to every prompt
+
+
 def ask_claude(prompt, session_id, claude=None, tools=None):
     """The question goes in on stdin, never on the command line, so nothing you say can run as a command."""
     claude = claude or find_claude()
     now = time.strftime("%A %B %d, %I:%M %p")
-    cmd = [claude, "-p", "--output-format", "json", "--append-system-prompt", SPOKEN_STYLE + " Local time now: " + now + ".",
-           "--allowedTools", tools or ALLOWED_TOOLS]
+    extra, tools = "", tools or ALLOWED_TOOLS
+    if BRAIN:
+        try:
+            extra = BRAIN.context_for_claude()
+        except Exception:
+            extra = ""
+        tools += ",Read,Grep,Glob"   # read only, so he can ask about his notes
+    cmd = [claude, "-p", "--output-format", "json", "--append-system-prompt", SPOKEN_STYLE + " Local time now: " + now + "." + extra,
+           "--allowedTools", tools]
+    if BRAIN:
+        cmd += ["--add-dir", BRAIN.vault.root]
     if session_id:
         cmd += ["--resume", session_id]
     r = subprocess.run(cmd, cwd=WORKDIR, input=prompt, capture_output=True, text=True, encoding="utf-8",
@@ -906,6 +919,15 @@ class Jarvis:
         self.quiet_until = 0.0
         self.pending = None
         self.restart_for_update = False
+        self.brain = None
+
+    def ask_once(self, prompt, tools=None):
+        return ask_claude(prompt, None, self.claude, (CONNECTOR_TOOLS + "," + tools) if tools else CONNECTOR_TOOLS)[0]
+
+    def make_brain(self):
+        sc = lambda a, arg: jarvis_screen.ScreenControl(lambda *_: None, self.pc.launch, open_url=self.pc.open_url).handle(a, arg)
+        self.brain = jarvis_brain.Brain(self.speaker.say, self.ask_once, chime=self.speaker.chime, launch=self.pc.launch, screen=sc)
+        return self.brain
 
     def later(self, secs, text):
         def fire():
@@ -933,6 +955,12 @@ class Jarvis:
         log("room awake, HQ opened")
         if NTFY_TOPIC:
             threading.Thread(target=push_phone, args=("HQ is online. Welcome back.",), daemon=True).start()
+        if self.brain:
+            quick, finish = self.brain.greet("clap")   # starts reading the calendar right away
+            snd.join(timeout=4)
+            self.speaker.say(quick)
+            finish()   # "welcome back from practice ..." plus the morning brief and today's reminders
+            return
         snd.join(timeout=4)
         self.speaker.say(GREETING)
         today = time.strftime("%Y-%m-%d")
@@ -943,6 +971,8 @@ class Jarvis:
 
     def handle(self, text):
         """Returns False to quit."""
+        if self.brain:
+            self.brain.presence.seen()
         cmd = route(text)
         if cmd:
             log(f"command: {cmd}")
@@ -1003,6 +1033,9 @@ class Jarvis:
             secs, what = arg
             self.later(secs, "Reminder: " + what)
             say("I'll remind you in " + _dur(secs) + ".")
+        elif action == "note" and self.brain:
+            self.brain.vault.note(arg)
+            say("Noted.")
         elif action == "note":
             os.makedirs(os.path.join(WORKDIR, "notes"), exist_ok=True)
             with open(os.path.join(WORKDIR, "notes", "inbox.md"), "a", encoding="utf-8") as f:
@@ -1010,6 +1043,11 @@ class Jarvis:
             say("Noted.")
         elif action == "goodnight":
             pc.key("play_pause") if pc.spotify_title() else None
+            if self.brain:
+                say("One sec.")
+                recap = self.brain.goodnight()
+                if recap:
+                    say(recap)
             say("Goodnight Yash. Shutting the room down.")
             pc.monitor_off()
         elif action == "monitor_off":
@@ -1032,6 +1070,13 @@ class Jarvis:
                 say(ans)
             self.pending = send
             say(f"Send to the {name} session: {msg}. Say yes to send.")
+            return True
+        if action in ("remember", "memory_list", "vault_search", "vault_open", "vault_log", "game_result", "season", "focus", "focus_end", "what_now"):
+            if not self.brain:
+                self.make_brain()
+            if action == "focus" and jarvis_brain.FOCUS_MUSIC and sp.ready:
+                threading.Thread(target=lambda: sp.play(jarvis_brain.FOCUS_MUSIC, launch=pc.launch), daemon=True).start()
+            self.brain.handle(action, arg)
             return True
         if action in ("snap", "maximize", "minimize", "focus", "layout", "keys", "type"):
             jarvis_screen.ScreenControl(say, pc.launch, open_url=pc.open_url).handle(action, arg)
@@ -1143,6 +1188,9 @@ def doctor():
         except Exception as e:
             print(f"   could not list connectors ({e})")
     print(f"spotify api {'connected' if Spotify().ready else 'off (media keys only)'}")
+    v = jarvis_brain.Vault()
+    print(f"vault -> {v.root}  " + ("Obsidian PASS" if v.is_obsidian else "plain folder (open it in Obsidian as a vault, or set VAULT)"))
+    print(f"idle seconds now: {jarvis_brain.idle_seconds():.0f}")
 
 
 def levels():
@@ -1209,6 +1257,9 @@ def main():
     whisper, _ = load_whisper()
     speaker = Speaker()
     jarvis = Jarvis(speaker, claude=claude)
+    global BRAIN
+    BRAIN = jarvis.make_brain()
+    BRAIN.start()
     claps = ClapDetector()
     mic, _ = resolve_devices()
 

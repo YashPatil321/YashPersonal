@@ -99,7 +99,31 @@ ripples while talking, amber on an error. Clicks pass through it. Turn it off wi
 in `jarvis_orb.py`, preview it with `python jarvis_orb.py --demo`.
 
 Everything else goes to Claude Code, which can search the web, read your calendar and mail, and
-write files only inside `notes/`. It cannot run commands or touch other files.
+write files only inside `notes/`, and read your vault. It cannot run commands or change other files.
+
+## Memory, Obsidian and knowing what's going on
+
+Jarvis keeps everything in your Obsidian vault as plain Markdown (`jarvis_brain.py`). Install Obsidian,
+make a vault (for example `Documents\Yash`), and Jarvis finds it by itself. Set `VAULT` in
+`local_settings.py` to pick a different one. With no Obsidian it uses `C:\jarvis\notes`.
+
+| Say | What happens |
+|---|---|
+| clap, or sit back down after 45+ minutes | "welcome back from practice", what's next, when to leave. Reads your calendar and how long you were gone |
+| "remember that coach wants me at left back" | saved to `Jarvis/Memory.md`, and every answer knows it from then on |
+| "what did I write about Babson" | searches the whole vault, answers out loud with the note name |
+| "take a note buy cleats" | `Jarvis/Inbox.md` as a checkbox, plus today's log |
+| "log practice was rough, fitness day" | a line in today's daily note |
+| "open my daily note" | today's note in Obsidian (`Daily/2026-11-22.md`) |
+| "we won 3 1 against San Pasqual" | `Soccer/Season 2026-27.md` table, says your record |
+| "what's our record" | wins and losses so far |
+| "lock in for an hour" | focus layout, quiet, logged, chime at the end with today's total |
+| "what should I work on tonight" | picks one thing from your calendar and memory |
+| "goodnight" | recap of today and tomorrow's first leave time, written to the daily note |
+
+Reminders come on their own: 30 and 10 minutes before every "Leave for ..." block, then "time to go",
+and before practices, games and other events. No automatic talking from 11 PM to 6 AM (`QUIET_HOURS`).
+Every wake writes a line to the daily note, so the vault becomes a journal of your days without trying.
 
 ## Spotify, full control (optional, 5 minutes, needs Spotify Premium)
 

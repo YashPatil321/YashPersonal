@@ -73,6 +73,19 @@ Play, pause and skip work with no setup. To have Jarvis play a specific song or 
 
 ---
 
+## 5. Obsidian, Jarvis's memory (5 minutes)
+
+1. Download Obsidian from obsidian.md and install it on the PC.
+2. Create new vault, name it `Yash`, put it in `Documents`.
+3. Restart Jarvis. It finds the vault by itself (check with `python jarvis.py --doctor`, line `vault`).
+4. Optional, notes on your phone and iPad: Obsidian Sync (about $4 a month), or put the vault in iCloud Drive
+   with iCloud for Windows and open the same folder in Obsidian on iPhone.
+
+From then on Jarvis writes a daily note every day, keeps what you tell it to remember, logs games and focus
+sessions, and greets you based on what you were just doing. See the Memory section in `jarvis/README.md`.
+
+---
+
 ## Soccer schedule watch (2 minutes, optional)
 
 Claude's safety check would not let the cloud session create an unattended job that writes to your

@@ -19,3 +19,8 @@
 # BROWSER = "chrome"             # or "edge"
 # BROWSER_ACCOUNT = "you@gmail.com"   # the profile HQ and sites open in. Run: python jarvis.py --profiles
 # BROWSER_PROFILE = "Profile 1"  # or name the profile folder directly
+# VAULT = r"C:\Users\you\Documents\Yash"   # your Obsidian vault. Empty = the one Obsidian has open
+# AUTO_WELCOME = True            # greet you when you sit back down after 45+ minutes away
+# AUTO_WELCOME_AFTER = 45
+# FOCUS_MUSIC = "lofi beats"     # played when you say lock in
+# QUIET_HOURS = (23, 6)          # no automatic welcomes or reminders overnight
