@@ -13,8 +13,11 @@ Problems go to jarvis.log and get said out loud once, so they never fail silentl
 
 import csv
 import io
+import json
+import os
 import subprocess
 import sys
+import time
 
 IS_WIN = sys.platform == "win32"
 NO_WINDOW = 0x08000000 if IS_WIN else 0
@@ -73,20 +76,35 @@ def needs_fix(task):
     return bool(mode) and mode != "interactive only"
 
 
-def fix_task(name, runner=None):
-    """Asks Windows (one Yes/No prompt) to make the task run only on your desktop."""
-    args = f'/Change /TN "{name}" /IT'
-    if runner:
-        return runner("schtasks.exe", args)
-    try:   # your own task can usually be changed without asking
-        r = subprocess.run(["schtasks", "/Change", "/TN", name, "/IT"], capture_output=True, text=True, timeout=30, creationflags=NO_WINDOW)
-        if r.returncode == 0:
-            return True
+def startup_shortcut():
+    """The Startup folder shortcut install.ps1 makes. When it exists, a Jarvis task is just a duplicate."""
+    return os.path.exists(os.path.join(os.environ.get("APPDATA", ""), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "Jarvis.lnk"))
+
+
+def task_args(name, delete):
+    return ["/Delete", "/TN", name, "/F"] if delete else ["/Change", "/TN", name, "/IT"]
+
+
+def fix_quietly(name, delete):
+    """Your own task can usually be changed without asking."""
+    try:
+        r = subprocess.run(["schtasks"] + task_args(name, delete), capture_output=True, text=True, timeout=30, creationflags=NO_WINDOW)
+        return r.returncode == 0
     except Exception:
-        pass
+        return False
+
+
+def ask_windows(name, delete):
+    """Shows Windows' Yes/No prompt. Jarvis runs minimized, and Windows won't pop a prompt over other apps for a
+    minimized program, so bring the Jarvis window up first. Otherwise it only flashes a shield in the taskbar."""
     import ctypes
-    r = ctypes.windll.shell32.ShellExecuteW(None, "runas", "schtasks.exe", args, None, 0)
-    return r > 32
+    k, u = ctypes.windll.kernel32, ctypes.windll.user32
+    con = k.GetConsoleWindow()
+    if con:
+        u.ShowWindow(con, 9)
+        u.SetForegroundWindow(con)
+    args = " ".join(f'"{a}"' if " " in a or a.startswith("\\") else a for a in task_args(name, delete))
+    return ctypes.windll.shell32.ShellExecuteW(con or None, "runas", "schtasks.exe", args, None, 0) > 32
 
 
 def can_move_windows():
@@ -111,31 +129,65 @@ def can_move_windows():
     return True, "no window to test with"
 
 
-def check(log=print, say=None, runner=None, tasks=None, session=None):
-    """Returns a list of problems in plain words. Fixes the task setting when it can."""
+def _asked_today(mark=False):
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".autostart.json")
+    today = time.strftime("%Y-%m-%d")
+    try:
+        with open(path) as f:
+            last = json.load(f).get("asked")
+    except Exception:
+        last = None
+    if mark:
+        with open(path, "w") as f:
+            json.dump({"asked": today}, f)
+    return last == today
+
+
+def check(log=print, say=None, tasks=None, session=None, quiet=None, ask=None, requery=None, wait=60, shortcut=None):
+    """Returns a list of problems in plain words. Fixes a background-only Jarvis task when it can, and only
+    says it's fixed after checking Windows really changed it."""
+    quiet, ask, requery = quiet or fix_quietly, ask or ask_windows, requery or jarvis_tasks
     problems = []
     sid = session_id() if session is None else session
     if sid == 0:
-        problems.append("I'm running in Windows' background session, so I can't see or control any window. "
-                        "My startup task needs to be set to run only when you're logged on.")
+        problems.append("I'm running in Windows' background session, so I can't see or control any window.")
     tasks = jarvis_tasks() if tasks is None else tasks
+    dup = startup_shortcut() if shortcut is None else shortcut
+    bad = [t for t in tasks if needs_fix(t)]
     for t in tasks:
-        log(f"autostart task '{t['name']}': logon mode '{t['logon_mode']}'")
-        if needs_fix(t) and AUTO_FIX_AUTOSTART:
-            asked = fix_task(t["name"], runner)
-            log(f"asked Windows to fix task '{t['name']}' to interactive only: {'prompt shown' if asked else 'refused'}")
-            if asked:
-                problems.append(f"I fixed my startup task so I run on your desktop. Restart me, or the PC, for it to take effect.")
-            else:
-                problems.append("My startup task runs me in the background where I can't control windows. "
-                                "In Task Scheduler, set it to run only when you're logged on.")
+        log(f"autostart task '{t['name']}': logon mode '{t['logon_mode']}'" + (" (needs fixing)" if t in bad else ""))
+    if bad and AUTO_FIX_AUTOSTART:
+        delete = dup   # the Startup shortcut already starts me, so the old task only starts a second, hidden copy
+        what = "delete my old startup task" if delete else "fix my startup task"
+        left = [t for t in bad if not quiet(t["name"], delete)]
+        if left and not _asked_today():
+            _asked_today(mark=True)
+            if say:
+                say(f"Windows needs your OK to {what}. Click Yes on the prompt. If you don't see one, click the flashing shield in the taskbar.")
+            for t in left:
+                ask(t["name"], delete)
+            deadline = time.time() + wait
+            while time.time() < deadline:
+                still = {x["name"] for x in requery() if needs_fix(x)}
+                left = [t for t in left if t["name"] in still]
+                if not left:
+                    break
+                time.sleep(3)
+        if left:
+            names = ", ".join(t["name"].lstrip("\\") for t in left)
+            problems.insert(0, f"My old startup task, {names}, still runs me in the background. Delete it in Task Scheduler, "
+                            "or run PowerShell as administrator and paste the line from the Jarvis log.")
+            log("fix: Get-ScheduledTask | Where-Object TaskName -match 'jarvis' | Unregister-ScheduledTask -Confirm:$false")
+        else:
+            problems.insert(0, "Fixed my startup task. Restart the PC once and screen control will work." if sid == 0 else
+                            "Cleaned up an old startup task. Restart the PC once to be safe.")
     if sid != 0:
         ok, why = can_move_windows()
         if not ok:
             problems.append("I can't move windows. " + why + ". Try running me as administrator.")
-    log(f"startup check: session {sid}, admin {is_admin()}, " + ("all good" if not problems else f"{len(problems)} problem(s)"))
+    log(f"startup check: session {sid}, admin {is_admin()}, " + ("all good" if not problems else f"{len(problems)} note(s)"))
     for p in problems:
-        log("problem: " + p)
+        log("startup: " + p)
     if problems and say:
         say(problems[0])
     return problems

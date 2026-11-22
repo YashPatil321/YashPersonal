@@ -92,6 +92,22 @@ $s.Save()
 Write-Host "   Added: $lnk"
 Write-Host "   (See it with Win+R, type shell:startup. Delete Jarvis there to stop it starting.)"
 
+# 5b. Old Jarvis tasks in Task Scheduler start a second, hidden copy that can't control the screen. Remove them.
+$old = Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {
+    $_.TaskName -match "jarvis" -or ((($_.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" }) -join " ") -match "jarvis")
+}
+if ($old) {
+    Step "Removing old Jarvis tasks from Task Scheduler: $(($old | ForEach-Object TaskName) -join ', ')"
+    foreach ($t in $old) {
+        try { Unregister-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath -Confirm:$false -ErrorAction Stop }
+        catch {
+            Write-Host "   Windows needs your OK to remove '$($t.TaskName)'. Click Yes on the prompt." -ForegroundColor Yellow
+            $cmd = "Unregister-ScheduledTask -TaskName '$($t.TaskName)' -TaskPath '$($t.TaskPath)' -Confirm:`$false"
+            Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile", "-Command", $cmd
+        }
+    }
+}
+
 # 6. Start now (restart it if it's already running, so the new code loads)
 Step "Starting Jarvis"
 Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
