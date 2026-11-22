@@ -1968,8 +1968,7 @@ def main():
         while True:
             frame = audio_q.get()
             if jarvis.restart_for_update:
-                jarvis_orb.send("quit")
-                return 3   # start.bat pulls the new code and starts again
+                hard_exit(3, "restarting into the update")   # start.bat pulls the new code and starts again
             if time.time() < jarvis.quiet_until:
                 continue
             if CLAP_WAKE and claps.feed(frame):
@@ -2007,8 +2006,7 @@ def main():
                 with jarvis.lock:
                     keep = jarvis.handle(text)
                 if not keep:
-                    jarvis_orb.send("quit")
-                    return
+                    hard_exit(0, "going offline")
             except Exception as e:
                 log(f"error: {e}")
                 jarvis_orb.send("error")
@@ -2022,6 +2020,20 @@ def main():
             drain_mic()                       # don't hear itself
             jarvis.quiet_until = time.time() + 1.0
             wake.reset()
+
+
+def hard_exit(code, why=""):
+    """Ends Jarvis right now. A normal exit waits for every background part (audio, the voice model, the GPU
+    speech engine, open connections) to stop by itself, and on Windows one of them can hang forever, which left
+    Jarvis stuck after "Updating. Back in a few seconds." This doesn't wait."""
+    log(f"exit {code}: {why}")
+    try:
+        jarvis_orb.send("quit")
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+    os._exit(code)
 
 
 if __name__ == "__main__":
