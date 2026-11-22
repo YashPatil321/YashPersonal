@@ -28,3 +28,4 @@ jarvis/.local_changes.json
 jarvis/.extras_failed.json
 jarvis/.cache/
 jarvis/.gesture_map.json
+jarvis/.cloud_sessions.json

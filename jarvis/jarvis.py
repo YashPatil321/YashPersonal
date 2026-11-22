@@ -48,6 +48,7 @@ import jarvis_extras
 import jarvis_orb
 import jarvis_phone
 import jarvis_room
+import jarvis_wake
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -64,7 +65,8 @@ MIC_NAME_HINTS = ["focusrite", "scarlett"]
 MIC_CHANNEL = 0              # Focusrite input 1 = 0, input 2 = 1
 MIC_GAIN = 1.0               # software boost for a quiet mic (your Scarlett likes about 6)
 SPEAKER_DEVICE = None        # None = Windows default output
-ASSISTANT_NAME = "Jarvis"    # what it calls itself. The wake word is separate (below)
+ASSISTANT_NAME = "Atlas"     # what it calls itself, and (with WAKE_NAME) what you call it
+WAKE_NAME = "atlas"          # say this name to wake it ("Atlas" or "Atlas, what's my day look like"). "" turns it off
 WAKE_WORD = "hey_jarvis"     # built in: hey_jarvis, alexa, hey_mycroft, hey_rhasspy. Or the path to your own .onnx wake word model
 BARGE_THRESHOLD = 0.7        # how sure it must be it heard the wake word to cut itself off while talking (higher = fewer accidents)
 WAKE_THRESHOLD = 0.5         # raise to 0.6 or 0.7 if it triggers by accident
@@ -74,7 +76,7 @@ SILENCE_SECONDS = 1.0        # how long you pause before it stops recording
 CLAUDE_MODEL = "sonnet"      # the brain for voice answers: sonnet is fast and sharp. "opus" for the deepest thinking (slower)
 STREAM = True                # start talking at the first sentence instead of waiting for the whole answer
 # words Whisper should expect, so names come out right. Add your own in local_settings.py as VOCAB_EXTRA
-VOCAB = ("Yash, Jarvis, SolidHauz, Del Norte, Nighthawks, O'Rielly, Coach Roty, Babson, UC, USC, Common App, Obsidian, "
+VOCAB = ("Yash, Atlas, Jarvis, SolidHauz, Del Norte, Nighthawks, O'Rielly, Coach Roty, Babson, UC, USC, Common App, Obsidian, "
          "Spotify, Claude, Claude Code, Vercel, Supabase, GitHub, HQ, ProMX, San Pasqual, Torrey Pines, Calexico, 4S Ranch, "
          "VS Code, WhatsApp, iPad, CAD, STEP file, Chrome, YouTube, Gmail, lock in, focus mode")
 VOCAB_EXTRA = ""
@@ -1389,7 +1391,14 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
                   "that does it (jarvis.speaker.say(text) talks, jarvis.pc has key/launch/open_url). Edit the main files only "
                   "for real fixes. Your edits survive updates. After you change any of these files Jarvis checks they compile, "
                   "puts back anything broken, and restarts itself to load the change, so just say what you changed. "
-                  "Do what he asks; don't tell him to do it himself.")
+                  "Do what he asks; don't tell him to do it himself. "
+                  "You also run Yash's Claude: start a cloud Claude Code session with: claude --cloud \"task\" (run it in "
+                  "that project's folder, it uses the GitHub repo there; the projects he's used are in ~/.claude/projects); "
+                  "follow up on one with: claude -p --cloud <session id> --output-format json (message on stdin); pull one "
+                  "down with: claude --teleport <id>; open a local session in a new terminal window; drive a session from his "
+                  "phone with: claude --remote-control. Sessions you start are listed in "
+                  f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. claude.ai chats have no API: open claude.ai/recents in the "
+                  "browser and read the screen with jarvis_ctl when he asks about them.")
     if ACTIVITY:
         try:
             extra += " " + ACTIVITY.context()
@@ -1831,7 +1840,7 @@ class Jarvis:
             self.leave_standby("face")
         if not room.owner_known and arrived and getattr(self, "asked_face_day", "") != time.strftime("%Y-%m-%d"):
             self.asked_face_day = time.strftime("%Y-%m-%d")
-            self.speaker.say("I can see you, but I don't know your face yet. Say: hey jarvis, learn my face.")
+            self.speaker.say("I can see you, but I don't know your face yet. Say: Atlas, learn my face.")
         others = room.guests()   # only once your face is learned, and only after 15 seconds
         if b and F.AUTO_GUEST:
             if others and not b.guest:
@@ -2081,7 +2090,7 @@ class Jarvis:
             if not bad:
                 say("Everything works. Moving windows, focus, typing and shortcuts all passed.")
             else:
-                say(f"{len(bad)} problem{'s' if len(bad) > 1 else ''}. First one: {bad[0][0]}. {bad[0][1]} The full list is in the Jarvis log.")
+                say(f"{len(bad)} problem{'s' if len(bad) > 1 else ''}. First one: {bad[0][0]}. {bad[0][1]} The full list is in the Atlas window.")
             return True
         if action == "update":
             if update_waiting():
@@ -2155,10 +2164,9 @@ class Jarvis:
             say("Standing by. Clap, say my name, or sit down and I'll wake up.")
             self.enter_standby("asked")
         elif action == "sessions":
-            say("Checking your sessions.")
-            ans, _ = ask_claude("Give me a spoken status of my Claude Code cloud sessions: which are working, which are waiting on me, "
-                                "and what the most recent one did. Use the Claude Code Remote tools.", None, self.claude, SESSIONS_TOOLS)
-            say(ans)
+            cc = jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude())
+            cc.handle("cc_recent", None)   # on this PC
+            cc.cloud_list()                # in the cloud
         elif action == "session_send":
             name, msg = arg
             msg = jarvis_claude.clean_task(msg)
@@ -2277,7 +2285,7 @@ class Jarvis:
                     was, v.touch = v.touch, None
                     say("Touch mode off." if was else "Touch mode wasn't on.")
             elif not v.faceid:
-                say("Face ID didn't load. Check the Jarvis window for the reason.")
+                say("Face ID didn't load. Check the Atlas window for the reason.")
             elif action == "face_learn":
                 who = "you" if arg == jarvis_faces.OWNER else jarvis_faces.spoken_name(arg)
                 say(f"Look at the camera, {'' if who == 'you' else who + ', '}and turn your head a little side to side.")
@@ -2402,8 +2410,10 @@ class Jarvis:
         if action in ("snap", "maximize", "minimize", "focus", "layout", "keys", "type"):
             jarvis_screen.ScreenControl(say, pc.launch, open_url=pc.open_url).handle(action, arg)
             return True
-        if action.startswith(("cc_", "chat_", "claude_")):
-            jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude()).handle(action, arg)
+        if action.startswith(("cc_", "chat_", "claude_", "cloud_")) or action == "chats_open":
+            done = jarvis_claude.ClaudeControl(say, pc, self.claude or find_claude()).handle(action, arg)
+            if done is False and action == "cloud_send":
+                return self.run("session_send", (arg[0] or "latest", arg[1]))   # not one Atlas started: try the connector
             return True
         elif action == "sleep":
             say("Going offline.")
@@ -2725,12 +2735,24 @@ def main():
         threading.Thread(target=nightly_update_watch, args=(jarvis,), daemon=True).start()
         threading.Thread(target=reactive_watch, args=(jarvis,), daemon=True).start()
         threading.Thread(target=jarvis.standby_watch, daemon=True).start()
+        spotter = None
+        if WAKE_NAME:
+            def quick_text(a):
+                segs, _ = whisper.transcribe(a, language="en", beam_size=1, without_timestamps=True, vad_filter=False,
+                                             initial_prompt=f"{ASSISTANT_NAME}.", condition_on_previous_text=False)
+                return " ".join(x.text for x in segs)
+            spotter = jarvis_wake.PhraseSpotter(quick_text, WAKE_NAME, noise=noise)
+            log(f"also listening for the name '{WAKE_NAME}'")
         while True:
             frame = audio_q.get()
             if jarvis.restart_for_update:
                 hard_exit(3, "restarting into the update")   # start.bat pulls the new code and starts again
             if time.time() < jarvis.quiet_until:
                 continue
+            named = None
+            if spotter:
+                spotter.feed(frame)
+                named = spotter.poll()
             if CLAP_WAKE and claps.feed(frame):
                 wake.reset()
                 try:
@@ -2740,25 +2762,54 @@ def main():
                 drain_mic()
                 jarvis.quiet_until = time.time() + 1.0
                 continue
-            if jarvis.listen_requested:
+            text = None
+            if named:
+                # "Atlas" alone: chime and listen. "Atlas, open Spotify": the rest of the sentence is the command.
+                audio, finished, rest = named
+                jarvis.leave_standby("voice", greet=False)
+                if speaker.speaking:
+                    speaker.stop()
+                if not finished:
+                    jarvis_orb.send("listening")
+                    more = record_until_silence(noise, wait_for_voice=1.5)
+                    if more is not None:
+                        audio = np.concatenate([audio, more])
+                if finished and not rest:
+                    text = None   # just the name: fall through to the chime
+                else:
+                    jarvis_orb.send("thinking")
+                    text = jarvis_wake.strip_name(transcribe(whisper, audio), WAKE_NAME)
+                    if not text:
+                        text = None
+                if text is None and finished and rest:
+                    text = rest
+                if text is None:
+                    pass
+                else:
+                    wake.reset()
+                    spotter.reset()
+            elif jarvis.listen_requested:
                 jarvis.listen_requested = False   # peace sign to the camera
             elif wake.predict(frame).get(WAKE_KEY, 0) < WAKE_THRESHOLD:
                 continue
 
-            wake.reset()
-            jarvis.leave_standby("voice", greet=False)
-            if speaker.speaking:
-                speaker.stop()
-            drain_mic()
-            jarvis_orb.send("listening")
-            speaker.chime()
-            drain_mic()
-            audio = record_until_silence(noise)
-            if audio is None:
-                jarvis_orb.send("idle")
-                continue
-            jarvis_orb.send("thinking")
-            text = transcribe(whisper, audio)
+            if text is None:
+                wake.reset()
+                if spotter:
+                    spotter.reset()
+                jarvis.leave_standby("voice", greet=False)
+                if speaker.speaking:
+                    speaker.stop()
+                drain_mic()
+                jarvis_orb.send("listening")
+                speaker.chime()
+                drain_mic()
+                audio = record_until_silence(noise)
+                if audio is None:
+                    jarvis_orb.send("idle")
+                    continue
+                jarvis_orb.send("thinking")
+                text = transcribe(whisper, audio)
             log(f"you: {text}")
             if not text:
                 jarvis_orb.send("idle")
@@ -2771,7 +2822,7 @@ def main():
             except Exception as e:
                 log(f"error: {e}")
                 jarvis_orb.send("error")
-                speaker.say("Something broke. Check the Jarvis window.")
+                speaker.say("Something broke. Check the Atlas window.")
             jarvis_orb.send("idle")
             if speaker.interrupted:           # you cut it off: it stops talking and listens to you right away
                 speaker.interrupted = False
@@ -2781,6 +2832,8 @@ def main():
             drain_mic()                       # don't hear itself
             jarvis.quiet_until = time.time() + 1.0
             wake.reset()
+            if spotter:
+                spotter.reset()
 
 
 def hard_exit(code, why=""):

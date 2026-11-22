@@ -1,5 +1,5 @@
 @echo off
-title Jarvis
+title Atlas
 REM Starts Jarvis. Pulls the latest code first, restarts after a crash or an update.
 REM Saying "go to sleep" closes it for real.
 cd /d %~dp0

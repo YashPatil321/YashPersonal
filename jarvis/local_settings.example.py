@@ -50,6 +50,7 @@
 # DESK_DISPLAY = None            # which screen is the projector. None = the smallest screen that isn't the main one
 # DWELL_SECONDS = 0.6            # how long to hold a finger still to press
 # FULL_ACCESS = True             # Claude can do anything on the PC without asking (off in guest mode). False = ask by voice first
-# ASSISTANT_NAME = "Jarvis"      # what it calls itself
+# ASSISTANT_NAME = "Atlas"       # what it calls itself
+# WAKE_NAME = "atlas"             # say this to wake it. "" = only the "hey jarvis" wake word
 # WAKE_WORD = "hey_jarvis"       # or the path to your own trained .onnx wake word, e.g. r"C:\jarvis\hey_atlas.onnx"
 # BARGE_THRESHOLD = 0.7          # raise if it cuts itself off by accident while talking
