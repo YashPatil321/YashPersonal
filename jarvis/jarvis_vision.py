@@ -45,8 +45,8 @@ MAX_WRIST_Y = 0.80           # wrist above this line (0 top, 1 bottom): hand hel
 PRESENCE_FROM_CAMERA = True
 GESTURE_MODEL = True         # Google's trained gesture model on top of the hand points (much steadier than finger math)
 VOTE_SECONDS = 0.35          # a shape has to win most of the frames in this window to count (kills flicker)
-ZOOM = True                  # when you're far from the camera, look for hands in a zoomed crop around you (like a
-                             # camera operator following you), so a small hand across the room still reads like a close one
+ZOOM = False                 # follow mode, off until you say "focus on me": it then zooms in on you (like a camera
+                             # operator following you), so a small hand across the room still reads like a close one
 ZOOM_WHEN_FACE_UNDER = 0.13  # zoom kicks in when your face is narrower than this share of the picture
 HAND_VS_FACE = 0.38          # with your face in view: palm at least this share of your face width (held up toward the camera)
 WRIST_BELOW_FACE = 2.4       # and wrist no more than this many face heights below your chin (not resting on the desk or lap)
@@ -121,6 +121,12 @@ def fuse(label, lm):
     return label or None
 
 
+def hand_size(lm):
+    """How big the hand looks, the same whether it faces the camera or is turned edge on mid swipe.
+    (Knuckle width shrinks to nothing when the hand turns sideways; palm length doesn't.)"""
+    return max(_d(lm[INDEX_MCP], lm[PINKY_MCP]), _d(lm[WRIST], lm[MIDDLE_MCP]) * 0.85)
+
+
 def pinching(lm):
     palm = _d(lm[INDEX_MCP], lm[PINKY_MCP]) or 1e-6
     return _d(lm[THUMB_TIP], lm[INDEX_TIP]) < palm * 0.35
@@ -155,16 +161,23 @@ class GestureReader:
         self.why = "no hand" if lm is None else ""
         face = self.face if self.face and now - self.face[3] < 2.0 else None   # (width, chin y, height, when)
         if lm is not None:
-            palm = _d(lm[INDEX_MCP], lm[PINKY_MCP])
+            palm = hand_size(lm)
             if face:   # judged against your own face, so it works the same at any distance
-                small = palm < max(0.012, face[0] * HAND_VS_FACE)
+                small = palm < max(0.012, face[0] * HAND_VS_FACE * 0.8)
                 low = lm[WRIST][1] > face[1] + face[2] * WRIST_BELOW_FACE
+                very_low = lm[WRIST][1] > face[1] + face[2] * WRIST_BELOW_FACE * 1.6
             else:
-                small, low = palm < MIN_HAND, lm[WRIST][1] > MAX_WRIST_Y
+                small, low, very_low = palm < MIN_HAND * 0.8, lm[WRIST][1] > MAX_WRIST_Y, lm[WRIST][1] > 0.97
             if small:
                 self.why, lm = "hand too small, hold it up toward the camera", None
             elif low:
-                self.why, lm = "hand too low, raise it", None
+                # a resting or fidgeting hand down low never counts. A real, deliberate sweep still does, as long as
+                # it's clearly on purpose: longer, faster and flatter than a normal swipe.
+                m = None if very_low else self._sweep(now, lm, label, strict=True)
+                self.cur, self.fired_cur, self.arm_since = None, False, None
+                self.votes.clear()
+                self.why = "hand low: only a big deliberate swipe counts down there"
+                return m
         if lm is not None:
             # swipes and waves come first and skip arming: you raise your hand and go, no pause needed
             m = self._sweep(now, lm, label)
@@ -203,7 +216,8 @@ class GestureReader:
             name = self.cur   # still mostly the same shape: keep the hold going
         else:
             name = None
-        self.why = "reading: " + (name or "no clear shape")
+        moving = len(self.mtrack) > 2 and abs(self.mtrack[-1][1] - self.mtrack[0][1]) > (self.mtrack[-1][4] or 0.05)
+        self.why = "moving, watching for a swipe" if moving and not name else "reading: " + (name or "no clear shape")
         cx = sum(lm[i][0] for i in (WRIST, INDEX_MCP, PINKY_MCP)) / 3
         self.palm = _d(lm[INDEX_MCP], lm[PINKY_MCP])
 
@@ -232,18 +246,19 @@ class GestureReader:
         self.last_fire, self.fired_cur = now, True
         return name
 
-    def _sweep(self, now, lm, label):
+    def _sweep(self, now, lm, label, strict=False):
         """Swipe or wave from how the hand moves over the last ~0.7 s, whatever shape it blurs into on the way.
         Distances are in hand widths, so it's the same motion close up or across the room."""
         f = fingers(lm)
-        is_open = label == "palm" or sum(f[k] for k in ("index", "middle", "ring", "pinky")) >= 3
+        # mid swipe the hand blurs and turns, so the model often can't name it. Anything but a clear fist counts.
+        is_open = label != "fist" and (label in ("palm", "", None) or sum(f[k] for k in ("index", "middle", "ring", "pinky")) >= 2)
         cx = sum(lm[i][0] for i in (WRIST, INDEX_MCP, PINKY_MCP)) / 3
         cy = sum(lm[i][1] for i in (WRIST, INDEX_MCP, PINKY_MCP)) / 3
-        palm = _d(lm[INDEX_MCP], lm[PINKY_MCP]) or 0.05
+        palm = hand_size(lm) or 0.05
         if not self.mtrack:
             self.present_since = now
         self.mtrack.append((now, cx, cy, is_open, palm))
-        while len(self.mtrack) > 1 and now - self.mtrack[0][0] > 0.7:
+        while len(self.mtrack) > 1 and now - self.mtrack[0][0] > 0.9:
             self.mtrack.popleft()
         pts = list(self.mtrack)
         if len(pts) < 4 or sum(p[3] for p in pts) < 0.5 * len(pts):
@@ -260,7 +275,7 @@ class GestureReader:
             if direction and sgn != direction:
                 turns += 1
             direction = sgn
-        if turns >= 3 and max(xs) - min(xs) > max(0.06, hw * 1.3) and now - self.last_wave > 3.0:
+        if not strict and turns >= 3 and max(xs) - min(xs) > max(0.06, hw * 1.3) and now - self.last_wave > 3.0:
             self.last_wave = self.swiped_at = now
             self.mtrack.clear()
             return "wave"
@@ -272,8 +287,9 @@ class GestureReader:
         seg = xs[start:]
         back = max((abs(b - a) for a, b in zip(seg, seg[1:]) if (b - a) * dx < 0), default=0)
         settled = pts[start][0] - self.present_since >= 0.15   # hand was up before it moved (not someone passing by)
-        quick = pts[-1][0] - pts[start][0] <= 0.45   # a flick, not slowly moving your hand over
-        if settled and quick and abs(dx) > max(0.09, hw * 2.0) and abs(dy) < abs(dx) * 0.7 and back < hw * 0.5 and turns <= 1:
+        quick = pts[-1][0] - pts[start][0] <= (0.45 if strict else 0.6)   # a flick, not slowly moving your hand over
+        need, flat = (hw * 3.2, 0.45) if strict else (hw * 2.0, 0.7)
+        if settled and quick and abs(dx) > max(0.09, need) and abs(dy) < abs(dx) * flat and back < hw * 0.5 and turns <= 1:
             way = "swipe_right" if dx > 0 else "swipe_left"
             opposite = self.last_swipe and self.last_swipe != way and now - self.swiped_at < 1.0   # the hand swinging back
             if now - self.swiped_at > 0.55 and not opposite:
@@ -554,6 +570,12 @@ class Vision:
             frame = grab.next(timeout=1.0)   # always the newest picture, never a stale one from the buffer
             if frame is None:
                 continue
+            self.fps_n = getattr(self, "fps_n", 0) + 1
+            if time.time() - getattr(self, "fps_t", 0) >= 60:
+                if getattr(self, "fps_t", 0):
+                    self.fps = self.fps_n / (time.time() - self.fps_t)
+                    _log(f"tracking at {self.fps:.0f} fps" + (", following you" if getattr(self, "zoom_on", ZOOM) else ""))
+                self.fps_t, self.fps_n = time.time(), 0
             frame = cv2.flip(frame, 1)   # mirror, so your right is the screen's right
             self.last_frame, self.last_frame_t = frame, time.time()
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -632,7 +654,7 @@ class Vision:
             return None
         x, y, w, h, _ = f
         self.reader.face = (w, y + h, h, f[4])
-        if not ZOOM or w >= ZOOM_WHEN_FACE_UNDER:
+        if not getattr(self, "zoom_on", ZOOM) or w >= ZOOM_WHEN_FACE_UNDER:
             self.roi = None
             return None
         cx = x + w / 2
@@ -662,8 +684,12 @@ class Vision:
         found = self.faceid.identify(frame)
         H, W = frame.shape[:2]
         trs = [t for t in getattr(self.faceid, "tracks", []) if time.time() - t["t"] < 1.0]
-        if trs:   # follow you if it knows you're here, else the closest face
-            t = next((t for t in trs if t.get("name") == jarvis_faces.OWNER), None) or max(trs, key=lambda t: t["w"])
+        t = None
+        if trs:   # you if it knows you're here; in follow mode only ever you, else the closest face
+            t = next((t for t in trs if t.get("name") == jarvis_faces.OWNER), None)
+            if t is None and not (getattr(self, "zoom_on", ZOOM) and jarvis_faces.OWNER in self.faceid.book.people):
+                t = max(trs, key=lambda t: t["w"])
+        if t is not None:
             self.focus = ((t["cx"] - t["w"] / 2) / W, (t["cy"] - t["h"] / 2) / H, t["w"] / W, t["h"] / H, time.time())
         self.last_seen_names = [n for n, _, _ in found]
         owner_known = jarvis_faces.OWNER in self.faceid.book.people
@@ -722,17 +748,49 @@ def _near_duplicate(f, feats, limit=0.95):
     return float(sims.max()) > limit
 
 
+CAMERA_FPS = 60              # ask for this; most webcams do 60 at 720p and 30 at 1080p
+CAMERA_MODES = [(1920, 1080), (1280, 720)]   # tried in order; it keeps whichever actually runs fastest
+
+
+def _measure(cap, n=24):
+    t0, got, f = time.time(), 0, None
+    for _ in range(n + 3):
+        ok, fr = cap.read()
+        if ok:
+            got, f = got + 1, fr
+            if got == 3:
+                t0 = time.time()   # skip the first frames, they come out of a buffer
+    if got <= 3 or f is None:
+        return 0.0, (0, 0)
+    return (got - 3) / max(1e-3, time.time() - t0), (f.shape[1], f.shape[0])
+
+
 def setup_capture(cap):
-    """Ask for HD at 30 fps, compressed (MJPG) so USB can carry it, and no backlog of old frames."""
+    """Compressed (MJPG) so USB can carry high frame rates, no backlog of old frames, and the camera mode that gives
+    the most frames per second (full HD wins a tie). Most of what makes hand tracking feel instant is frame rate."""
     import cv2
     try:
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_SIZE[0])
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_SIZE[1])
-        cap.set(cv2.CAP_PROP_FPS, 30)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    except Exception:
-        pass
+        best, w, h = None, 0, 0
+        modes = [tuple(CAMERA_SIZE)] + [m for m in CAMERA_MODES if m != tuple(CAMERA_SIZE)]
+        for w, h in modes:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+            cap.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
+            fps, size = _measure(cap)
+            _log(f"camera mode {size[0]}x{size[1]}: {fps:.0f} fps")
+            if best is None or fps > best[0] * 1.25:
+                best = (fps, w, h)
+            if fps >= CAMERA_FPS * 0.85:
+                break
+        if best and (best[1], best[2]) != (w, h):
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, best[1])
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, best[2])
+            cap.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    except Exception as e:
+        _log(f"camera setup: {e}")
 
 
 class LatestFrame:
@@ -846,6 +904,10 @@ def route_vision(t):
         return ("gestures", False)
     if re.fullmatch(r"(?:turn |switch )?(?:the )?(?:hand )?gestures? on|(?:turn|switch) on (?:the )?(?:hand )?gestures", t):
         return ("gestures", True)
+    if re.fullmatch(r"(?:focus|lock|zoom) (?:in )?on me|follow me|track me|(?:start )?(?:following|tracking) me|keep (?:your )?eyes on me", t):
+        return ("vision_focus", True)
+    if re.fullmatch(r"stop (?:focusing|following|tracking|zooming)(?: on)?(?: me)?|unfocus|zoom out", t):
+        return ("vision_focus", False)
     if re.fullmatch(r"(?:what|which) gestures?(?: can i use| do you know| are there)?|show me (?:the )?gestures", t):
         return ("gestures_help", None)
     return None
@@ -906,15 +968,19 @@ def preview():
         s = W / 1280
         txt = [(f"model: {label or '-'}   finger math: {pose_name(lm) if lm else 'no hand'}", (80, 200, 255)),
                (v.reader.why, (255, 255, 255)),
-               (f"{W}x{H}  {fps:.0f} fps  " + ("zoomed on you" if roi else "whole picture"), (200, 200, 200))]
+               (f"{W}x{H}  {fps:.0f} fps  " + ("following you" if roi else "whole picture") + "   F = follow me, Q = quit", (200, 200, 200))]
         for k, (t, col) in enumerate(txt):
             cv2.putText(frame, t, (int(16 * s), int((34 + 34 * k) * s)), cv2.FONT_HERSHEY_SIMPLEX, 0.75 * s, col, max(1, int(2 * s)))
         if time.time() - last_t < 1.5:
             cv2.putText(frame, last.replace("_", " ").upper(), (int(16 * s), int(160 * s)), cv2.FONT_HERSHEY_SIMPLEX, 1.6 * s, (60, 90, 255), max(2, int(4 * s)))
         show = cv2.resize(frame, (1280, int(H * 1280 / W))) if W > 1280 else frame
         cv2.imshow("Jarvis vision (Q to quit)", show)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord("q"):
             break
+        if key == ord("f"):   # same as saying "focus on me"
+            v.zoom_on = not getattr(v, "zoom_on", ZOOM)
+            v.roi = None
     cap.release()
     cv2.destroyAllWindows()
 

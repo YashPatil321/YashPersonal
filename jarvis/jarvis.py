@@ -765,7 +765,7 @@ def push_phone(text):
 # about something ("change my wake up song", "how do I lock my screen", "why did the music stop"), it goes to Claude
 # instead, which understands the whole sentence.
 SENSITIVE = {"hq", "lock", "sleep", "goodnight", "monitor_off", "update", "reset", "play_pause", "next", "prev", "spotify_play",
-             "spotify_queue", "protocol", "camera", "gestures", "touch", "desk", "face_learn", "face_forget", "alarm", "alarm_off",
+             "spotify_queue", "protocol", "camera", "gestures", "vision_focus", "touch", "desk", "face_learn", "face_forget", "alarm", "alarm_off",
              "phone", "hush", "test_pc", "cad_open", "cad_close", "focus", "focus_end", "whatsapp", "session_send", "mute",
              "now_playing", "browser", "site", "app", "tab_close", "tabs_close_others", "ui_click", "handbook", "game_result"}
 META = re.compile(r"\b(?:change|changing|edit|rename|configure|customi[sz]e|replace|swap|instead|different|default|settings?|"
@@ -2175,6 +2175,18 @@ class Jarvis:
                 except OSError:
                     pass
             say(ans)
+            return True
+        if action == "vision_focus":
+            v = self.vision
+            if not v or not v.ok:
+                say("The camera isn't running.")
+            else:
+                v.zoom_on = arg
+                if not arg:
+                    v.roi = None
+                known = bool(v.faceid and jarvis_faces.OWNER in v.faceid.book.people)
+                say(("Locked on you. I'll follow you and read your hands from farther away."
+                     + ("" if known else " Say learn my face so I follow only you.")) if arg else "Okay, not following you anymore.")
             return True
         if action == "gestures":
             jarvis_vision.GESTURES_ON = arg

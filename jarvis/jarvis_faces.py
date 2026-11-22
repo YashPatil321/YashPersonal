@@ -187,10 +187,19 @@ class FaceID:
         self.book = book or FaceBook()
 
     def faces(self, bgr):
+        """Finds faces on a copy at most 1280 wide (detection is the slow part and doesn't need more), then scales the
+        boxes back so recognition still gets the full detail."""
         h, w = bgr.shape[:2]
-        self.det.setInputSize((w, h))
-        _, found = self.det.detect(bgr)
-        return [] if found is None else list(found)
+        k = min(1.0, 1280 / w)
+        img = bgr if k == 1.0 else self.cv2.resize(bgr, (int(w * k), int(h * k)), interpolation=self.cv2.INTER_AREA)
+        self.det.setInputSize((img.shape[1], img.shape[0]))
+        _, found = self.det.detect(img)
+        if found is None:
+            return []
+        if k != 1.0:
+            found = found.copy()
+            found[:, :14] /= k
+        return list(found)
 
     def feature(self, bgr, face):
         return self.rec.feature(self.rec.alignCrop(bgr, face)).ravel()
