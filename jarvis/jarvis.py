@@ -79,6 +79,10 @@ MORNING_BRIEF_BEFORE = 12    # on a clap wake before this hour, read a short bri
 CONNECTOR_TOOLS = "mcp__claude_ai_Google_Calendar,mcp__claude_ai_Gmail"
 # Voice can search, read your calendar and mail, and write new files only inside notes/. Never add Bash.
 ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
+# FULL_ACCESS: Claude can do anything on this PC (run commands, change files and settings) without asking.
+# Always off in guest mode, so friends or a TV can't make it do things. Set False in local_settings.py to go back
+# to Jarvis telling you what it wants to do and you saying "yes" first.
+FULL_ACCESS = True
 SPOTIFY_CLIENT_ID = "9168fe0d1873402497e1738a923b9a76"       # optional, from developer.spotify.com. Then run --spotify-login once
 AUTO_UPDATE_HOUR = 4         # restart into new code around 4 AM when an update is waiting. None = off
 BROWSER = "chrome"           # chrome or edge, for HQ and every site Jarvis opens
@@ -922,9 +926,29 @@ def save_session(sid):
 BRAIN = None   # set in main, adds memory and today's log to every prompt
 
 
-def ask_claude(prompt, session_id, claude=None, tools=None):
-    """The question goes in on stdin, never on the command line, so nothing you say can run as a command."""
+LAST_DENIED = []   # what Claude wanted to do but wasn't allowed to, from the last answer
+
+
+def describe_denied(denied):
+    """'run a command: Get-ScheduledTask ...' in a few spoken words."""
+    if not denied:
+        return ""
+    d = denied[0]
+    tool, inp = d.get("tool_name", "something"), d.get("tool_input") or {}
+    what = inp.get("command") or inp.get("file_path") or inp.get("path") or inp.get("url") or ""
+    what = re.sub(r"\s+", " ", str(what))[:90]
+    verb = {"Bash": "run a command", "PowerShell": "run a command", "Edit": "change a file", "Write": "write a file",
+            "MultiEdit": "change a file", "NotebookEdit": "change a notebook"}.get(tool, "use " + tool)
+    more = f", and {len(denied) - 1} more step{'s' if len(denied) > 2 else ''}" if len(denied) > 1 else ""
+    return f"{verb}{': ' + what if what else ''}{more}"
+
+
+def ask_claude(prompt, session_id, claude=None, tools=None, full=False):
+    """The question goes in on stdin, never on the command line, so nothing you say can run as a command.
+    full=True lets Claude do anything on this PC (only after you said yes, or with FULL_ACCESS on)."""
+    global LAST_DENIED
     claude = claude or find_claude()
+    full = full or (FULL_ACCESS and not (BRAIN and BRAIN.guest))
     now = time.strftime("%A %B %d, %I:%M %p")
     extra, tools = "", tools or ALLOWED_TOOLS
     if BRAIN:
@@ -937,17 +961,22 @@ def ask_claude(prompt, session_id, claude=None, tools=None):
            "--allowedTools", tools]
     if BRAIN:
         cmd += ["--add-dir", BRAIN.vault.root]
+    if full:
+        cmd += ["--dangerously-skip-permissions"]
     if session_id:
         cmd += ["--resume", session_id]
     r = subprocess.run(cmd, cwd=WORKDIR, input=prompt, capture_output=True, text=True, encoding="utf-8",
                        timeout=300, creationflags=0x08000000 if IS_WIN else 0)
     if r.returncode != 0 and session_id:
-        return ask_claude(prompt, None, claude, tools)   # old session gone, start a new one
+        return ask_claude(prompt, None, claude, tools, full)   # old session gone, start a new one
     try:
         data = json.loads(r.stdout)
     except Exception:
         log(f"claude failed (code {r.returncode}): {(r.stderr or r.stdout)[:400]}")
         return "I couldn't reach Claude. Check the Jarvis window.", session_id
+    LAST_DENIED = data.get("permission_denials") or []
+    if LAST_DENIED:
+        log("claude wanted to: " + "; ".join(describe_denied([d]) for d in LAST_DENIED[:5]))
     return data.get("result") or "I didn't get an answer back.", data.get("session_id") or session_id
 
 
@@ -1227,8 +1256,24 @@ class Jarvis:
         if cmd:
             log(f"command: {cmd}")
             return self.run(*cmd)
-        answer, self.session_id = ask_claude(text, self.session_id, self.claude)
+        guest = bool(self.brain and self.brain.guest)
+        full = FULL_ACCESS and not guest
+        answer, self.session_id = ask_claude(text, self.session_id, self.claude, full=full)
         save_session(self.session_id)
+        denied = list(LAST_DENIED)
+        if denied and not full and not guest:
+            # Claude needed a permission it can't ask for on screen, so ask out loud instead
+            what = describe_denied(denied)
+            self.speaker.say(f"To do that I need to {what}. Say yes to let me, just this once.")
+
+            def go():
+                self.speaker.say("On it.")
+                ans, self.session_id = ask_claude(f"I approved it. Go ahead and do what I asked: {text}", self.session_id,
+                                                  self.claude, full=True)
+                save_session(self.session_id)
+                self.speaker.say(ans)
+            self.pending = go
+            return True
         self.speaker.say(answer)
         return True
 

@@ -308,6 +308,12 @@ Export from Fusion, Onshape or SolidWorks as STEP to keep every part separate.
 Mouse works too: drag to spin, right drag to slide, scroll to zoom, click a part, keys E W H C R and space.
 You can also drag a file onto the window.
 
+## Full access
+
+Jarvis's Claude can do anything on this PC by voice: run commands, change files and settings, fix things itself
+(`FULL_ACCESS = True`, the default). In guest mode it's always off. To be asked first instead, put
+`FULL_ACCESS = False` in `local_settings.py`: Jarvis then says what it wants to do and you say "yes".
+
 ## When computer control isn't working
 
 Say "hey jarvis, test the computer", or run `python jarvis.py --test-pc`. It opens Notepad, moves it, brings it

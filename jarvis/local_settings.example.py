@@ -49,3 +49,4 @@
 # DESK_CAMERA_INDEX = 1          # the camera looking down at the desk
 # DESK_DISPLAY = None            # which screen is the projector. None = the smallest screen that isn't the main one
 # DWELL_SECONDS = 0.6            # how long to hold a finger still to press
+# FULL_ACCESS = True             # Claude can do anything on the PC without asking (off in guest mode). False = ask by voice first
