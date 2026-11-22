@@ -90,7 +90,12 @@ def run(demo=False):
                 if msg == "quit":
                     root.destroy()
                     return
-                st["state"], st["since"] = msg, time.time()
+                if msg.startswith("hold:"):
+                    st["hold"], st["hold_t"] = float(msg[5:]), time.time()
+                elif msg.startswith("gesture:"):
+                    st["flash"], st["flash_t"] = msg[8:], time.time()
+                else:
+                    st["state"], st["since"] = msg, time.time()
         except BlockingIOError:
             pass
         except Exception:
@@ -121,6 +126,24 @@ def run(demo=False):
                 sz = r0 * (1 + (0.35 * k if s != "idle" else 0))
                 c.coords(d, cx - sz, cy - sz, cx + sz, cy + sz)
             c.itemconfig(core, fill=mix(base, hi, 0.9 if s in ("listening", "speaking") else 0.25))
+            # hand feedback on top: the ring fills clockwise while you hold a gesture, and flashes when one fires
+            if t - st.get("hold_t", 0) < 0.25:
+                lit = int(st["hold"] * N + 0.5)
+                for i, (d, cx, cy) in enumerate(dots):
+                    if i < lit:
+                        c.itemconfig(d, fill="#fff1ea")
+            ft = t - st.get("flash_t", 0)
+            if ft < 0.6:
+                g = st.get("flash", "")
+                for i, (d, cx, cy) in enumerate(dots):
+                    if g in ("swipe_right", "swipe_left", "dial_up", "dial_down"):
+                        # a wave of light running the way you moved
+                        pos = (i / N) if g in ("swipe_right", "dial_up") else 1 - i / N
+                        k = max(0.0, 1 - abs(pos - ft / 0.5) * 4)
+                    else:
+                        k = 1 - ft / 0.6
+                    if k > 0.05:
+                        c.itemconfig(d, fill=mix("#ff5a43", "#ffffff", k))
         root.after(33, frame)
 
     frame()

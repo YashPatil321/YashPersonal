@@ -27,3 +27,4 @@ jarvis/.update_status.json
 jarvis/.local_changes.json
 jarvis/.extras_failed.json
 jarvis/.cache/
+jarvis/.gesture_map.json

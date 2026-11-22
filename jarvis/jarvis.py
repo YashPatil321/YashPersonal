@@ -1139,6 +1139,23 @@ def one_line(text):
     return re.sub(r"\s*\n\s*", " | ", text).replace('"', "'")
 
 
+GESTURE_MAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".gesture_map.json")
+
+
+def load_gesture_map():
+    """Your own gesture shortcuts: {"rock": "open spotify", ...}. They replace what that gesture normally does."""
+    try:
+        with open(GESTURE_MAP_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_gesture_map(m):
+    with open(GESTURE_MAP_FILE, "w", encoding="utf-8") as f:
+        json.dump(m, f, indent=1)
+
+
 RELATIONS = {"dad", "mom", "brother", "sister", "grandma", "grandpa", "uncle", "aunt", "cousin", "girlfriend", "boyfriend",
              "coach", "friend", "best_friend", "teacher", "stepdad", "stepmom"}
 
@@ -1552,12 +1569,36 @@ class Jarvis:
         t.daemon = True
         t.start()
 
+    def phone_nudge(self, seconds):
+        """Your phone's been out during a focus session."""
+        b = self.brain
+        if not b or not b.focus_started or self.speaker.speaking:
+            return
+        left = ""
+        if b.focus_timer:
+            m = int((b.focus_started + b.focus_timer.interval - time.time()) / 60)
+            left = f" {m} minutes left." if m > 1 else " Almost done."
+        self.speaker.say(random.choice(["Phone down, Yash.", "Phone's out. Back to it.", "Eyes off the phone."]) + left)
+        try:
+            b.vault.log("Picked up the phone during focus")
+        except Exception:
+            pass
+
     def gesture(self, name):
         """A hand gesture from the camera."""
         if not getattr(jarvis_vision, "GESTURES_ON", True):
             return
         log(f"gesture: {name}")
         pc = self.pc
+        if name in ("dial_up", "dial_down"):
+            pc.key("vol_up" if name == "dial_up" else "vol_down", 1)
+            return
+        custom = load_gesture_map().get(name)
+        if custom and not (name in ("thumbs_up", "thumbs_down") and self.pending):
+            log(f"gesture {name} -> {custom}")
+            threading.Thread(target=lambda: self.speaker.chime(1480), daemon=True).start()
+            threading.Thread(target=self.handle, args=(custom,), daemon=True).start()
+            return
         if self.speaker.speaking and name in ("palm", "fist"):
             self.speaker.stop()   # hand up = stop talking
             return
@@ -2176,6 +2217,25 @@ class Jarvis:
                     pass
             say(ans)
             return True
+        if action == "gesture_map":
+            g, cmd = arg
+            gm = load_gesture_map()
+            nice = lambda x: x.replace("_", " ").replace("rock", "rock sign")
+            if g == "?":
+                say("Your custom gestures: " + "; ".join(f"{nice(k)} does {v}" for k, v in gm.items()) + "." if gm
+                    else "No custom gestures yet. Say something like, when I do the rock sign, open Spotify.")
+            elif g is None:
+                save_gesture_map({})
+                say("Gestures are back to normal.")
+            elif cmd is None:
+                gm.pop(g, None)
+                save_gesture_map(gm)
+                say(f"{nice(g).capitalize()} is back to normal.")
+            else:
+                gm[g] = cmd
+                save_gesture_map(gm)
+                say(f"Done. {nice(g).capitalize()} now does: {cmd}.")
+            return True
         if action == "vision_focus":
             v = self.vision
             if not v or not v.ok:
@@ -2485,7 +2545,10 @@ def main():
     log("version: " + (f"{v['when']} ({v.get('commit', '')[:7]})" if v else "unknown, say update yourself"))
     jarvis.hqsync = jarvis_hqsync.HQSync(jarvis).start()   # what Jarvis is doing, on HQ on the iPad
     if jarvis_vision.VISION:
-        jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say, on_people=jarvis.people).start()
+        jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say, on_people=jarvis.people)
+        jarvis.vision.phone_watch = lambda: bool(BRAIN and BRAIN.focus_started)
+        jarvis.vision.on_phone = jarvis.phone_nudge
+        jarvis.vision.start()
         if jarvis_vision.PRESENCE_FROM_CAMERA:
             BRAIN.presence.idle = lambda: min(jarvis_brain.idle_seconds(), jarvis.vision.seconds_since_face())
     if jarvis_phone.PHONE_SERVER:

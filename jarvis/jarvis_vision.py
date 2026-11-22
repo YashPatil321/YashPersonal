@@ -17,6 +17,7 @@ Test:   python jarvis_vision.py --preview     (a window with what it sees and th
 """
 
 import math
+import re
 import os
 import sys
 import threading
@@ -146,6 +147,7 @@ class GestureReader:
         self.why = ""
         self.votes = deque()
         self.mtrack = deque()
+        self.dial, self.progress = None, 0.0
         self.swiped_at, self.last_swipe, self.last_wave, self.present_since = -1e9, None, -1e9, 0.0
         self.face = None
         self.seen_at = None
@@ -154,6 +156,7 @@ class GestureReader:
     def feed(self, lm, label=None):
         """label: what the trained model says this frame ("palm", "fist", ..., "" for nothing), or None without it."""
         now = self.clock()
+        self.progress = 0.0
         if lm is None and self.seen_at and now - self.seen_at < GRACE_SECONDS:
             return None   # lost the hand for a moment (fast move, blur): carry on where we were
         if lm is not None:
@@ -201,6 +204,22 @@ class GestureReader:
             self.votes.clear()
             self.seen_at = None
             return None
+        # OK sign (thumb and index touching, other fingers up) then move up or down: a volume dial
+        f = fingers(lm)
+        if pinching(lm) and f["middle"] and f["ring"]:
+            if self.dial is None:
+                self.dial = [now, lm[WRIST][1], 0]
+            elif now - self.dial[0] > 0.35:
+                steps = int((self.dial[1] - lm[WRIST][1]) / (hand_size(lm) * 0.4))
+                if steps != self.dial[2]:
+                    up = steps > self.dial[2]
+                    self.dial[2] += 1 if up else -1
+                    self.why = "volume dial"
+                    return "dial_up" if up else "dial_down"
+            self.why = "OK sign: move up or down for volume"
+            self.cur = None
+            return None
+        self.dial = None
         raw = fuse(label, lm)
         self.votes.append((now, raw))
         while self.votes and now - self.votes[0][0] > VOTE_SECONDS:
@@ -234,6 +253,8 @@ class GestureReader:
         if name != self.cur:
             self.cur, self.since, self.fired_cur = name, now, False
             return None
+        if name and not self.fired_cur and name not in self.REPEATS:
+            self.progress = min(1.0, (now - self.since) / self.hold)   # the orb fills up as you hold
         if name is None or now - self.since < self.hold:
             return None
         if name == "palm" and self._moving():
@@ -371,6 +392,7 @@ MODELS = {
     "gesture": "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/latest/gesture_recognizer.task",
     "face": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
     "pose": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+    "objects": "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/latest/efficientdet_lite0.tflite",
 }
 
 
@@ -475,6 +497,22 @@ class Detectors:
         return [(p.x, p.y) for p in r.pose_landmarks[0]] if r.pose_landmarks else None
 
 
+class ObjectFinder:
+    """Everyday objects in a picture (phone, cup, book, laptop, ...), COCO's 80 kinds."""
+    def __init__(self, min_score=0.45):
+        import mediapipe as mp
+        from mediapipe.tasks.python import BaseOptions, vision
+        self.mp = mp
+        self.det = vision.ObjectDetector.create_from_options(vision.ObjectDetectorOptions(
+            base_options=BaseOptions(model_asset_path=model_path("objects")), score_threshold=min_score, max_results=8))
+
+    def labels(self, bgr):
+        import cv2
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+        r = self.det.detect(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=rgb))
+        return [d.categories[0].category_name for d in r.detections if d.categories]
+
+
 class Vision:
     def __init__(self, on_gesture=None, on_face=None, say=None, on_people=None):
         self.on_gesture, self.on_face, self.say, self.on_people = on_gesture, on_face, say, on_people
@@ -562,6 +600,7 @@ class Vision:
         _log(f"camera on, {grab.size()}")
         if self.faceid:
             threading.Thread(target=self._faces_loop, daemon=True).start()
+        threading.Thread(target=self._phone_loop, daemon=True).start()
         n, face_seen, pinch_was = 0, False, False
         while True:
             if not self.enabled:
@@ -623,6 +662,7 @@ class Vision:
                 pinch_was = p
                 continue
             g = self.reader.feed(lm, det.last_label if lm is not None else None)
+            self._orb(g)
             if lm is not None and self.reader.why != getattr(self, "_why_logged", "") and time.time() - getattr(self, "_why_t", 0) > 8:
                 self._why_logged, self._why_t = self.reader.why, time.time()
                 _log("hand seen: " + self.reader.why)   # so you can see why a gesture didn't fire
@@ -643,6 +683,53 @@ class Vision:
             self.enroll = None
             saved = self.faceid.book.add(name, feats[2:] if len(feats) > 5 else feats) if self.faceid and feats else None
             done(saved, len(feats))
+
+    def _orb(self, g):
+        """Live feedback in the corner orb: it fills up while you hold a gesture and flashes when one fires."""
+        try:
+            import jarvis_orb
+            now = time.time()
+            if g:
+                jarvis_orb.send("gesture:" + g)
+                self._orb_t = now
+            elif self.reader.progress > 0.05 and now - getattr(self, "_orb_t", 0) > 0.08:
+                jarvis_orb.send(f"hold:{self.reader.progress:.2f}")
+                self._orb_t = now
+        except Exception:
+            pass
+
+    phone_watch = None    # set by Jarvis: returns True while a focus session runs
+    on_phone = None       # called with the number of seconds the phone has been out
+
+    def _phone_loop(self):
+        """During focus sessions, looks for a phone in your hands about once every two seconds (Google's object
+        model, on your PC). Out for 20 seconds straight and Jarvis says something, at most every 5 minutes."""
+        det, seen_since, last_nudge, misses = None, None, 0.0, 0
+        while True:
+            time.sleep(1.8)
+            try:
+                if not (self.phone_watch and self.phone_watch()) or not self.enabled:
+                    seen_since, misses = None, 0
+                    continue
+                f = getattr(self, "last_frame", None)
+                if f is None or time.time() - getattr(self, "last_frame_t", 0) > 3:
+                    continue
+                if det is None:
+                    det = ObjectFinder()
+                if "cell phone" in det.labels(f):
+                    misses = 0
+                    seen_since = seen_since or time.time()
+                    out = time.time() - seen_since
+                    if out >= 20 and time.time() - last_nudge > 300 and self.on_phone:
+                        last_nudge = time.time()
+                        threading.Thread(target=self.on_phone, args=(out,), daemon=True).start()
+                else:
+                    misses += 1
+                    if misses >= 3:   # put down for about five seconds
+                        seen_since = None
+            except Exception as e:
+                _log(f"phone check: {e}")
+                time.sleep(30)
 
     def _zoom_roi(self):
         """Where to look for hands: a crop around you when you're far away, else the whole picture.
@@ -876,7 +963,47 @@ def grab_frame(path, index=None):
         cap.release()
 
 
+GESTURE_WORDS = [
+    (r"rock(?: on| sign| and roll)?|(?:the )?horns|i love you(?: sign)?|spider ?man(?: sign)?", "rock"),
+    (r"thumbs? down", "thumbs_down"), (r"thumbs? up", "thumbs_up"), (r"(?:a )?fist", "fist"),
+    (r"peace(?: sign)?|(?:a )?v(?: sign)?|two fingers", "peace"), (r"(?:an )?open (?:palm|hand)|(?:a )?palm|high five", "palm"),
+    (r"swipe left", "swipe_left"), (r"swipe right", "swipe_right"), (r"(?:a )?wave", "wave"),
+    (r"point(?:ing)? up", "point_up"), (r"point(?:ing)? down", "point_down"),
+]
+_GW = "|".join(f"(?:{w})" for w, _ in GESTURE_WORDS)
+
+
+def gesture_from_words(w):
+    w = re.sub(r"^(?:a|an|the|my) ", "", w.strip())
+    for pat, name in GESTURE_WORDS:
+        if re.fullmatch(pat, w):
+            return name
+    return None
+
+
+def route_gesture_map(t):
+    """'when I do the rock sign, open Spotify', 'make thumbs down lock in for an hour', 'reset my gestures'."""
+    m = re.fullmatch(rf"(?:when(?:ever)? i (?:do|make|show(?: you)?|throw(?: up)?|hold up) |make |map |set |use )(?:a |an |the |my )?({_GW})"
+                     rf"(?: gesture| sign)?(?: to| do| mean| should| it should| then| you should| for)*(?: do| be)? (.+)", t)
+    if m:
+        g = gesture_from_words(m.group(1))
+        cmd = re.sub(r"^(?:do|be|go|it|you) ", "", m.group(2)).strip()
+        if g and len(cmd) > 2:
+            return ("gesture_map", (g, cmd))
+    if re.fullmatch(r"(?:reset|clear|undo) (?:my |all (?:my )?|the )?(?:custom )?gestures|put (?:my |the )?gestures back(?: to normal)?", t):
+        return ("gesture_map", (None, None))
+    m = re.fullmatch(rf"(?:forget|remove|delete|reset) (?:the |my )?({_GW})(?: gesture| sign)?", t)
+    if m and gesture_from_words(m.group(1)):
+        return ("gesture_map", (gesture_from_words(m.group(1)), None))
+    if re.fullmatch(r"what (?:do|are) my (?:custom )?gestures(?: do)?|(?:list|show) my (?:custom )?gestures", t):
+        return ("gesture_map", ("?", None))
+    return None
+
+
 def route_vision(t):
+    r = route_gesture_map(t)
+    if r:
+        return r
     import re
     m = re.fullmatch(r"(?:count|track) my (pushups?|push ups?|squats?|curls?)|(pushup|push up|squat|curl) (?:mode|counter|time)", t)
     if m:
@@ -914,7 +1041,7 @@ def route_vision(t):
 
 
 GESTURE_HELP = ("Peace sign and I start listening. Open palm, play or pause. Swipe right or left for the next or last song. "
-                "Point up or down for volume. Thumbs up says yes, thumbs down says no. A fist mutes. Wave to wake the room. "
+                "Point up or down for volume, or make an OK sign and move it up or down like a dial. Thumbs up says yes, thumbs down says no. A fist mutes. Wave to wake the room. "
                 "Say touch mode to control the whole screen with your hands.")
 
 
