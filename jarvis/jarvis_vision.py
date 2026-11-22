@@ -284,6 +284,16 @@ class Vision:
         self.reader = GestureReader()
         self.ok = False
 
+    def snapshot(self, path):
+        """Saves what the camera sees right now as a JPEG (for 'can you see me'). Returns the path, or None."""
+        import cv2
+        f = getattr(self, "last_frame", None)
+        if f is None or time.time() - getattr(self, "last_frame_t", 0) > 3:
+            return grab_frame(path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        cv2.imwrite(path, f)
+        return path
+
     def seconds_since_face(self):
         return time.time() - self.last_face if self.last_face else 1e9
 
@@ -352,6 +362,7 @@ class Vision:
                 time.sleep(0.2)
                 continue
             frame = cv2.flip(frame, 1)   # mirror, so your right is the screen's right
+            self.last_frame, self.last_frame_t = frame, time.time()
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             ts = time.time() * 1000
             n += 1
@@ -453,6 +464,31 @@ class Vision:
             u.mouse_event(0x0004, 0, 0, 0, 0)
 
 
+def grab_frame(path, index=None):
+    """One picture from the webcam, when the camera loop isn't running. Returns the path, or None."""
+    try:
+        import cv2
+    except ImportError:
+        return None
+    cap = cv2.VideoCapture(CAMERA_INDEX if index is None else index, cv2.CAP_DSHOW if IS_WIN else 0)
+    try:
+        if not cap.isOpened():
+            return None
+        frame = None
+        for _ in range(8):   # the first frames are often dark while the camera adjusts
+            ok, f = cap.read()
+            if ok:
+                frame = f
+            time.sleep(0.05)
+        if frame is None:
+            return None
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        cv2.imwrite(path, cv2.flip(frame, 1))
+        return path
+    finally:
+        cap.release()
+
+
 def route_vision(t):
     import re
     m = re.fullmatch(r"(?:count|track) my (pushups?|push ups?|squats?|curls?)|(pushup|push up|squat|curl) (?:mode|counter|time)", t)
@@ -462,10 +498,16 @@ def route_vision(t):
         return ("reps", ex)
     if re.fullmatch(r"(?:i'?m )?done|stop counting|that'?s it|finished|(?:stop|end) (?:the )?(?:set|reps|counting)", t):
         return ("reps_stop", None)
-    if re.fullmatch(r"(?:turn |switch )?(?:the )?camera off|stop watching|(?:turn|switch) off (?:the )?camera", t):
+    if re.fullmatch(r"(?:turn |switch |shut )?(?:the |your |my )?camera(?: mode)? off|(?:turn|switch|shut) off (?:the |your |my )?camera(?: mode)?|"
+                    r"stop (?:watching|looking)(?: at me)?|(?:no|disable) camera|close (?:your|the) eyes?", t):
         return ("camera", False)
-    if re.fullmatch(r"(?:turn |switch )?(?:the )?camera (?:back )?on|start watching", t):
+    if re.fullmatch(r"(?:turn |switch )?(?:the |your |my )?camera(?: mode)? (?:back )?on|(?:turn|switch) on (?:the |your |my )?camera(?: mode)?|"
+                    r"start (?:watching|looking)|(?:enable|open) (?:the |your )?camera|open your eyes?|you can look again", t):
         return ("camera", True)
+    if re.fullmatch(r"can you see me|do you see me|what (?:am i|i'?m) doing|what do you see|what can you see|look at me|describe me|"
+                    r"how do i look|what am i (?:holding|wearing|eating|drinking)|who(?:'s| is) (?:with me|behind me|in the room with me)|"
+                    r"what(?:'s| is) (?:behind me|in my hand)|what(?:'s| is) this(?: thing)?(?: i'?m holding)?|check me out", t):
+        return ("camera_look", t)
     if re.fullmatch(r"(?:what|which) gestures?(?: can i use| do you know| are there)?|show me (?:the )?gestures", t):
         return ("gestures_help", None)
     return None

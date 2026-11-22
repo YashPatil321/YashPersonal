@@ -308,6 +308,19 @@ Export from Fusion, Onshape or SolidWorks as STEP to keep every part separate.
 Mouse works too: drag to spin, right drag to slide, scroll to zoom, click a part, keys E W H C R and space.
 You can also drag a file onto the window.
 
+## Jarvis on HQ (the iPad)
+
+HQ's top strip has a JARVIS cell: what Jarvis is doing right now ("Locked in, 32 min left", "In the workshop: drone
+frame", "Touch mode"), focus progress, whether the camera is off, and when it last checked in. The sessions panel
+shows the last few things from today's log. Mail, notes, journal and anything private never go up, and in guest
+mode only "Guest mode" does. Jarvis writes this through Claude Code (`jarvis_hqsync.py`), at most every 2 minutes.
+
+## The camera, by voice
+
+"camera off", "turn the camera off", "stop looking", "camera on", "open your eyes". "Can you see me", "what am I
+doing", "what am I holding", "what do you see": Jarvis takes one picture, Claude describes it out loud, and the
+picture is deleted right after. With the camera off it says so instead of looking.
+
 ## Cutting Jarvis off
 
 While Jarvis is talking, say the wake word (or double clap) and it stops mid sentence and listens to you right

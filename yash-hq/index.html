@@ -54,11 +54,17 @@ body .dz{font-family:var(--fd);font-weight:900;font-variation-settings:"ROND" 10
 .glyph path,.glyph rect,.glyph circle{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 
 /* ===== FMA: status strip ===== */
-.fma{grid-area:fma;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1.6fr) auto;background:var(--mod);border-radius:var(--r);overflow:hidden}
+.fma{grid-area:fma;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) minmax(0,1.5fr) minmax(0,1.3fr) auto;background:var(--mod);border-radius:var(--r);overflow:hidden}
 .fma>div{padding:.7rem 1rem;display:flex;flex-direction:column;justify-content:center;gap:.32rem;position:relative;min-height:4rem}
 .fma>div+div::before{content:"";position:absolute;left:0;top:.8rem;bottom:.8rem;border-left:1px solid var(--line)}
 .fma .l{font:500 .64rem/1 var(--fm);letter-spacing:.12em;color:var(--mute);display:flex;align-items:center;gap:.4rem}
 .fma .l i{width:.42rem;height:.42rem;border-radius:50%;background:var(--hot)}
+.fma #fJ .l i{background:var(--dim)}.fma #fJ.live .l i{background:var(--hot);box-shadow:0 0 .5rem var(--hot)}
+@media(prefers-reduced-motion:no-preference){.fma #fJ.live .l i{animation:jb 2.4s ease-in-out infinite}@keyframes jb{50%{opacity:.35}}}
+.jv{list-style:none;margin:0 0 .7rem;padding:0 0 .6rem;border-bottom:1px dashed var(--line)}
+.jv li{display:flex;gap:.6rem;font-size:.86rem;line-height:1.35;padding:.12rem 0;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jv li b{font:500 .74rem/1.35rem var(--fm);color:var(--mute);font-weight:500;flex:none;font-variant-numeric:tabular-nums}
+.jv li span{overflow:hidden;text-overflow:ellipsis}
 .fma .a{font:600 1.18rem/1.1 var(--f);letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fma .b{font:400 .8rem/1 var(--fm);color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
 #fA .a{color:var(--hot2)}
@@ -393,7 +399,7 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
    "fma fma fma fma fma fma fma fma fma fma fma fma"
    "time time time time now now now now now now now now"
    "agenda agenda agenda agenda chk chk chk chk dA dA dA dA"}
-  .fma{grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.4fr) auto}.fma .lights{display:none}
+  .fma{grid-template-columns:minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1.3fr) minmax(0,1.25fr) auto}.fma .lights{display:none}
   .deck{display:grid;position:relative;border-radius:var(--r);overflow:hidden}
   .deck>.mod{grid-area:1/1;opacity:0;visibility:hidden;transition:opacity .6s,visibility .6s}
   .deck>.mod.on{opacity:1;visibility:visible}
@@ -437,6 +443,7 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
     <div id="fA"><span class="l"><i></i>NOW</span><span class="a" id="fAa"><span class="ld"><i></i><i></i><i></i></span></span><span class="b" id="fAb"></span></div>
     <div id="fB"><span class="l">NEXT</span><span class="a" id="fBa">--</span><span class="b" id="fBb"></span></div>
     <div id="caut" role="status"><span class="l"><i></i>HEADS UP</span><span class="a" id="cautT">All clear</span></div>
+    <div id="fJ"><span class="l"><i></i>JARVIS</span><span class="a" id="fJa">--</span><span class="b" id="fJb"></span></div>
     <div class="sys">
       <div class="lights" aria-label="Feeds">
         <div class="lt"><span><span class="led" id="lCal"></span>CAL</span><b id="bCal">--</b></div>
@@ -497,7 +504,8 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
       <div id="shopBody"><span class="ld"><i></i><i></i><i></i></span></div>
     </section>
     <section class="mod ops" aria-label="Claude sessions and builds">
-      <div class="lb"><span class="ix">07</span>Claude sessions<span class="rt" id="sessT"></span></div>
+      <div class="lb"><span class="ix">07</span>Jarvis &amp; Claude<span class="rt" id="sessT"></span></div>
+      <ul class="jv" id="jvList" hidden></ul>
       <ul class="ag fade" id="sessList"><li class="empty"><span class="ld"><i></i><i></i><i></i></span></li></ul><ul class="ag" id="agentList"></ul>
       <div class="bld"><div class="lb" style="margin-bottom:.35rem">Builds, 7 days<span class="rt" id="opsStamp"></span></div><div class="dc" id="chart"></div><ul class="rp" id="opsList"></ul></div>
     </section>
@@ -1195,13 +1203,39 @@ function renderSessions() {
     const what = s.post_turn_summary?.recent_action || (cls === 'working' ? 'working' : cls === 'blocked' ? 'waiting on you' : 'done');
     return '<li class="' + cls + '"><i></i><span>' + A('https://claude.ai/code/' + encodeURIComponent(s.id), s.title || 'Untitled session') + (s.unread ? '<b class="un" title="unread"></b>' : '') + (s.updated_at ? '<em>' + esc(ago(s.updated_at)) + '</em>' : '') + '<small>' + esc(what) + '</small></span></li>'; }).join('') : '<li class="empty" style="display:block">No Claude Code sessions yet.</li>');
 }
+/* Jarvis on the PC writes jarvis/status into this page's db (what it's doing, today's activity). Shown live. */
+let jarvisSt = null;
+function renderJarvis() {
+  const s = jarvisSt, el = document.getElementById('fJ');
+  if (!s) { T('fJa', 'Not linked'); T('fJb', 'starts when Jarvis runs'); el.classList.remove('live'); return; }
+  const age = Date.now() - Number(s.updated || 0), live = age < 20 * 60e3;
+  el.classList.toggle('live', live);
+  T('fJa', live ? (s.headline || 'Standing by') : 'Offline');
+  const bits = [];
+  if (live && s.focus && s.focus.total) bits.push(Math.max(0, s.focus.total - s.focus.done) + ' of ' + s.focus.total + ' min');
+  if (s.camera === 'off') bits.push('camera off');
+  if (s.desk === 'on') bits.push('desk on');
+  const a = ago(new Date(Number(s.updated || 0)).toISOString());
+  bits.push((live ? 'updated ' : 'last seen ') + (a === 'now' ? 'just now' : a + ' ago'));
+  T('fJb', bits.join(' · '));
+  const evs = Array.isArray(s.events) ? s.events.slice(-3).reverse() : [];
+  const list = document.getElementById('jvList');
+  list.hidden = !evs.length;
+  H('jvList', evs.map((e) => '<li><b>' + esc(e.t || '') + '</b><span>' + esc(e.text || '') + '</span></li>').join(''));
+}
+setInterval(() => { if (jarvisSt) renderJarvis(); }, 60e3);
 function extraFeeds(m) {
+  if (db) db.doc('jarvis/status').onSnapshot((d) => { jarvisSt = d.exists ? d.data() : null; renderJarvis(); }, () => {});
+  else renderJarvis();
   m.watchTool(...SESS, onSess, {refetchInterval: 2 * 60e3});
   m.watchTool(...COACH, onCoach, {refetchInterval: 15 * 60e3});
   if (db) db.collection('coach').onSnapshot((s) => { s.docs.forEach((d) => coachGone.add(d.id)); renderCoach(); }, () => {});
 }
 function extraRescan(m) { m.callTool(...SESS, {cache: {staleTime: 0, gcTime: 2 * 60e3, refresh: true}}).then((result) => onSess({type: 'data', result})).catch((error) => onSess({type: 'error', error})); }
 function extraMock() {
+  jarvisSt = {headline: 'Locked in, 32 min left', focus: {total: 50, done: 18}, camera: 'on', updated: Date.now() - 50e3,
+    events: [{t: '15:48', text: 'Back at the desk (after practice)'}, {t: '16:05', text: 'Training: run 3 mi 24 min (8:00/mi)'}, {t: '16:20', text: 'Focus started, 50 min'}]};
+  renderJarvis();
   const d = new Date(Date.now() + 3 * 864e5), ymd = d.toLocaleDateString('en-CA', {timeZone: TZ});
   coachSugs = [{title: 'Varsity soccer break practice', start: ymd + 'T09:00', end: ymd + 'T11:00', location: 'Del Norte High School', link: 'https://mail.google.com'}, {title: 'Varsity soccer vs Torrey Pines', start: ymd + 'T15:30', end: ymd + 'T17:30', location: 'Away', link: 'https://mail.google.com'}];
   renderCoach();

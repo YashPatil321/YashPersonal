@@ -52,6 +52,7 @@ import jarvis_vision
 import jarvis_cad
 import jarvis_desk
 import jarvis_faces
+import jarvis_hqsync
 import jarvis_touch
 
 # ---------------- settings you might change ----------------
@@ -85,6 +86,12 @@ ALLOWED_TOOLS = "WebSearch,WebFetch,Edit(./notes/**)," + CONNECTOR_TOOLS
 # Always off in guest mode, so friends or a TV can't make it do things. Set False in local_settings.py to go back
 # to Jarvis telling you what it wants to do and you saying "yes" first.
 FULL_ACCESS = True
+# What full access allows. These go in Claude Code's own allow list (C:\jarvis\.claude\settings.local.json, which
+# Jarvis writes for you) and on every call, so it works even where Claude Code ignores its "skip permissions" switch.
+FULL_TOOLS = ["Bash", "PowerShell", "Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "Glob", "Grep", "WebFetch", "WebSearch",
+              "Task", "TodoWrite", "mcp__claude_ai_Google_Calendar", "mcp__claude_ai_Gmail", "mcp__claude_ai_Google_Drive",
+              "mcp__claude_ai_Spotify", "mcp__claude_ai_Solidhauz", "mcp__claude_ai_Vercel", "mcp__claude_ai_Supabase",
+              "mcp__claude_ai_Claude_Code_Remote", "ArtifactData", "Artifact"]
 SPOTIFY_CLIENT_ID = "9168fe0d1873402497e1738a923b9a76"       # optional, from developer.spotify.com. Then run --spotify-login once
 AUTO_UPDATE_HOUR = 4         # restart into new code around 4 AM when an update is waiting. None = off
 BROWSER = "chrome"           # chrome or edge, for HQ and every site Jarvis opens
@@ -105,7 +112,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -735,6 +742,23 @@ def route(text):
     if re.search(r"\b(volume down|turn (it )?down|quieter|softer)\b", t):
         return ("volume_down", _num(t) or 10)
 
+    # browser tabs and windows
+    b = re.sub(r"\b(up|a|the|me|another|fresh|blank|empty)\b", " ", t)
+    b = re.sub(r"\s+", " ", b).strip()
+    m = re.fullmatch(r"(?:open|start|make|give|create|pull|bring)? ?new (?:chrome |browser |edge )?tab(?: in (?:chrome|edge|browser))?|(?:new )?(?:chrome|browser) tab|(?:open|give|make|start) tab", b)
+    if m:
+        return ("browser", ("tab", None))
+    m = re.fullmatch(r"(?:open|start|make|give|create)? ?new (?:chrome |browser |edge )?window(?: in (?:chrome|edge))?|(?:new )?(?:chrome|browser) window", b)
+    if m:
+        return ("browser", ("window", None))
+    m = re.fullmatch(r"(?:open|go to|pull|bring|load|show) (.+?) in new tab", b)
+    if m and re.sub(r"^(?:my|the)\s+", "", m.group(1)) in SITES:
+        return ("browser", ("tab", re.sub(r"^(?:my|the)\s+", "", m.group(1))))
+    if re.fullmatch(r"close (?:this |that |the |current )?tab", t):
+        return ("keys", "close tab")
+    if re.fullmatch(r"(?:reopen|bring back|undo close)(?: the| that| my)?(?: last)?(?: closed)? tab", t):
+        return ("keys", "reopen tab")
+
     # apps and sites
     m = re.fullmatch(r"(open|launch|start|go to|pull up) (.+)", t)
     if m:
@@ -976,6 +1000,46 @@ BRAIN = None   # set in main, adds memory and today's log to every prompt
 LAST_DENIED = []   # what Claude wanted to do but wasn't allowed to, from the last answer
 
 
+def full_access_dirs():
+    """Where full access may read and write: your home folder and, on Windows, every drive."""
+    dirs = [os.path.expanduser("~")]
+    if IS_WIN:
+        import string
+        dirs += [f"{d}:\\" for d in string.ascii_uppercase if os.path.exists(f"{d}:\\")]
+    return dirs
+
+
+def write_claude_permissions(full=None):
+    """Claude Code reads .claude/settings.local.json in Jarvis's folder. With full access on, Jarvis keeps an allow
+    list there so Claude never has to ask (it can't show you a prompt from the background). Turning full access off
+    takes Jarvis's entries back out. Anything you added yourself is left alone."""
+    full = FULL_ACCESS if full is None else full
+    path = os.path.join(WORKDIR, ".claude", "settings.local.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        cfg = {}
+    perms = cfg.setdefault("permissions", {})
+    mine = set(cfg.get("_jarvis_added", []))
+    allow = [a for a in perms.get("allow", []) if a not in mine]
+    if full:
+        add = [t for t in FULL_TOOLS if t not in allow]
+        perms["allow"] = allow + add
+        perms["additionalDirectories"] = sorted(set(perms.get("additionalDirectories", [])) | set(full_access_dirs()))
+        perms["defaultMode"] = "bypassPermissions"
+        cfg["_jarvis_added"] = add
+    else:
+        perms["allow"] = allow
+        if perms.get("defaultMode") == "bypassPermissions":
+            perms.pop("defaultMode")
+        cfg.pop("_jarvis_added", None)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+    return path
+
+
 def describe_denied(denied):
     """'run a command: Get-ScheduledTask ...' in a few spoken words."""
     if not denied:
@@ -1009,7 +1073,10 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False):
     if BRAIN:
         cmd += ["--add-dir", BRAIN.vault.root]
     if full:
+        cmd[cmd.index("--allowedTools") + 1] = tools + "," + ",".join(FULL_TOOLS)
         cmd += ["--dangerously-skip-permissions"]
+        for d in full_access_dirs():
+            cmd += ["--add-dir", d]
     if session_id:
         cmd += ["--resume", session_id]
     r = subprocess.run(cmd, cwd=WORKDIR, input=prompt, capture_output=True, text=True, encoding="utf-8",
@@ -1339,6 +1406,15 @@ class Jarvis:
                 say("Cancelled.")
             return True
         self.pending = None
+        if action == "browser":
+            kind, site = arg
+            new = ("edge://newtab/" if BROWSER == "edge" else "chrome://newtab/")
+            url = SITES.get(site, new) if site else new
+            # handing the address to the browser opens it in your profile: a new tab in the open window,
+            # or a new window when you asked for one. No focus tricks needed.
+            pc.open_url(url, app_window=None if kind == "window" else False)
+            say(("New window." if kind == "window" else "New tab.") if not site else f"Opening {site} in a new tab.")
+            return True
         if action == "hush":
             self.pending = None
             return True
@@ -1355,6 +1431,8 @@ class Jarvis:
             if update_waiting():
                 say("Updating. Back in a few seconds.")
                 self.restart_for_update = True
+            elif not shutil.which("git"):
+                say("I can't update myself because Git isn't installed. Run the installer once from PowerShell.")
             else:
                 say("I'm already on the latest version.")
         elif action == "whatsapp":
@@ -1564,6 +1642,32 @@ class Jarvis:
                 ppl = [("you" if n == jarvis_faces.OWNER else jarvis_faces.spoken_name(n)) for n in v.faceid.book.people]
                 say("I know " + ", ".join(ppl) + "." if ppl else "I don't know anyone yet. Say learn my face.")
             return True
+        if action == "camera_look":
+            if self.vision and not self.vision.enabled:
+                say("My camera's off. Say camera on and ask again.")
+                return True
+            path = os.path.join(WORKDIR, ".cache", "camera.jpg")
+            try:
+                got = self.vision.snapshot(path) if self.vision else jarvis_vision.grab_frame(path)
+            except Exception as e:
+                log(f"camera look: {e}")
+                got = None
+            if not got:
+                say("I can't see anything. Is the webcam plugged in? Install the camera parts with python update.py dash dash extras.")
+                return True
+            say("Looking.")
+            try:
+                ans = ask_claude(f"Read the image at {got}. It's a webcam photo of Yash at his desk, taken just now. He asked out loud: "
+                                 f"'{arg}'. Answer out loud in under 45 words like a friend in the room: what he's doing, what he's holding "
+                                 "or what's around him, whatever answers his question. Don't comment on his looks unless he asked.",
+                                 None, self.claude, tools="Read")[0]
+            finally:
+                try:
+                    os.remove(got)   # never kept
+                except OSError:
+                    pass
+            say(ans)
+            return True
         if action in ("reps", "reps_stop", "camera", "gestures_help"):
             v = self.vision
             if action == "gestures_help":
@@ -1582,7 +1686,7 @@ class Jarvis:
                     say("I wasn't counting anything.")
             elif action == "camera":
                 v.enabled = arg
-                say("Camera on." if arg else "Camera off. Say camera on to bring it back.")
+                say("Camera on. I can see you." if arg else "Camera off. I can't see anything now. Say camera on to bring it back.")
             return True
         if action == "phone":
             if not self.brain:
@@ -1805,12 +1909,17 @@ def main():
     whisper, _ = load_whisper()
     speaker = Speaker()
     jarvis = Jarvis(speaker, claude=claude)
+    try:
+        log("claude permissions: " + write_claude_permissions())
+    except Exception as e:
+        log(f"couldn't write Claude's permissions file: {e}")
     # how was I started, and can I actually control windows? fixes the startup task if it can, says so if not
     threading.Thread(target=lambda: jarvis_autostart.check(log=log, say=speaker.say), daemon=True).start()
     global BRAIN
     BRAIN = jarvis.make_brain()
     BRAIN.start()
     jarvis.extras.start()
+    jarvis.hqsync = jarvis_hqsync.HQSync(jarvis).start()   # what Jarvis is doing, on HQ on the iPad
     if jarvis_vision.VISION:
         jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say, on_people=jarvis.people).start()
         if jarvis_vision.PRESENCE_FROM_CAMERA:

@@ -29,10 +29,30 @@ def git(*args):
     return subprocess.run(["git", "-C", REPO, *args], capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
 
 
+def have_git():
+    return shutil.which("git") is not None
+
+
+def ensure_repo():
+    """The local copy of the code that updates come from. Made automatically the first time."""
+    if os.path.isdir(os.path.join(REPO, ".git")):
+        return True
+    if not have_git():
+        print("update: Git isn't installed, so I can't update. Run the installer (install.ps1) once.")
+        return False
+    print(f"update: no copy of the code at {REPO} yet, getting it now")
+    r = subprocess.run(["git", "clone", "-q", "-b", BRANCH, "https://github.com/YashPatil321/YashPersonal.git", REPO],
+                       capture_output=True, text=True, timeout=600, creationflags=NO_WINDOW)
+    if r.returncode != 0:
+        print("update: couldn't download the code:", r.stderr.strip()[:200])
+        return False
+    return True
+
+
 def waiting():
     """True if the remote has commits this machine doesn't."""
     if not os.path.isdir(os.path.join(REPO, ".git")):
-        return False
+        return have_git()   # never set up: an update is definitely waiting
     if git("fetch", "-q", "origin", BRANCH).returncode != 0:
         return False
     local, remote = git("rev-parse", "HEAD").stdout.strip(), git("rev-parse", "origin/" + BRANCH).stdout.strip()
@@ -51,8 +71,7 @@ def changed_files():
 
 
 def update():
-    if not os.path.isdir(os.path.join(REPO, ".git")):
-        print(f"update: no repo at {REPO}. Clone it once:  git clone -b {BRANCH} https://github.com/YashPatil321/YashPersonal.git {REPO}")
+    if not ensure_repo():
         return 0
     git("checkout", "-q", BRANCH)
     r = git("pull", "-q", "--ff-only", "origin", BRANCH)
