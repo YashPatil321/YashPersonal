@@ -40,8 +40,8 @@ COOLDOWN_SECONDS = 2.5
 ARM_SECONDS = 0.5            # a hand has to appear and hold still this long before any gesture counts
 # Gestures only count when you hold your hand up toward the camera on purpose: big enough in the picture (close)
 # and not down at the bottom edge (hands on the keyboard, scratching your face, waving at someone).
-MIN_HAND = 0.11              # palm width as a share of the picture width (close to the camera, on purpose)
-MAX_WRIST_Y = 0.62           # wrist above this line (0 top, 1 bottom): hand raised to about shoulder height or higher
+MIN_HAND = 0.045             # palm width as a share of the picture width (about arm's length from a normal webcam)
+MAX_WRIST_Y = 0.80           # wrist above this line (0 top, 1 bottom): hand held up, not resting on the desk
 PRESENCE_FROM_CAMERA = True
 # ---------------------------------------------------------------------------
 
@@ -112,17 +112,22 @@ class GestureReader:
         self.cur, self.since, self.last_fire, self.fired_cur = None, 0.0, -1e9, False
         self.track = deque()   # (t, x) of the open palm center, for swipes and waves
         self.arm_since = self.arm_pos = None
+        self.why = ""
 
     def feed(self, lm):
         now = self.clock()
-        if lm is not None and (_d(lm[INDEX_MCP], lm[PINKY_MCP]) < MIN_HAND or lm[WRIST][1] > MAX_WRIST_Y):
-            lm = None   # not held up on purpose
+        self.why = "no hand" if lm is None else ""
+        if lm is not None and _d(lm[INDEX_MCP], lm[PINKY_MCP]) < MIN_HAND:
+            self.why, lm = "hand too far from the camera", None
+        elif lm is not None and lm[WRIST][1] > MAX_WRIST_Y:
+            self.why, lm = "hand too low, raise it", None
         if lm is not None:
             # arming: the hand has to show up and hold fairly still for ARM_SECONDS before anything counts
             c = (lm[WRIST][0], lm[WRIST][1])
             if self.arm_since is None or self.arm_pos is None or (now - self.arm_since < ARM_SECONDS and _d(c, self.arm_pos) > 0.06):
                 self.arm_since, self.arm_pos = now, c
             if now - self.arm_since < ARM_SECONDS:
+                self.why = "hold still a moment"
                 return None
         else:
             self.arm_since = self.arm_pos = None
@@ -131,6 +136,7 @@ class GestureReader:
             self.track.clear()
             return None
         name = pose_name(lm)
+        self.why = "reading: " + (name or "no clear shape")
         cx = sum(lm[i][0] for i in (WRIST, INDEX_MCP, PINKY_MCP)) / 3
 
         if name == "palm":
@@ -256,7 +262,7 @@ class Detectors:
         V = vision.RunningMode.VIDEO
         self.hands = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=V, num_hands=2,
-            min_hand_detection_confidence=0.75, min_hand_presence_confidence=0.75, min_tracking_confidence=0.6)) if hands else None
+            min_hand_detection_confidence=0.6, min_hand_presence_confidence=0.6, min_tracking_confidence=0.6)) if hands else None
         self.faces = vision.FaceDetector.create_from_options(vision.FaceDetectorOptions(
             base_options=BaseOptions(model_asset_path=model_path("face")), running_mode=V, min_detection_confidence=0.5)) if faces else None
         self.pose = None
@@ -430,6 +436,9 @@ class Vision:
                 pinch_was = p
                 continue
             g = self.reader.feed(lm)
+            if lm is not None and self.reader.why != getattr(self, "_why_logged", "") and time.time() - getattr(self, "_why_t", 0) > 8:
+                self._why_logged, self._why_t = self.reader.why, time.time()
+                _log("hand seen: " + self.reader.why)   # so you can see why a gesture didn't fire
             if g and self.on_gesture:
                 threading.Thread(target=self.on_gesture, args=(g,), daemon=True).start()
 
@@ -588,7 +597,11 @@ def preview():
     """A window showing the camera, the hand points and the gesture it reads. Press Q to quit."""
     import cv2
     det = Detectors(hands=True, faces=False)
-    cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW if IS_WIN else 0)
+    cap, idx = open_camera(CAMERA_INDEX)
+    if cap is None:
+        print("no camera found")
+        return
+    print(f"camera {idx}")
     reader, last, last_t = GestureReader(), "", 0
     while True:
         good, frame = cap.read()
@@ -605,6 +618,10 @@ def preview():
         if g:
             last, last_t = g, time.time()
         cv2.putText(frame, f"shape: {pose_name(lm) if lm else 'no hand'}", (16, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 200, 255), 2)
+        cv2.putText(frame, reader.why, (16, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        if lm:
+            cv2.putText(frame, f"palm {_d(lm[INDEX_MCP], lm[PINKY_MCP]):.3f} (needs {MIN_HAND})  wrist {lm[WRIST][1]:.2f} (needs under {MAX_WRIST_Y})",
+                        (16, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
         if time.time() - last_t < 1.5:
             cv2.putText(frame, f"GESTURE: {last}", (16, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (60, 90, 255), 3)
         cv2.imshow("Jarvis vision (Q to quit)", frame)
