@@ -118,6 +118,47 @@ def waiting():
     return any(os.path.basename(f) not in keep for f in changed_files(src))
 
 
+def base_dir():
+    """Where the last repo version of each file is kept, for merging Atlas's own edits."""
+    return os.path.join(HERE, ".cache", "base")
+
+
+def save_base(name, src):
+    try:
+        os.makedirs(base_dir(), exist_ok=True)
+        shutil.copy2(src, os.path.join(base_dir(), name))
+    except OSError:
+        pass
+
+
+def merge_own_edits(name, mine, theirs):
+    """Three way merge (git merge-file): Atlas's edits + the new version, against the version it started from.
+    Writes the result and returns True when it's clean and still compiles; otherwise leaves Atlas's file alone."""
+    base = os.path.join(base_dir(), name)
+    if not os.path.exists(base) or not shutil.which("git"):
+        return False
+    try:
+        r = subprocess.run(["git", "merge-file", "-p", mine, base, theirs], capture_output=True, timeout=60, creationflags=NO_WINDOW)
+        if r.returncode != 0:   # conflicts (or an error)
+            return False
+        tmp = mine + ".merged"
+        with open(tmp, "wb") as fh:
+            fh.write(r.stdout)
+        import py_compile
+        try:
+            if name.endswith(".py"):
+                py_compile.compile(tmp, doraise=True)
+        except py_compile.PyCompileError:
+            os.remove(tmp)
+            return False
+        os.replace(tmp, mine)
+        save_base(name, theirs)
+        return True
+    except Exception as e:
+        print(f"update: merge of {name} failed: {e}")
+        return False
+
+
 def local_changes():
     """Files Jarvis deliberately edited itself (it records them). Updates leave those alone."""
     import json
@@ -144,6 +185,12 @@ def update():
         print("update: couldn't get the new code, running the current version")
         return 0
     files = changed_files(src)
+    for pat in MANAGED:   # remember the repo version of files that match it, so Atlas's later edits can be merged
+        for f in glob.glob(os.path.join(src, pat)):
+            name = os.path.basename(f)
+            dst = os.path.join(HERE, name)
+            if not os.path.exists(os.path.join(base_dir(), name)) and os.path.exists(dst) and filecmp.cmp(f, dst, shallow=False):
+                save_base(name, f)
     if not files:
         print("update: already up to date")
         if not os.path.exists(os.path.join(HERE, ".version.json")):
@@ -156,10 +203,14 @@ def update():
         name = os.path.basename(f)
         dst = os.path.join(HERE, name)
         if name in keep and os.path.exists(dst):
-            # Jarvis edited this one itself on purpose: keep it
-            print(f"update: kept Jarvis's own edits to {name}")
+            # Atlas edited this one itself: fold the new version in around its edits when they don't touch the same lines
+            if merge_own_edits(name, dst, f):
+                print(f"update: merged the new {name} with Atlas's own edits")
+            else:
+                print(f"update: kept Atlas's own edits to {name} (the new version changes the same lines)")
             continue
         shutil.copy2(f, dst)
+        save_base(name, f)
         installed[name] = file_hash(dst)
         print("update: new", name)
     save_installed(installed)
@@ -260,4 +311,9 @@ if __name__ == "__main__":
     if "--extras" in sys.argv:
         install_extras(force=True)
     else:
+        try:
+            import jarvis_evolve
+            jarvis_evolve.boot_guard()   # undo a self edit that keeps Atlas from starting
+        except Exception as e:
+            print(f"update: boot guard: {e}")
         update()

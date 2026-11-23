@@ -50,6 +50,7 @@ import jarvis_phone
 import jarvis_room
 import jarvis_wake
 import jarvis_chats
+import jarvis_evolve
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -130,7 +131,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -345,9 +346,26 @@ HALLUCINATIONS = {"", "you", "thank you", "thank you.", "thanks for watching", "
                   "thank you for watching", "subtitles by the amara.org community", "uh", "um", "hmm"}
 
 
+_LEARNED = {"mtime": 0, "text": ""}
+
+
+def learned_vocab():
+    """Words Atlas learned from your corrections (it misheard them before)."""
+    path = os.path.join(WORKDIR, ".vocab_learned.txt")
+    try:
+        m = os.path.getmtime(path)
+        if m != _LEARNED["mtime"]:
+            _LEARNED.update(mtime=m, text=open(path, encoding="utf-8").read().strip()[-600:])
+    except OSError:
+        return ""
+    return _LEARNED["text"]
+
+
 def transcribe(model, audio):
     """Whisper, primed with Yash's names and words, a wider search, and a filter for its made up lines on silence."""
-    prompt = "Yash talking to Jarvis, his AI. Names and words: " + VOCAB + (", " + VOCAB_EXTRA if VOCAB_EXTRA else "") + "."
+    learned = learned_vocab()
+    prompt = (f"Yash talking to {ASSISTANT_NAME}, his AI. Names and words: " + VOCAB + (", " + VOCAB_EXTRA if VOCAB_EXTRA else "")
+              + (", " + learned if learned else "") + ".")
     segments, _ = model.transcribe(audio, language="en", beam_size=5, vad_filter=True, initial_prompt=prompt,
                                    condition_on_previous_text=False, no_speech_threshold=0.6,
                                    vad_parameters={"min_silence_duration_ms": 300})
@@ -829,7 +847,7 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1343,6 +1361,7 @@ def describe_denied(denied):
 
 
 ACTIVITY = None   # set in main: what he's doing right now, added to every question
+EVOLVER = None    # set in main: lessons and self improvement
 CONVOS = None     # set in main: the conversation log (short term memory, transcripts, daily lasting facts)
 MODS = []         # add ons in C:\jarvis\mods, loaded at start
 
@@ -1406,6 +1425,13 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
                   f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. His claude.ai chats (from his data export) are notes in his "
                   "vault under Claude/Chats, one per chat: Grep them when he asks what he talked to Claude about. For a chat "
                   "newer than the export, open claude.ai/recents in the browser and read the screen with jarvis_ctl.")
+    if EVOLVER:
+        try:
+            les = EVOLVER.lessons(1200)
+            if les:
+                extra += " Lessons from Yash's past corrections, follow them: " + les.replace("\n", " ")
+        except Exception:
+            pass
     if ACTIVITY:
         try:
             extra += " " + ACTIVITY.context()
@@ -1942,6 +1968,15 @@ class Jarvis:
 
     def handle(self, text):
         """Returns False to quit."""
+        if CONVOS and EVOLVER:
+            try:
+                prev = CONVOS.rows(time.time() - 300)
+                you = next((r["text"] for r in reversed(prev) if r["who"] == "you"), "")
+                me = " ".join(r["text"] for r in prev if r["who"] != "you" and r["t"] >= (prev[-1]["t"] - 60 if prev else 0))[-300:]
+                if you:
+                    EVOLVER.learn_from(text, you, me)
+            except Exception as e:
+                log(f"learn: {e}")
         if CONVOS:
             CONVOS.add("you", text)
             if self.brain and jarvis_memory.worth_remembering(text):
@@ -1987,6 +2022,13 @@ class Jarvis:
                 self.speaker.say("That change broke my code, so I put the old version back: " + ", ".join(broken) + ".")
             if good:
                 log("code or settings changed: " + ", ".join(good) + ". Restarting to load it.")
+                try:   # so "undo your last change" and the boot guard can put it back
+                    folder = jarvis_evolve.backup_snapshot(before, "you asked: " + text[:200])
+                    jarvis_evolve.mark_pending(folder, "the change you asked for: " + text[:120])
+                    if EVOLVER:
+                        EVOLVER.changelog("Changed myself because you asked: " + text[:200], good, text[:120])
+                except Exception as e:
+                    log(f"backup: {e}")
                 threading.Timer(4.0, lambda: setattr(self, "restart_for_update", True)).start()
         denied = list(LAST_DENIED)
         real = [x for x in spoken if x not in ("One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.")]
@@ -2350,6 +2392,27 @@ class Jarvis:
                     pass
             say(ans)
             return True
+        if action in ("evolve", "evolve_undo", "evolve_recap", "evolve_lessons"):
+            ev = EVOLVER
+            if not ev:
+                say("Self improvement isn't running.")
+            elif action == "evolve":
+                say("On it. I'll work on " + (arg if arg else "what went wrong lately") + " and tell you when it's done. Keep using me.")
+                threading.Thread(target=ev.improve, args=(arg,), daemon=True).start()
+            elif action == "evolve_undo":
+                why = ev.undo()
+                if why is None:
+                    say("There's nothing to undo.")
+                else:
+                    say("Put my code back to how it was before that change. Restarting.")
+                    threading.Timer(3.0, lambda: setattr(self, "restart_for_update", True)).start()
+            elif action == "evolve_recap":
+                say(ev.recap())
+            else:
+                les = ev.lessons(2000)
+                say(ask_claude("Out loud in under 60 words, the most useful things these lessons say you learned from Yash's "
+                               "corrections:\n" + les, None, self.claude, tools="Read")[0] if les else "Nothing yet. Correct me when I get something wrong and I'll remember it.")
+            return True
         if action == "gesture_map":
             g, cmd = arg
             gm = load_gesture_map()
@@ -2650,6 +2713,20 @@ def main():
     MODS = load_mods()
     CONVOS = jarvis_memory.Conversations(vault=BRAIN.vault)
     Speaker.on_said = lambda text: CONVOS.add("jarvis", text)
+    global EVOLVER
+    EVOLVER = jarvis_evolve.Evolver(claude_cmd(jarvis.claude or find_claude() or "claude"), LOG_FILE, vault=BRAIN.vault,
+                                    say=speaker.say, news=BRAIN.news, restart=lambda: setattr(jarvis, "restart_for_update", True),
+                                    idle=lambda: min(jarvis_brain.idle_seconds(), jarvis.vision.seconds_since_face() if jarvis.vision else 1e9),
+                                    ask=lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read", model="haiku")[0])
+    threading.Thread(target=EVOLVER.nightly, daemon=True).start()
+    threading.Timer(150, jarvis_evolve.confirm_boot).start()   # up for a couple of minutes: the last change is good
+    if os.path.exists(jarvis_evolve.REVERTED):
+        try:
+            gone = json.load(open(jarvis_evolve.REVERTED)).get("summary", "")
+            os.remove(jarvis_evolve.REVERTED)
+            BRAIN.news.append("My last change to myself kept me from starting, so I undid it" + (f": {gone}" if gone else "") + ".")
+        except Exception:
+            pass
     jarvis.chats = jarvis_chats.Chats(speaker.say, lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read")[0], vault=BRAIN.vault,
                                       remember=BRAIN.vault.remember, open_url=jarvis.pc.open_url)
     threading.Thread(target=jarvis.chats.watch, daemon=True).start()
