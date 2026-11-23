@@ -51,6 +51,7 @@ import jarvis_room
 import jarvis_wake
 import jarvis_chats
 import jarvis_evolve
+import jarvis_multi
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -131,7 +132,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -847,7 +848,7 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -2002,7 +2003,39 @@ class Jarvis:
         if cmd:
             log(f"command: {cmd}")
             return self.run(*cmd)
+        parts = jarvis_multi.split_commands(text, route)
+        if parts:
+            # several requests in one breath: quick ones now, the rest to Claude as one request
+            log("several: " + " | ".join(p for p, _ in parts))
+            keep = True
+            for piece, c in parts:
+                if c:
+                    log(f"command: {c}")
+                    keep = self.run(*c) is not False and keep
+                else:
+                    done = [p for p, c2 in parts if c2]
+                    keep = self.ask(piece + (f"  (I said all of this: \"{text}\". You already did: {'; '.join(done)}.)" if done else "")) \
+                        is not False and keep
+            return keep
+        return self.ask(text)
+
+    def ask(self, text):
+        """Anything the quick commands don't cover goes to Claude. Bigger jobs run in the background."""
         guest = bool(self.brain and self.brain.guest)
+        if jarvis_multi.BACKGROUND and getattr(self, "jobs", None) and jarvis_multi.is_task(text):
+            full_bg = FULL_ACCESS and not guest
+
+            def work():
+                before = snapshot_code()
+                ans, _ = ask_claude(text, None, self.claude, full=full_bg)
+                ch = check_code_changes(before)
+                if ch and ch[1]:
+                    threading.Timer(4.0, lambda: setattr(self, "restart_for_update", True)).start()
+                return ans
+            if self.jobs.start(text, work):
+                self.speaker.say(random.choice(["On it. Keep going, I'll tell you when it's done.", "On it, in the background.",
+                                                "Working on it. Ask me anything meanwhile."]))
+                return True
         full = FULL_ACCESS and not guest
         spoken = []
 
@@ -2052,6 +2085,16 @@ class Jarvis:
 
     def run(self, action, arg):
         say, pc, sp = self.speaker.say, self.pc, self.spotify
+        if action in ("jobs_status", "jobs_drop"):
+            jb = getattr(self, "jobs", None)
+            if not jb:
+                say("Nothing running in the background.")
+            elif action == "jobs_status":
+                say(jb.status())
+            else:
+                gone = jb.drop_newest()
+                say(f"Dropped it: {jarvis_multi.short(gone)}." if gone else "Nothing to drop.")
+            return True
         if action == "confirm":
             job, self.pending = self.pending, None
             if not job:
@@ -2727,6 +2770,8 @@ def main():
             BRAIN.news.append("My last change to myself kept me from starting, so I undid it" + (f": {gone}" if gone else "") + ".")
         except Exception:
             pass
+    jarvis.jobs = jarvis_multi.Jobs(speaker.say, lambda: not speaker.speaking and not getattr(jarvis, "recording", False),
+                                    lock=jarvis.lock, log=log)
     jarvis.chats = jarvis_chats.Chats(speaker.say, lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read")[0], vault=BRAIN.vault,
                                       remember=BRAIN.vault.remember, open_url=jarvis.pc.open_url)
     threading.Thread(target=jarvis.chats.watch, daemon=True).start()
@@ -2860,6 +2905,7 @@ def main():
                 jarvis.quiet_until = time.time() + 1.0
                 continue
             text = None
+            jarvis.recording = bool(named) or jarvis.listen_requested
             if named:
                 # "Atlas" alone: chime and listen. "Atlas, open Spotify": the rest of the sentence is the command.
                 audio, finished, rest = named
@@ -2891,6 +2937,7 @@ def main():
                 continue
 
             if text is None:
+                jarvis.recording = True   # background jobs wait to report until you're done talking
                 wake.reset()
                 if spotter:
                     spotter.reset()
@@ -2903,10 +2950,12 @@ def main():
                 drain_mic()
                 audio = record_until_silence(noise)
                 if audio is None:
+                    jarvis.recording = False
                     jarvis_orb.send("idle")
                     continue
                 jarvis_orb.send("thinking")
                 text = transcribe(whisper, audio)
+            jarvis.recording = False
             log(f"you: {text}")
             if not text:
                 jarvis_orb.send("idle")
