@@ -85,11 +85,14 @@ MAX_RECORD_SECONDS = 30
 WORKDIR = os.path.dirname(os.path.abspath(__file__))   # Claude reads CLAUDE.md from here
 HQ_URL = "https://claude.ai/artifact/9ZQx1xYZwPMRDhDuoT5oVE"
 HQ_FULLSCREEN = True         # open HQ as a full screen app window in Chrome or Edge
+WAKE_OPENS_HQ = False        # the wake up (clap, "wake up") also opens HQ full screen. Off: "open HQ" does it when you want it
+WAKE_MUSIC = False           # the wake up also starts your room playlist
+WAKE_SCENE_EVERY = 3         # hours: the full wake up (greeting and brief) at most this often. A clap in between just listens
 CLAP_WAKE = True
 CLAP_LEVEL = 0.35            # how loud a clap must be (0 to 1)
 CLAP_CREST = 4.0             # how sharp: peak divided by average. Claps are spiky, voices are not
 CLAP_GAP = (0.15, 0.9)       # seconds allowed between the two claps
-GREETING = "Welcome back Yash. Systems online."
+GREETING = "Hey Yash."
 MORNING_BRIEF_BEFORE = 12    # on a clap wake before this hour, read a short brief (once a day)
 # claude.ai connectors show up in Claude Code as mcp__claude_ai_<Name>. Run --doctor to confirm names.
 CONNECTOR_TOOLS = "mcp__claude_ai_Google_Calendar,mcp__claude_ai_Gmail"
@@ -856,7 +859,9 @@ def _route(text):
         return ("session_send", (m.group(1), m.group(2)))
     if re.search(r"\bnew conversation\b|\bstart over\b|\bfresh start\b", t):
         return ("reset", None)
-    if re.fullmatch(r"(?:open|show|pull up) (?:the )?hq|wake (?:everything|the room|up the room|up)(?: everything)?|wake everything up|"
+    if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:hq|dashboard)", t):
+        return ("hq_open", None)
+    if re.fullmatch(r"wake (?:everything|the room|up the room|up)(?: everything)?|wake everything up|"
                     r"(?:ok(?:ay)? )?i'?m (?:home|back)|wakey wakey|rise and shine|systems? on(?:line)?", t):
         return ("hq", None)
     if re.fullmatch(r"lock (?:the |my )?(?:screen|computer|pc)(?: now)?", t):
@@ -1750,11 +1755,7 @@ class Jarvis:
         elif name == "rock":
             return   # recognized, not used for anything yet
         elif name == "wave":
-            if time.time() - self.last_wake > 600:
-                with self.lock:
-                    self.wake_room()
-            else:
-                self.speaker.say("Hey.")
+            self.pc.nudge_display()   # screen on, nothing else
         if name not in ("point_up", "point_down", "peace", "wave"):
             threading.Thread(target=lambda: self.speaker.chime(1480), daemon=True).start()
 
@@ -1862,21 +1863,27 @@ class Jarvis:
             if b:
                 b.vault.log(f"{F.spoken_name(n)} came by")
 
-    def wake_room(self):
-        """The walk in scene. Opening HQ here also tells HQ on the iPad to wake up."""
-        self.last_wake = time.time()
-        self.leave_standby("clap", greet=False)
+    def wake_room(self, force=False):
+        """The walk in scene: screen on, a short hello and what's next. HQ and music only if you turned them on.
+        Clapping again later doesn't repeat it, it just listens like the wake word."""
+        was_standby = self.leave_standby("clap", greet=False)
         self.pc.nudge_display()
+        if not force and not was_standby and time.time() - self.last_wake < WAKE_SCENE_EVERY * 3600:
+            self.listen_requested = True   # main loop chimes and listens
+            return
+        self.last_wake = time.time()
         snd = threading.Thread(target=lambda: self.speaker.powerup(), daemon=True)
         snd.start()
-        self.pc.open_url(HQ_URL + "#wake", app_window=HQ_FULLSCREEN)   # #wake plays HQ's full screen takeover here and on the iPad
-        if hasattr(self.pc, "arrange"):
-            try:
-                self.pc.arrange()
-            except Exception as e:
-                log(f"layout failed: {e}")
-        threading.Thread(target=lambda: log("music: " + jarvis_room.start_music(self.pc, self.spotify, log)), daemon=True).start()
-        log("room awake, HQ opened")
+        if WAKE_OPENS_HQ:
+            self.pc.open_url(HQ_URL + "#wake", app_window=HQ_FULLSCREEN)   # #wake plays HQ's full screen takeover here and on the iPad
+            if hasattr(self.pc, "arrange"):
+                try:
+                    self.pc.arrange()
+                except Exception as e:
+                    log(f"layout failed: {e}")
+        if WAKE_MUSIC:
+            threading.Thread(target=lambda: log("music: " + jarvis_room.start_music(self.pc, self.spotify, log)), daemon=True).start()
+        log("room awake" + (", HQ opened" if WAKE_OPENS_HQ else ""))
         if NTFY_TOPIC and WAKE_PUSH:
             threading.Thread(target=push_phone, args=("HQ is online. Welcome back.",), daemon=True).start()
         if self.brain:
@@ -2184,7 +2191,7 @@ class Jarvis:
             say(f"Send to the {name} session: {msg}. Say yes to send.")
             return True
         if action in ("remember", "memory_list", "vault_search", "vault_open", "vault_log", "game_result", "season", "focus", "focus_end", "what_now",
-                      "stat", "streaks", "pregame", "restore", "shop", "due", "weekly", "mail_check"):
+                      "stat", "streaks", "pregame", "restore", "shop", "due", "weekly", "mail_check", "remind_return"):
             if not self.brain:
                 self.make_brain()
             if action == "focus" and jarvis_brain.FOCUS_MUSIC and sp.ready:
@@ -2430,7 +2437,10 @@ class Jarvis:
             save_session(None)
             say("Fresh start.")
         elif action == "hq":
-            self.wake_room()
+            self.wake_room(force=True)
+        elif action == "hq_open":
+            pc.open_url(HQ_URL, app_window=HQ_FULLSCREEN)
+            say("HQ is up.")
         elif action == "lock":
             say("Locking.")
             pc.lock()

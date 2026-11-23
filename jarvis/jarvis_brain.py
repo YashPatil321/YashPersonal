@@ -29,7 +29,8 @@ JARVIS_FOLDER = "Jarvis"     # memory, inbox
 SEASON_NOTE = "Soccer/Season 2026-27.md"
 AWAY_MINUTES = 20            # no keyboard or mouse for this long = you left the desk
 AUTO_WELCOME = True          # greet you when you sit back down after being away, even without a clap
-AUTO_WELCOME_AFTER = 45      # minutes away before an automatic welcome
+AUTO_WELCOME_AFTER = 120     # minutes away before an automatic hello when you sit back down (0 = never)
+WELCOME_GAP_HOURS = 4        # and never more often than this
 QUIET_HOURS = (23, 6)        # no automatic welcomes or reminders from 11 PM to 6 AM
 FOCUS_MUSIC = ""             # optional, e.g. "lofi beats". Played when a focus session starts
 PLAN_REFRESH_HOURS = (7, 12, 15, 18)   # re-read the calendar for reminders at these hours
@@ -439,18 +440,15 @@ def quiet_now(hour=None):
 
 # ================= situation =================
 def quick_line(hour, away_min):
-    """Said instantly while the calendar is checked."""
+    """Said instantly while the calendar is checked. Short, and not the same "welcome back" every time."""
+    import random
     if hour < 5:
-        return "You're up late, Yash."
+        return "You're up late."
     if away_min >= 60 * 24 * 2:
-        return "Yash. It's been a while. Welcome back."
-    if hour < 11:
-        return "Morning, Yash." if away_min > 240 else "Welcome back, Yash."
-    if hour < 17:
-        return "Welcome back, Yash."
-    if hour < 22:
-        return "Evening, Yash. Welcome back."
-    return "Welcome back. It's getting late."
+        return "Been a minute, Yash."
+    if hour < 11 and away_min > 240:
+        return "Morning, Yash."
+    return random.choice(["Hey.", "Yash.", "There you are.", "Hey Yash."])
 
 
 def away_text(m):
@@ -577,6 +575,10 @@ class Planner:
 
 # ================= voice routes =================
 def route_brain(t):
+    m = re.fullmatch(r"(?:remind me|tell me|ask me) (?:when|once|as soon as) i (?:get back|get home|come back|sit (?:back )?down|am back|'?m back|get to my desk)"
+                     r"(?: home)? (?:to |that |about )?(.+)", t)
+    if m:
+        return ("remind_return", m.group(1))
     """Voice lines this module handles. t is already lowercased and cleaned."""
     if re.fullmatch(r"(?:remember|don't forget|keep in mind)(?: that)? (.+)", t):
         return ("remember", re.sub(r"^(?:remember|don't forget|keep in mind)(?: that)? ", "", t))
@@ -715,6 +717,7 @@ class Brain:
         th = threading.Thread(target=work, daemon=True)
         th.start()
         self.presence.seen()
+        self.last_greet_t = time.time()
         return quick_line(lt.tm_hour, gone), lambda wait=60: self._finish(th, result, wait, morning, today, reason, gone)
 
     def _finish(self, th, result, wait, morning, today, reason, gone):
@@ -842,8 +845,19 @@ class Brain:
             self.say((spoken_part.strip() or "Your weekly review is in Obsidian.") + " The full review is in your Weekly folder.")
         return rel
 
+    def run_return_reminders(self):
+        """Things you asked to hear about the next time you sit down."""
+        st = load_state()
+        items = st.pop("on_return", [])
+        if items:
+            save_state(st)
+            self.say("Before I forget: " + "; ".join(items) + ".")
+            self.vault.log("Reminded on return: " + "; ".join(items))
+
     def auto_welcome(self, gone):
-        if gone < AUTO_WELCOME_AFTER or quiet_now() or self.held():
+        self.run_return_reminders()
+        if not AUTO_WELCOME_AFTER or gone < AUTO_WELCOME_AFTER or quiet_now() or self.held() \
+                or time.time() - getattr(self, "last_greet_t", 0) < WELCOME_GAP_HOURS * 3600:
             return
         quick, finish = self.greet("sat down")
         self.say(quick)
@@ -941,6 +955,11 @@ class Brain:
         elif action == "shop":
             say(self.ask("Out loud in under 60 words: what's happening at SolidHauz today. Jobs behind, new leads, payments, consults "
                          "today, anything urgent first. Use the SolidHauz tools.", tools=SHOP_TOOLS))
+        elif action == "remind_return":
+            st = load_state()
+            st["on_return"] = st.get("on_return", []) + [arg]
+            save_state(st)
+            say("Got it. I'll tell you when you're back at the desk.")
         elif action == "due":
             inbox = [l for l in v.read(f"{JARVIS_FOLDER}/Inbox.md").splitlines() if l.startswith("- [ ]")][-10:]
             say(self.ask("Out loud in under 60 words: what's due for me in the next 7 days from my Google Calendar (all day Due events "
