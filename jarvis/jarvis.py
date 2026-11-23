@@ -52,6 +52,7 @@ import jarvis_wake
 import jarvis_chats
 import jarvis_evolve
 import jarvis_multi
+import jarvis_persona
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -132,7 +133,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -848,7 +849,7 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1363,6 +1364,17 @@ def describe_denied(denied):
 
 ACTIVITY = None   # set in main: what he's doing right now, added to every question
 EVOLVER = None    # set in main: lessons and self improvement
+PERSONA = None    # set in main: the living character sheet
+
+
+def style_now():
+    """How to talk, with the character sheet in place of the fixed personality once it exists."""
+    if PERSONA:
+        try:
+            return SPOKEN_STYLE.replace(PERSONALITY, PERSONA.prompt())
+        except Exception:
+            pass
+    return SPOKEN_STYLE
 CONVOS = None     # set in main: the conversation log (short term memory, transcripts, daily lasting facts)
 MODS = []         # add ons in C:\jarvis\mods, loaded at start
 
@@ -1449,7 +1461,7 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
         except Exception:
             pass
     cmd = claude_cmd(claude) + ["-p", "--output-format", "stream-json" if on_text else "json", "--append-system-prompt",
-           one_line(SPOKEN_STYLE + " Local time now: " + now + "." + extra), "--allowedTools", tools]
+           one_line(style_now() + " Local time now: " + now + "." + extra), "--allowedTools", tools]
     if on_text:
         cmd += ["--verbose", "--include-partial-messages"]
     if model or CLAUDE_MODEL:
@@ -1978,6 +1990,13 @@ class Jarvis:
                     EVOLVER.learn_from(text, you, me)
             except Exception as e:
                 log(f"learn: {e}")
+        if CONVOS and PERSONA:
+            try:
+                prev = CONVOS.rows(time.time() - 600)
+                last_me = next((r["text"] for r in reversed(prev) if r["who"] != "you"), "")
+                PERSONA.react(text, last_me)
+            except Exception as e:
+                log(f"persona: {e}")
         if CONVOS:
             CONVOS.add("you", text)
             if self.brain and jarvis_memory.worth_remembering(text):
@@ -2085,6 +2104,28 @@ class Jarvis:
 
     def run(self, action, arg):
         say, pc, sp = self.speaker.say, self.pc, self.spotify
+        if action in ("spice", "spice_set", "persona_me", "persona_jokes", "persona_reset", "persona_grow"):
+            pz = PERSONA
+            if not pz:
+                say("My personality file isn't set up yet.")
+            elif action in ("spice", "spice_set"):
+                n = pz.set_spice(delta=arg) if action == "spice" else pz.set_spice(value=arg)
+                say({1: "Fine. Calm mode. Boring, but calm.", 2: "Dialed down.", 3: "Normal me.", 4: "Back to full personality.",
+                     5: "Oh you asked for it. Level five. No brakes."}[n])
+            elif action == "persona_me":
+                say(ask_claude("In your own voice, out loud, under 60 words: who you are and what we've got going, from your "
+                               "character sheet. Be yourself.", None, self.claude, tools="Read")[0])
+            elif action == "persona_jokes":
+                say(ask_claude("Out loud, under 60 words, in character: our running jokes, nicknames and best moments from your "
+                               "character sheet. If there aren't any yet, say we need to fix that.", None, self.claude, tools="Read")[0])
+            elif action == "persona_reset":
+                pz.reset()
+                say("Fresh start. I kept the old me in a backup in case you miss him.")
+            else:
+                say("Give me a minute, rereading our conversations.")
+                threading.Thread(target=lambda: say("Updated myself. Ask me who I am." if pz.rewrite(force=True)
+                                                    else "Couldn't rewrite myself right now."), daemon=True).start()
+            return True
         if action in ("jobs_status", "jobs_drop"):
             jb = getattr(self, "jobs", None)
             if not jb:
@@ -2770,6 +2811,10 @@ def main():
             BRAIN.news.append("My last change to myself kept me from starting, so I undid it" + (f": {gone}" if gone else "") + ".")
         except Exception:
             pass
+    global PERSONA
+    PERSONA = jarvis_persona.Persona(BRAIN.vault, ask=lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read", model="opus")[0],
+                                     convos=CONVOS, name=ASSISTANT_NAME)
+    threading.Thread(target=PERSONA.watch, daemon=True).start()
     jarvis.jobs = jarvis_multi.Jobs(speaker.say, lambda: not speaker.speaking and not getattr(jarvis, "recording", False),
                                     lock=jarvis.lock, log=log)
     jarvis.chats = jarvis_chats.Chats(speaker.say, lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read")[0], vault=BRAIN.vault,
