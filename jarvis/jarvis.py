@@ -79,6 +79,8 @@ VOICE = "am_michael"         # kokoro voices: am_michael, am_adam, af_heart, bf_
 SILENCE_SECONDS = 1.0        # how long you pause before it stops recording
 CLAUDE_MODEL = "sonnet"      # the brain for voice answers: sonnet is fast and sharp. "opus" for the deepest thinking (slower)
 STREAM = True                # start talking at the first sentence instead of waiting for the whole answer
+FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
+KEEP_LISTENING = True        # while Claude thinks, Atlas still hears you, so you can give it more commands
 # words Whisper should expect, so names come out right. Add your own in local_settings.py as VOCAB_EXTRA
 VOCAB = ("Yash, Atlas, Jarvis, SolidHauz, Del Norte, Nighthawks, O'Rielly, Coach Roty, Babson, UC, USC, Common App, Obsidian, "
          "Spotify, Claude, Claude Code, Vercel, Supabase, GitHub, HQ, ProMX, San Pasqual, Torrey Pines, Calexico, 4S Ranch, "
@@ -389,12 +391,16 @@ class Speaker:
             import pyttsx3
             self.engine = pyttsx3.init()
         self.stop_flag = threading.Event()
+        self.say_lock = threading.RLock()
+        self.cut_at = 0.0
+        self.last_end = 0.0
         self.speaking = False
         self.interrupted = False
         self.watch = None   # watch(frame) -> True cuts Jarvis off mid sentence. Set in main: wake word or a double clap
 
     def stop(self):
         """Stop talking right now."""
+        self.cut_at = time.time()   # an answer still streaming in sees this and stops reading the rest
         self.stop_flag.set()
         try:
             _sd().stop()
@@ -432,17 +438,19 @@ class Speaker:
             cap.append(re.sub(r"[*#`_>\[\]]", "", text))
             if not getattr(Speaker.capture, "speak", False):
                 return
-        self.stop_flag.clear()
-        self.interrupted = False
-        self.speaking = True
-        jarvis_orb.send("speaking")
-        if self.watch and threading.current_thread() is threading.main_thread():
-            threading.Thread(target=self._watch, daemon=True).start()
-        try:
-            self._say(text)
-        finally:
-            self.speaking = False
-            jarvis_orb.send("idle")
+        with self.say_lock:   # one voice: answers, job reports and quick commands take turns
+            self.stop_flag.clear()
+            self.interrupted = False
+            self.speaking = True
+            jarvis_orb.send("speaking")
+            if self.watch and threading.current_thread() is threading.main_thread():
+                threading.Thread(target=self._watch, daemon=True).start()
+            try:
+                self._say(text)
+            finally:
+                self.speaking = False
+                self.last_end = time.time()
+                jarvis_orb.send("idle")
 
     def _say(self, text):
         sd = _sd()
@@ -1614,6 +1622,7 @@ class Jarvis:
         self.brain = None
         self.extras = None
         self.lock = threading.RLock()   # voice and phone requests take turns
+        self.last_heard, self.follow_frames, self.recording = 0.0, [], False
         self.vision = None
         self.desk = None
         self.cad = None
@@ -2039,7 +2048,31 @@ class Jarvis:
         return self.ask(text)
 
     def ask(self, text):
-        """Anything the quick commands don't cover goes to Claude. Bigger jobs run in the background."""
+        """Anything the quick commands don't cover goes to Claude. Bigger jobs run in the background. With KEEP_LISTENING
+        the answer is worked out on its own thread, so Atlas keeps hearing you (more commands, or cut it off)."""
+        if KEEP_LISTENING and threading.current_thread() is threading.main_thread():
+            if not hasattr(self, "convo_lock"):
+                self.convo_lock = threading.Lock()
+            if self.convo_lock.acquire(blocking=False):
+                def run_it():
+                    try:
+                        jarvis_orb.send("thinking")
+                        self._ask(text)
+                    except Exception as e:
+                        log(f"error: {e}")
+                        self.speaker.say("Something broke. Check the Atlas window.")
+                    finally:
+                        self.convo_lock.release()
+                threading.Thread(target=run_it, daemon=True).start()
+                return True
+            # already thinking about something: this one runs next to it
+            if getattr(self, "jobs", None) and self.jobs.start(text, lambda: ask_claude(text, None, self.claude,
+                                                                                         full=FULL_ACCESS and not (self.brain and self.brain.guest))[0]):
+                self.speaker.say("On it, after this.")
+                return True
+        return self._ask(text)
+
+    def _ask(self, text):
         guest = bool(self.brain and self.brain.guest)
         if jarvis_multi.BACKGROUND and getattr(self, "jobs", None) and jarvis_multi.is_task(text):
             full_bg = FULL_ACCESS and not guest
@@ -2058,12 +2091,14 @@ class Jarvis:
         full = FULL_ACCESS and not guest
         spoken = []
 
+        asked_at = time.time()
+
         def speak(sentence):
-            if self.speaker.interrupted:
+            if self.speaker.interrupted or self.speaker.cut_at > asked_at:
                 return False   # you cut it off: stop reading the rest
             spoken.append(sentence)
             self.speaker.say(sentence)
-            return not self.speaker.interrupted
+            return not (self.speaker.interrupted or self.speaker.cut_at > asked_at)
         before = snapshot_code()
         answer, self.session_id = ask_claude(text, self.session_id, self.claude, full=full, on_text=speak if STREAM else None)
         save_session(self.session_id)
@@ -2086,6 +2121,8 @@ class Jarvis:
         real = [x for x in spoken if x not in ("One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.")]
         if STREAM and real and not denied:
             return True   # already said it, sentence by sentence
+        if self.speaker.cut_at > asked_at:
+            return True   # you cut it off and moved on
         if denied and not full and not guest:
             # Claude needed a permission it can't ask for on screen, so ask out loud instead
             what = describe_denied(denied)
@@ -2937,9 +2974,16 @@ def main():
             if time.time() < jarvis.quiet_until:
                 continue
             named = None
-            if spotter:
+            if spotter and not speaker.speaking:   # don't wake on its own voice
                 spotter.feed(frame)
                 named = spotter.poll()
+            follow = None
+            if FOLLOWUP_SECONDS and not speaker.speaking and not named and not jarvis.listen_requested \
+                    and 0.35 < time.time() - speaker.last_end < FOLLOWUP_SECONDS and speaker.last_end > jarvis.last_heard:
+                loud = float(np.sqrt(np.mean(frame.astype(np.float32) ** 2))) > max(noise * 3.5, 400)
+                jarvis.follow_frames = (jarvis.follow_frames + [frame])[-3:] if loud else []
+                if len(jarvis.follow_frames) >= 2:   # you started talking again: keep going, no name needed
+                    follow, jarvis.follow_frames = list(jarvis.follow_frames), []
             if CLAP_WAKE and claps.feed(frame):
                 wake.reset()
                 try:
@@ -2950,8 +2994,20 @@ def main():
                 jarvis.quiet_until = time.time() + 1.0
                 continue
             text = None
-            jarvis.recording = bool(named) or jarvis.listen_requested
-            if named:
+            jarvis.recording = bool(named) or bool(follow) or jarvis.listen_requested
+            if follow:
+                jarvis_orb.send("listening")
+                more = record_until_silence(noise, wait_for_voice=1.5)
+                audio = np.concatenate([np.concatenate(follow).astype(np.float32) / 32768.0] + ([more] if more is not None else []))
+                jarvis_orb.send("thinking")
+                heard = transcribe(whisper, audio)
+                jarvis.recording = False
+                if not heard or len(heard.split()) < 2 and heard.lower().strip(" .!?") not in ("yes", "no", "yeah", "nope", "stop", "pause", "next", "thanks"):
+                    jarvis_orb.send("idle")
+                    jarvis.last_heard = time.time()   # one try per reply, so room noise can't keep it listening
+                    continue
+                text = jarvis_wake.strip_name(heard, WAKE_NAME) if WAKE_NAME else heard
+            elif named:
                 # "Atlas" alone: chime and listen. "Atlas, open Spotify": the rest of the sentence is the command.
                 audio, finished, rest = named
                 jarvis.leave_standby("voice", greet=False)
@@ -3001,6 +3057,7 @@ def main():
                 jarvis_orb.send("thinking")
                 text = transcribe(whisper, audio)
             jarvis.recording = False
+            jarvis.last_heard = time.time()
             log(f"you: {text}")
             if not text:
                 jarvis_orb.send("idle")
