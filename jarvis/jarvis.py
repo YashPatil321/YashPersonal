@@ -865,6 +865,8 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
+    if re.fullmatch(r"(?:install|set up|turn on) (?:vision clicking|omni ?parser|better clicking|screen vision)", t):
+        return ("install_vision", None)
     if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
         return ("command_center", None)
     cc = cc or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
@@ -2235,9 +2237,29 @@ class Jarvis:
                 if msg:
                     say(msg)
             return True
+        if action == "install_vision":
+            say("Installing vision clicking. It's a big download, I'll tell you when it's ready.")
+
+            def go():
+                r = subprocess.run([sys.executable, os.path.join(WORKDIR, "jarvis_ctl.py"), "install-vision"], capture_output=True,
+                                   text=True, timeout=3600, creationflags=0x08000000 if IS_WIN else 0)
+                log("install-vision: " + (r.stdout or r.stderr)[-300:])
+                return "Vision clicking is ready. I can find buttons in any app now." if r.returncode == 0 else "Vision clicking didn't install. Check the Atlas window."
+            if getattr(self, "jobs", None):
+                self.jobs.start("install vision clicking", go)
+            return True
         if action == "command_center":
             pc.open_url(self.local_url("/command"), app_window=True)
             say("Command center's up.")
+            return True
+        if action == "obs_plugins":
+            if not self.brain:
+                say("I can't find your vault.")
+            else:
+                say("Installing Dataview, Spaced Repetition and Templater.")
+                got = jarvis_vaultstyle.install_plugins(self.brain.vault.root, log)
+                say(f"Installed {len(got)} plugins. In Obsidian, go to Settings, Community plugins, and turn them on once if it asks."
+                    if got else "Couldn't download them. Check the Atlas window.")
             return True
         if action in ("obs_open", "obs_new", "obs_daily"):
             if not self.brain:

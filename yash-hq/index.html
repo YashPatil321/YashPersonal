@@ -17,10 +17,10 @@
    Night (11 PM to 6 AM) drops to a dim all red mode, like a watch in night mode. */
 :root{
   color-scheme:dark;
-  --bg:#000;--mod:#0c0706;--mod2:#170d0b;--mod3:#21130f;--line:#2a1813;
-  --ink:#fff1ea;--ink2:#e8c2b6;--mute:#ad8679;--dim:#5e3e35;--off:#241511;
-  --hot:#ff5a43;--hot2:#ff8a6e;--amb:#ffb84d;
-  --card:#ffe6dc;--cardInk:#1a0d0a;--cardMute:#8a5e52;
+  --bg:#07090e;--mod:#0b0e15;--mod2:#10141d;--mod3:#161b27;--line:#1c2332;
+  --ink:#e6ebf5;--ink2:#c2cbe0;--mute:#8590a6;--dim:#3f4860;--off:#141927;
+  --hot:#8fb8ff;--hot2:#c7dbff;--amb:#ffb36b;
+  --card:#e6ebf5;--cardInk:#0b0e15;--cardMute:#5a6478;
   --f:"Geist",system-ui,sans-serif;--fm:"Geist Mono",ui-monospace,monospace;--fd:"Doto",ui-monospace,monospace;
   --gap:clamp(6px,.5vw,11px);--pad:clamp(12px,1vw,20px);--r:clamp(14px,1.05vw,22px);
 }
@@ -87,7 +87,7 @@ html[data-soon] #fB .a{color:var(--amb)}
 @media(prefers-reduced-motion:no-preference){.led.busy{animation:ld 1s infinite}}
 .keys{display:flex;gap:.4rem}
 .key{display:flex;flex-direction:column;align-items:center;gap:.3rem;background:none;border:0;padding:0;cursor:pointer}
-.key i{width:2.75rem;height:2.6rem;border-radius:.7rem;background:var(--mod3);box-shadow:inset 0 -2px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,220,200,.07);display:grid;place-content:center;font:600 .78rem var(--fm);font-style:normal;color:var(--ink2);transition:transform .08s,background .2s}
+.key i{width:2.75rem;height:2.6rem;border-radius:.7rem;background:var(--mod3);box-shadow:inset 0 -2px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(200,220,255,.06);display:grid;place-content:center;font:600 .78rem var(--fm);font-style:normal;color:var(--ink2);transition:transform .08s,background .2s}
 .key:hover i{background:var(--line)}
 .key:active i{transform:translateY(1px)}
 .key:focus-visible i{outline:2px solid var(--hot);outline-offset:2px}
@@ -237,7 +237,7 @@ body .cash b.dz{font-size:clamp(2rem,2.4vw,3rem)}
 .ci{padding:.55rem 0;border-top:1px solid var(--line)}
 .ci:first-child{border-top:0;padding-top:0}
 .ci label{display:grid;grid-template-columns:2.2rem minmax(0,1fr);gap:.7rem;cursor:pointer;align-items:start}
-.box{appearance:none;width:2.1rem;height:2.1rem;margin:0;border-radius:.6rem;background:var(--mod3);box-shadow:inset 0 -2px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(255,220,200,.07);display:grid;place-content:center;cursor:pointer}
+.box{appearance:none;width:2.1rem;height:2.1rem;margin:0;border-radius:.6rem;background:var(--mod3);box-shadow:inset 0 -2px 0 rgba(0,0,0,.55),inset 0 1px 0 rgba(200,220,255,.06);display:grid;place-content:center;cursor:pointer}
 .box::after{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--dim);transition:background .2s,transform .2s}
 .box:checked::after{background:var(--hot);transform:scale(1.15)}
 .box:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
@@ -386,8 +386,8 @@ html:not([data-waking]) .wake{transition:opacity .6s,visibility .6s}
 .boot svg{width:min(60vw,26rem);height:auto}
 .boot svg circle{fill:#2a1510}
 .boot p{margin:0;font:500 .72rem var(--fm);letter-spacing:.2em;color:#ad8679}
-@media(prefers-reduced-motion:no-preference){.boot svg circle.on{animation:bo .5s forwards}@keyframes bo{to{fill:#fff1ea}}}
-@media(prefers-reduced-motion:reduce){.boot svg circle.on{fill:#fff1ea}}
+@media(prefers-reduced-motion:no-preference){.boot svg circle.on{animation:bo .5s forwards}@keyframes bo{to{fill:#e6ebf5}}}
+@media(prefers-reduced-motion:reduce){.boot svg circle.on{fill:#e6ebf5}}
 
 /* ===== layouts ===== */
 @media(min-width:1000px) and (min-height:680px){
@@ -1285,7 +1285,7 @@ function playWake() {
   T('wkClock', c.h + ':' + c.m + ' ' + c.ap);
   const word = hr < 5 ? 'LATE NIGHT' : hr < 12 ? 'GOOD MORNING' : hr < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
   $('wkGreet').innerHTML = [...word].map((ch, i) => '<span style="--i:' + i + '">' + (ch === ' ' ? '&nbsp;' : ch) + '</span>').join('');
-  $('wkHi').innerHTML = 'Welcome back, <span>Yash</span>';
+  $('wkHi').innerHTML = 'Hey <span>Yash</span>';
   let rg = ''; [0, 1, 2].forEach((i) => { rg += '<g style="--i:' + i + '">'; const n = 48 + i * 12, R = 300 + i * 90; for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2; rg += '<circle cx="' + (500 + R * Math.cos(a)).toFixed(1) + '" cy="' + (500 + R * Math.sin(a)).toFixed(1) + '" r="' + (6 - i * 1.4) + '"/>'; } rg += '</g>'; });
   $('wkRings').innerHTML = rg;
   const n = calOk ? nowNext() : {}, e = n.cur || n.nxt, m = metrics();

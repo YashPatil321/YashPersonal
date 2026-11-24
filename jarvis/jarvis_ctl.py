@@ -20,6 +20,8 @@ Screen control from the command line, for Claude (with full access) and for you.
                                                    plus a numbered list of what's clickable or typeable in the window in
                                                    front, each with its position (plus text read off the screen when the
                                                    app hides its buttons, or with --ocr). Read the image, then act.
+  python jarvis_ctl.py look --vision              also finds buttons from the pixels (OmniParser), for games and odd apps
+  python jarvis_ctl.py install-vision              one time setup for --vision
   python jarvis_ctl.py clicknum 12                 clicks item 12 from the last look (the surest way to click)
   python jarvis_ctl.py typeinto 7 "hello"          clicks item 7 (a text box) and types into it
   python jarvis_ctl.py read                        the text in the window in front (a web page, a doc, a chat)
@@ -179,6 +181,45 @@ def ocr_items(img, ox, oy, start, limit=120):
     return out
 
 
+VISION_WEIGHTS = os.path.join(HERE, ".cache", "models", "omniparser_icon_detect.pt")
+
+
+def vision_items(img, ox, oy, start, limit=150):
+    """Every icon and button Microsoft's OmniParser detector can find in the picture, from pixels alone (works in
+    games and apps that hide everything from Windows). Needs: python jarvis_ctl.py install-vision (once)."""
+    if not os.path.exists(VISION_WEIGHTS):
+        return []
+    try:
+        from ultralytics import YOLO
+    except ImportError:
+        return []
+    try:
+        model = YOLO(VISION_WEIGHTS)
+        res = model.predict(img, conf=0.2, iou=0.4, verbose=False, imgsz=1280)[0]
+        boxes = res.boxes.xyxy.tolist()
+    except Exception as e:
+        print(f"(vision detector failed: {e})")
+        return []
+    boxes.sort(key=lambda b: (round(b[1] / 40), b[0]))   # reading order
+    return [(start + i, "Icon", "", int(ox + (b[0] + b[2]) / 2), int(oy + (b[1] + b[3]) / 2)) for i, b in enumerate(boxes[:limit])]
+
+
+def install_vision():
+    """One time: the detector package and OmniParser V2's icon detector weights (from Hugging Face)."""
+    import subprocess
+    r = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "ultralytics", "huggingface_hub"], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("pip failed:", (r.stderr or "")[-300:])
+        return 1
+    from huggingface_hub import hf_hub_download
+    import shutil
+    p = hf_hub_download("microsoft/OmniParser-v2.0", "icon_detect_v3/model.pt")   # the newest detector, MIT licensed
+    os.makedirs(os.path.dirname(VISION_WEIGHTS), exist_ok=True)
+    shutil.copy2(p, VISION_WEIGHTS)
+    print("vision clicking installed:", VISION_WEIGHTS)
+    return 0
+
+
 def look(path=None):
     """Screenshot with a labeled grid in real screen coordinates, plus the numbered element list."""
     from PIL import ImageGrab, ImageDraw, ImageFont
@@ -209,6 +250,8 @@ def look(path=None):
         print(f"(couldn't list elements: {e})")
     if len(els) < 12 or "--ocr" in sys.argv:   # the app hides its buttons from Windows: read the screen instead
         els += ocr_items(img.copy(), ox, oy, len(els) + 1)
+    if len(els) < 12 or "--vision" in sys.argv:   # still almost nothing: find buttons from the pixels
+        els += vision_items(img.copy(), ox, oy, len(els) + 1)
     for n, kind, name, x, y in els:   # number badges on the picture, so it's easy to match
         d.rectangle([x - ox - 14, y - oy - 12, x - ox + 14, y - oy + 12], outline=(0, 255, 160), width=2)
         d.text((x - ox - 10, y - oy - 11), str(n), fill=(0, 255, 160), font=font)
@@ -266,8 +309,10 @@ def main(argv):
     cmd, args = argv[0], argv[1:]
     dpi_aware()
     if cmd == "look":
-        look(args[0] if args else None)
+        look(next((a for a in args if not a.startswith("--")), None))
         return 0
+    if cmd == "install-vision":
+        return install_vision()
     if cmd == "clicknum":
         x, y, name = element_xy(args[0])
         mouse("click", x, y)

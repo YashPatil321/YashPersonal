@@ -269,6 +269,61 @@ def add_day_link(txt, filename, in_daily=False):
     return txt.rstrip("\n") + f"\n\n*Day: [[Daily/{m.group(1)}|{m.group(1)}]] · [[Atlas]]*\n"
 
 
+# Well known community plugins Atlas installs into the vault (the release files from their GitHub repos).
+PLUGINS = {
+    "dataview": "blacksmithgu/obsidian-dataview",                       # live dashboards from your notes
+    "obsidian-spaced-repetition": "st3v3nmw/obsidian-spaced-repetition",  # the flashcards Atlas writes
+    "templater-obsidian": "SilentVoid13/Templater",                      # templates for daily notes
+}
+
+
+def install_plugins(root, log=print, plugins=None):
+    """Downloads each plugin's release (main.js, manifest.json, styles.css) into .obsidian/plugins and turns it on.
+    Obsidian asks once to turn on community plugins (restricted mode off), then they load."""
+    import urllib.request
+    obs = os.path.join(root, ".obsidian")
+    if not os.path.isdir(obs):
+        return []
+    done = []
+    for pid, repo in (plugins or PLUGINS).items():
+        dst = os.path.join(obs, "plugins", pid)
+        if os.path.exists(os.path.join(dst, "main.js")):
+            done.append(pid)
+            continue
+        try:
+            files = {}
+            for name in ("manifest.json", "main.js", "styles.css"):
+                url = f"https://github.com/{repo}/releases/latest/download/{name}"
+                try:
+                    with urllib.request.urlopen(url, timeout=60) as r:
+                        files[name] = r.read()
+                except Exception:
+                    if name != "styles.css":
+                        raise
+            man = json.loads(files["manifest.json"])
+            if man.get("id") != pid:
+                log(f"vault: {repo} says its id is {man.get('id')}, skipping")
+                continue
+            os.makedirs(dst, exist_ok=True)
+            for name, data in files.items():
+                with open(os.path.join(dst, name), "wb") as f:
+                    f.write(data)
+            done.append(pid)
+            log(f"vault: installed {man.get('name', pid)} {man.get('version', '')}")
+        except Exception as e:
+            log(f"vault: couldn't install {pid}: {e}")
+    cp = os.path.join(obs, "community-plugins.json")
+    try:
+        on = json.load(open(cp, encoding="utf-8"))
+    except Exception:
+        on = []
+    new = on + [p for p in done if p not in on]
+    if new != on:
+        with open(cp, "w", encoding="utf-8") as f:
+            json.dump(new, f, indent=2)
+    return done
+
+
 def find_note(root, query):
     """The note whose name best matches what you said (path), or None."""
     q = [w for w in re.findall(r"[a-z0-9]+", query.lower()) if w not in ("my", "the", "note", "page", "a")]
@@ -341,6 +396,8 @@ def route_vault(t):
     if re.fullmatch(r"open (?:my |today'?s )?daily note|today'?s note", t):
         return ("obs_daily", None)
 
+    if re.fullmatch(r"(?:install|set up|get) (?:my |the )?(?:obsidian )?plugins(?: for obsidian)?|set up (?:my )?obsidian(?: plugins)?", t):
+        return ("obs_plugins", None)
     if re.fullmatch(r"(?:fix up|clean up|organi[sz]e|link up|connect|style|update) (?:my )?(?:obsidian|vault|notes)(?: vault)?|"
                     r"make my (?:vault|obsidian|graph) (?:look )?(?:like a galaxy|better|nice)", t):
         return ("vault_fix", None)
