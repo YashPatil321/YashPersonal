@@ -66,6 +66,60 @@ def is_task(text):
     return bool(TASK.search(t)) and len(t.split()) >= 5
 
 
+# ---------------- picking the model for each request ----------------
+MODEL_AUTO = True            # pick the model per request; False = always CLAUDE_MODEL
+LIGHT = re.compile(r"^(?:hi|hey|yo|sup|hello|thanks|thank you|ty|lol|haha|nice|cool|bet|ok(?:ay)?|good (?:morning|night)|"
+                   r"how are you|how'?s it going|what'?s up|tell me a joke|say something|you there|are you there)\b", re.I)
+HEAVY = re.compile(r"\b(?:think (?:hard|harder|carefully|it through)|deep ?dive|in depth|research|essay|analy[sz]e|compare|"
+                   r"strategy|business plan|step by step|debug|refactor|write (?:me )?(?:a|an|the) (?:essay|plan|proposal|letter|"
+                   r"program|script)|figure out why|pros and cons|explain (?:in detail|how .* works)|use opus)\b", re.I)
+QUICK = re.compile(r"\b(?:real quick|quick question|just tell me|one word|short answer|use haiku)\b", re.I)
+
+
+def pick_model(text, default="sonnet", override=None):
+    """haiku for small talk and 'real quick', opus for hard thinking and big jobs, sonnet for everything else."""
+    if override:
+        return override
+    if not MODEL_AUTO:
+        return default
+    t = text.strip()
+    if HEAVY.search(t) or (is_task(t) and len(t.split()) > 12) or len(t.split()) > 45:
+        return "opus"
+    if QUICK.search(t) or (LIGHT.search(t) and len(t.split()) <= 6):
+        return "haiku"
+    return default
+
+
+def route_model(t):
+    m = re.fullmatch(r"(?:use|switch to|go with) (opus|sonnet|haiku)(?: from now on| for now| for everything)?|"
+                     r"(?:always )?use the (smartest|fastest|best|cheapest) model", t)
+    if m:
+        w = m.group(1) or {"smartest": "opus", "best": "opus", "fastest": "haiku", "cheapest": "haiku"}[m.group(2)]
+        return ("model_set", w)
+    if re.fullmatch(r"(?:go back to |use )?auto(?:matic)? model(?: picking| selection)?|pick the model yourself|choose the model yourself", t):
+        return ("model_set", None)
+    if re.fullmatch(r"(?:what|which) model (?:are you (?:using|on)|is this)", t):
+        return ("model_which", None)
+    return None
+
+
+# ---------------- research ----------------
+RESEARCH = re.compile(r"^(?:can you |could you |please )?(?:do (?:some |a )?(?:deep |real |proper )?research (?:on|about|into)|research|"
+                      r"deep dive (?:on|into)|look into|find out everything (?:about|on)|dig into)\s+(.+)$", re.I)
+
+
+def research_prompt(topic, folder):
+    day = time.strftime("%Y-%m-%d")
+    return (f"Research this for Yash, properly: {topic}\n\n"
+            "How: use WebSearch several times with different angles, then WebFetch the best 5 to 10 sources and read them. "
+            "Prefer primary and recent sources, check numbers against a second source, and note where sources disagree. "
+            f"Then write a report as a markdown note at \"{folder}/{day} {topic[:60].strip()}.md\" (create the folder): a "
+            "frontmatter block with type: research, date, and tags; a 3 line bottom line; the key findings with the numbers; "
+            "a comparison table when it fits; what to do next for Yash specifically; and a Sources list of links. Link people, "
+            "projects and topics he has notes on as [[wikilinks]]. Finally reply with 2 or 3 plain spoken sentences: the "
+            "bottom line and that the full report is in his notes under Research.")
+
+
 def short(text, n=8):
     w = re.sub(r"^(?:can you |could you |please )+", "", text.strip(), flags=re.I).split()
     return " ".join(w[:n]) + ("..." if len(w) > n else "")

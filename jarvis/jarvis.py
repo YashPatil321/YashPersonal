@@ -53,6 +53,7 @@ import jarvis_chats
 import jarvis_evolve
 import jarvis_multi
 import jarvis_persona
+import jarvis_vaultstyle
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -135,7 +136,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -857,7 +858,7 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1424,7 +1425,10 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
     if full:
         extra += (f" You have full access to Yash's Windows PC. To see or control the screen (windows, tabs, buttons, typing, "
                   f"shortcuts, screenshots) run: \"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" help. "
-                  "Take a screenshot with it and read the image when you need to see the screen. You can also SEE YASH: "
+                  "For anything on screen, work in a loop: run jarvis_ctl.py look (a screenshot with a coordinate grid plus a "
+                  "numbered list of everything clickable with positions), read the image, act with clicknum, typeinto, keys, "
+                  "clickxy, drag or scroll, then look again to check it worked; use read to get the text of a page or doc. "
+                  "Prefer clicknum over guessing coordinates. You can also SEE YASH: "
                   "jarvis_ctl.py camera saves a photo from his webcam and prints its path, read that image whenever a question "
                   "needs eyes (what he's holding, wearing, doing, how many fingers). Never say you don't have a camera. "
                   f"Your own settings (wake up music = ROOM_PLAYLIST, alarm music = WAKE_PLAYLIST, party = PARTY_PLAYLIST, "
@@ -2047,9 +2051,25 @@ class Jarvis:
             return keep
         return self.ask(text)
 
+    def research(self, topic):
+        """A real research job: many sources, a report in the vault, a short spoken answer. Runs in the background."""
+        folder = os.path.join(self.brain.vault.root, "Research") if self.brain else os.path.join(WORKDIR, "notes", "Research")
+        prompt = jarvis_multi.research_prompt(topic, folder)
+
+        def work():
+            return ask_claude(prompt, None, self.claude, full=FULL_ACCESS and not (self.brain and self.brain.guest), model="opus")[0]
+        if getattr(self, "jobs", None) and self.jobs.start("research " + topic, work):
+            self.speaker.say("Researching it. Give me a few minutes, I'll tell you when the report's in your notes.")
+        else:
+            self.speaker.say(work())
+        return True
+
     def ask(self, text):
         """Anything the quick commands don't cover goes to Claude. Bigger jobs run in the background. With KEEP_LISTENING
         the answer is worked out on its own thread, so Atlas keeps hearing you (more commands, or cut it off)."""
+        m = jarvis_multi.RESEARCH.match(text.strip().rstrip("?.!"))
+        if m and len(m.group(1).split()) >= 2:
+            return self.research(m.group(1))
         if KEEP_LISTENING and threading.current_thread() is threading.main_thread():
             if not hasattr(self, "convo_lock"):
                 self.convo_lock = threading.Lock()
@@ -2079,7 +2099,8 @@ class Jarvis:
 
             def work():
                 before = snapshot_code()
-                ans, _ = ask_claude(text, None, self.claude, full=full_bg)
+                ans, _ = ask_claude(text, None, self.claude, full=full_bg,
+                                    model=jarvis_multi.pick_model(text, CLAUDE_MODEL, getattr(self, "model_override", None)))
                 ch = check_code_changes(before)
                 if ch and ch[1]:
                     threading.Timer(4.0, lambda: setattr(self, "restart_for_update", True)).start()
@@ -2100,7 +2121,11 @@ class Jarvis:
             self.speaker.say(sentence)
             return not (self.speaker.interrupted or self.speaker.cut_at > asked_at)
         before = snapshot_code()
-        answer, self.session_id = ask_claude(text, self.session_id, self.claude, full=full, on_text=speak if STREAM else None)
+        model = jarvis_multi.pick_model(text, CLAUDE_MODEL, getattr(self, "model_override", None))
+        if model != CLAUDE_MODEL:
+            log(f"model: {model}")
+        answer, self.session_id = ask_claude(text, self.session_id, self.claude, full=full, on_text=speak if STREAM else None,
+                                             model=model)
         save_session(self.session_id)
         changed = check_code_changes(before)
         if changed is not None:
@@ -2162,6 +2187,24 @@ class Jarvis:
                 say("Give me a minute, rereading our conversations.")
                 threading.Thread(target=lambda: say("Updated myself. Ask me who I am." if pz.rewrite(force=True)
                                                     else "Couldn't rewrite myself right now."), daemon=True).start()
+            return True
+        if action == "vault_fix":
+            if not self.brain:
+                say("I can't find your vault.")
+            else:
+                n = jarvis_vaultstyle.VaultStyle(self.brain.vault, log).run()
+                say(f"Done. Galaxy look is on, I linked {n} notes, and your Atlas home page is up to date. Restart Obsidian to see the new look.")
+            return True
+        if action == "model_set":
+            self.model_override = arg
+            say({None: "Back to picking the model myself: quick stuff fast, hard stuff with Opus.",
+                 "opus": "Opus for everything. Smartest, a bit slower.", "sonnet": "Sonnet for everything.",
+                 "haiku": "Haiku for everything. Fast, not as sharp."}[arg])
+            return True
+        if action == "model_which":
+            ov = getattr(self, "model_override", None)
+            say(f"{ov.capitalize()} for everything, you set that." if ov else
+                "I pick per request: Haiku for small talk, Opus for research and hard thinking, Sonnet for the rest.")
             return True
         if action in ("jobs_status", "jobs_drop"):
             jb = getattr(self, "jobs", None)
@@ -2848,6 +2891,7 @@ def main():
             BRAIN.news.append("My last change to myself kept me from starting, so I undid it" + (f": {gone}" if gone else "") + ".")
         except Exception:
             pass
+    threading.Thread(target=jarvis_vaultstyle.VaultStyle(BRAIN.vault, log).watch, daemon=True).start()
     global PERSONA
     PERSONA = jarvis_persona.Persona(BRAIN.vault, ask=lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read", model="opus")[0],
                                      convos=CONVOS, name=ASSISTANT_NAME)
