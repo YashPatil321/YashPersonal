@@ -16,9 +16,10 @@ Screen control from the command line, for Claude (with full access) and for you.
   python jarvis_ctl.py screenshot [path]           saves a picture of every screen and prints the path (read it to see)
 
   Seeing and acting precisely (use these for anything on screen):
-  python jarvis_ctl.py look                        a screenshot with a coordinate grid (labels are real screen pixels)
+  python jarvis_ctl.py look [--ocr]                a screenshot with a coordinate grid (labels are real screen pixels)
                                                    plus a numbered list of what's clickable or typeable in the window in
-                                                   front, each with its position. Read the image, then act.
+                                                   front, each with its position (plus text read off the screen when the
+                                                   app hides its buttons, or with --ocr). Read the image, then act.
   python jarvis_ctl.py clicknum 12                 clicks item 12 from the last look (the surest way to click)
   python jarvis_ctl.py typeinto 7 "hello"          clicks item 7 (a text box) and types into it
   python jarvis_ctl.py read                        the text in the window in front (a web page, a doc, a chat)
@@ -142,6 +143,42 @@ def elements(limit=150):
     return out
 
 
+def ocr_items(img, ox, oy, start, limit=120):
+    """Words and lines read off the screen with Windows' own OCR, for apps the element list can't see into
+    (games, canvas apps, remote desktops, images). [(n, 'Text', words, x, y)] in real screen pixels."""
+    try:
+        import winocr
+    except ImportError:
+        return []
+    try:
+        res = winocr.recognize_pil_sync(img, "en") if hasattr(winocr, "recognize_pil_sync") else None
+        if res is None:
+            import asyncio
+            res = asyncio.run(winocr.recognize_pil(img, "en"))
+        lines = res.get("lines", []) if isinstance(res, dict) else getattr(res, "lines", [])
+    except Exception as e:
+        print(f"(OCR failed: {e})")
+        return []
+    out = []
+    for ln in lines:
+        words = ln.get("words", []) if isinstance(ln, dict) else getattr(ln, "words", [])
+        text = (ln.get("text") if isinstance(ln, dict) else getattr(ln, "text", "")) or ""
+        rects = []
+        for w in words:
+            r = w.get("bounding_rect") if isinstance(w, dict) else getattr(w, "bounding_rect", None)
+            if r:
+                g = (lambda k: r.get(k) if isinstance(r, dict) else getattr(r, k))
+                rects.append((g("x"), g("y"), g("width"), g("height")))
+        if not text.strip() or not rects:
+            continue
+        x1, y1 = min(r[0] for r in rects), min(r[1] for r in rects)
+        x2, y2 = max(r[0] + r[2] for r in rects), max(r[1] + r[3] for r in rects)
+        out.append((start + len(out), "Text", text.strip()[:70], int(ox + (x1 + x2) / 2), int(oy + (y1 + y2) / 2)))
+        if len(out) >= limit:
+            break
+    return out
+
+
 def look(path=None):
     """Screenshot with a labeled grid in real screen coordinates, plus the numbered element list."""
     from PIL import ImageGrab, ImageDraw, ImageFont
@@ -170,6 +207,8 @@ def look(path=None):
     except Exception as e:
         els = []
         print(f"(couldn't list elements: {e})")
+    if len(els) < 12 or "--ocr" in sys.argv:   # the app hides its buttons from Windows: read the screen instead
+        els += ocr_items(img.copy(), ox, oy, len(els) + 1)
     for n, kind, name, x, y in els:   # number badges on the picture, so it's easy to match
         d.rectangle([x - ox - 14, y - oy - 12, x - ox + 14, y - oy + 12], outline=(0, 255, 160), width=2)
         d.text((x - ox - 10, y - oy - 11), str(n), fill=(0, 255, 160), font=font)

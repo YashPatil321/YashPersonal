@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07090e; --bg2: #0b0e15; --panel: #0d1119; --line: #1a2130; --line2: #232c3e;
+    --text: #e6ebf5; --muted: #8590a6; --faint: #4d5669;
+    --ice: #8fb8ff; --ice2: #c7dbff; --warm: #ffb36b; --ok: #6fe0b0; --alert: #ff7a66;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: "Geist", system-ui, sans-serif; overflow: hidden; }
+  body { background:
+      radial-gradient(1200px 700px at 50% 52%, rgba(70, 110, 200, .10), transparent 60%),
+      radial-gradient(900px 500px at 50% 120%, rgba(255, 160, 90, .05), transparent 60%), var(--bg); }
+  .mono { font-family: "Geist Mono", ui-monospace, monospace; }
+  .label { font-family: "Geist Mono", monospace; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  /* fine grid, barely there */
+  .grid-bg { position: fixed; inset: 0; pointer-events: none;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 64px 64px; opacity: .22; mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 30%, transparent 80%); }
+
+  .app { position: relative; height: 100%; display: grid; grid-template-rows: 56px 1fr 92px; padding: 0 28px; }
+  header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .mark { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--ice); position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--ice); opacity: .8; }
+  .brand b { font-weight: 600; letter-spacing: .32em; font-size: 13px; }
+  .status { display: flex; gap: 22px; align-items: center; }
+  .chip { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px rgba(111, 224, 176, .6); }
+  .dot.warm { background: var(--warm); }
+  .clock { font-size: 13px; color: var(--text); }
+
+  main { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(420px, 1.55fr) minmax(260px, 1fr); gap: 28px; padding: 26px 0 18px; min-height: 0; }
+  .col { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+  .card { background: linear-gradient(180deg, rgba(255, 255, 255, .018), rgba(255, 255, 255, 0)); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 18px; position: relative; }
+  .card::before { content: ""; position: absolute; left: 18px; right: 18px; top: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(143, 184, 255, .45), transparent); opacity: .5; }
+  .card h3 { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .big { font-size: 34px; font-weight: 300; letter-spacing: -.01em; line-height: 1.05; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .row:first-of-type { border-top: 0; }
+  .row .t { color: var(--muted); font-family: "Geist Mono", monospace; font-size: 12px; white-space: nowrap; }
+  .row .x { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar { height: 3px; background: var(--line2); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--ice), var(--ice2)); border-radius: 3px; }
+  .empty { color: var(--faint); font-size: 13px; }
+  .grow { flex: 1; min-height: 0; overflow: hidden; }
+
+  /* center */
+  .core { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
+  #orb { width: min(100%, 62vh); aspect-ratio: 1; }
+  .state { position: absolute; bottom: 4%; text-align: center; }
+  .state .label { color: var(--ice2); }
+  .state .said { margin-top: 10px; max-width: 520px; color: var(--muted); font-size: 14px; line-height: 1.5; min-height: 42px; }
+
+  footer { display: grid; grid-template-columns: 1fr minmax(420px, 1.55fr) 1fr; gap: 28px; align-items: center; border-top: 1px solid var(--line); }
+  .ticker { font-size: 12.5px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .ask { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line2); border-radius: 12px; padding: 0 14px; height: 46px; background: var(--bg2); }
+  .ask input { flex: 1; background: none; border: 0; outline: 0; color: var(--text); font: 15px "Geist", sans-serif; }
+  .ask input::placeholder { color: var(--faint); }
+  .ask kbd { font: 11px "Geist Mono", monospace; color: var(--faint); border: 1px solid var(--line2); border-radius: 6px; padding: 2px 6px; }
+  .right-foot { text-align: right; }
+  @media (max-height: 900px) and (min-width: 1101px) { .tall-only { display: none; } }
+  @media (max-width: 1100px) {
+    html, body { height: auto; overflow-x: hidden; overflow-y: auto; }
+    .app { height: auto; grid-template-rows: 56px auto auto; padding: 0 16px; }
+    main { grid-template-columns: minmax(0, 1fr); } .col { min-width: 0; } .core { order: -1; } #orb { width: min(100%, 420px); }
+    .state { position: static; margin-top: -8px; } .state .said { max-width: 100%; }
+    .grow { overflow: visible; }
+    footer { grid-template-columns: minmax(0, 1fr); padding: 14px 0 24px; gap: 10px; } .right-foot { text-align: left; }
+  }
+  @media (max-width: 700px) { .status .chip { display: none; } }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="app">
+  <header>
+    <div class="brand"><div class="mark"></div><b>ATLAS</b><span class="label" id="mode" style="margin-left:10px">Online</span></div>
+    <div class="status">
+      <div class="chip"><span class="dot" id="d-cam"></span><span id="s-cam">Camera</span></div>
+      <div class="chip"><span class="dot" id="d-model"></span><span id="s-model">Auto model</span></div>
+      <div class="chip"><span class="dot" id="d-jobs"></span><span id="s-jobs">No jobs</span></div>
+      <div class="clock mono" id="clock">--:--</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="col">
+      <div class="card">
+        <h3><span class="label">Now</span><span class="label" id="date"></span></h3>
+        <div class="big" id="time">--:--</div>
+        <div class="sub" id="weather">Weather loading</div>
+      </div>
+      <div class="card">
+        <h3><span class="label">Next up</span><span class="label" id="leave"></span></h3>
+        <div style="font-size:19px" id="next">Nothing scheduled</div>
+        <div class="sub" id="next-when"></div>
+      </div>
+      <div class="card" id="focus-card">
+        <h3><span class="label">Focus</span><span class="label" id="focus-today"></span></h3>
+        <div style="font-size:15px" id="focus">Not in a session</div>
+        <div class="bar"><i id="focus-bar" style="width:0%"></i></div>
+      </div>
+      <div class="card grow">
+        <h3><span class="label">Today</span><span class="label" id="streaks"></span></h3>
+        <div id="log"><div class="empty">Nothing logged yet</div></div>
+      </div>
+    </section>
+
+    <section class="core">
+      <canvas id="orb"></canvas>
+      <div class="state">
+        <div class="label" id="state">Standing by</div>
+        <div class="said" id="said"></div>
+      </div>
+    </section>
+
+    <section class="col">
+      <div class="card">
+        <h3><span class="label">Working on</span><span class="label" id="jobs-n"></span></h3>
+        <div id="jobs"><div class="empty">Nothing in the background</div></div>
+      </div>
+      <div class="card">
+        <h3><span class="label">Playing</span></h3>
+        <div style="font-size:15px" id="music">Nothing playing</div>
+      </div>
+      <div class="card">
+        <h3><span class="label">Research</span></h3>
+        <div id="research"><div class="empty">Say "research" and a topic</div></div>
+      </div>
+      <div class="card">
+        <h3><span class="label">Atlas</span><span class="label" id="spice"></span></h3>
+        <div id="self"></div>
+      </div>
+      <div class="card grow tall-only">
+        <h3><span class="label">Conversation</span></h3>
+        <div id="convo"><div class="empty">Nothing yet today</div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="ticker" id="ticker">Say "Atlas" or type below</div>
+    <form class="ask" id="ask"><input id="q" placeholder="Ask Atlas anything, or give it a few things to do" autocomplete="off"><kbd>Enter</kbd></form>
+    <div class="right-foot label" id="people">No one in view</div>
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const TOKEN = params.get("token") || "";
+const PREVIEW = !TOKEN;
+let S = { orb: "idle" };
+
+const SAMPLE = {
+  orb: "idle", said: "Your 4 PM practice moved to 5. Leave by 4:35 and you're fine.",
+  next: { title: "Soccer practice", when: "5:00 PM", leave_in: 42 }, weather: "68 and clear, cooling to 55 tonight",
+  focus: { total: 50, done: 31 }, focus_today: 85, streaks: "4 day focus streak",
+  log: [{ t: "09:12", text: "Focus done, 50 min" }, { t: "11:40", text: "Researched laptops under 1000" }, { t: "14:05", text: "Neil came by" }, { t: "15:30", text: "Quote sent to the Hendersons" }],
+  jobs: [{ text: "Draft an email to coach about Saturday", secs: 48 }, { text: "Research Babson entrepreneurship program", secs: 212 }],
+  music: "Drake, Passionfruit", research: ["2026-11-24 laptops under 1000", "2026-11-22 Supabase row level security"],
+  model: null, spice: 4, camera: true, people: "Yash", standby: false,
+  self: [["Remembers", "38 facts"], ["Learned", "6 lessons"], ["Last change", "Swipes count when your hand blurs"]],
+  convo: [{ who: "you", text: "what's my day look like" }, { who: "atlas", text: "Practice at five, nothing after. Light day, chief." }]
+};
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function rows(list, empty) { return list && list.length ? list.join("") : `<div class="empty">${empty}</div>`; }
+
+function render() {
+  const s = S;
+  const st = { idle: "Standing by", listening: "Listening", thinking: "Thinking", speaking: "Speaking", error: "Something went wrong" }[s.orb] || "Standing by";
+  $("state").textContent = s.standby ? "Standby" : st;
+  $("said").textContent = s.said || "";
+  $("mode").textContent = s.standby ? "Standby" : "Online";
+  $("weather").textContent = s.weather || "No weather yet";
+  if (s.next) {
+    $("next").textContent = s.next.title; $("next-when").textContent = s.next.when;
+    $("leave").textContent = s.next.leave_in != null ? `Leave in ${s.next.leave_in} min` : "";
+  } else { $("next").textContent = "Nothing scheduled"; $("next-when").textContent = ""; $("leave").textContent = ""; }
+  if (s.focus) {
+    $("focus").textContent = `${s.focus.done} of ${s.focus.total} min`;
+    $("focus-bar").style.width = Math.min(100, 100 * s.focus.done / s.focus.total) + "%";
+  } else { $("focus").textContent = "Not in a session"; $("focus-bar").style.width = "0%"; }
+  $("focus-today").textContent = s.focus_today ? `${s.focus_today} min today` : "";
+  $("streaks").textContent = s.streaks || "";
+  $("log").innerHTML = rows((s.log || []).slice(-7).map((l) => `<div class="row"><span class="x">${esc(l.text)}</span><span class="t">${esc(l.t)}</span></div>`), "Nothing logged yet");
+  const jobs = s.jobs || [];
+  $("jobs").innerHTML = rows(jobs.map((j) => `<div class="row"><span class="x">${esc(j.text)}</span><span class="t">${Math.floor(j.secs / 60)}:${String(j.secs % 60).padStart(2, "0")}</span></div>`), "Nothing in the background");
+  $("jobs-n").textContent = jobs.length ? `${jobs.length} running` : "";
+  $("s-jobs").textContent = jobs.length ? `${jobs.length} job${jobs.length > 1 ? "s" : ""}` : "No jobs";
+  $("d-jobs").className = "dot" + (jobs.length ? " warm" : "");
+  $("music").textContent = s.music || "Nothing playing";
+  $("research").innerHTML = rows((s.research || []).slice(0, 4).map((r) => `<div class="row"><span class="x">${esc(r.replace(/^\d{4}-\d\d-\d\d /, ""))}</span><span class="t">${esc(r.slice(5, 10))}</span></div>`), 'Say "research" and a topic');
+  $("self").innerHTML = rows((s.self || []).map(([k, v]) => `<div class="row"><span class="t">${esc(k)}</span><span class="x" style="text-align:right">${esc(v)}</span></div>`), "");
+  $("spice").textContent = s.spice ? `Spice ${s.spice}/5` : "";
+  $("s-model").textContent = s.model ? s.model[0].toUpperCase() + s.model.slice(1) : "Auto model";
+  $("d-model").className = "dot on";
+  $("s-cam").textContent = s.camera ? "Camera" : "Camera off"; $("d-cam").className = "dot" + (s.camera ? " on" : "");
+  $("people").textContent = s.people ? `In view: ${s.people}` : "No one in view";
+  $("convo").innerHTML = rows((s.convo || []).slice(-6).map((m) => `<div class="row"><span class="t">${m.who === "you" ? "You" : "Atlas"}</span><span class="x" style="text-align:right;white-space:normal">${esc(m.text)}</span></div>`), "Nothing yet today");
+  const c = (s.convo || []).slice(-2).map((m) => (m.who === "you" ? "You: " : "Atlas: ") + m.text);
+  $("ticker").textContent = c.join("   ·   ") || 'Say "Atlas" or type below';
+}
+
+function tick() {
+  const d = new Date();
+  $("clock").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("time").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  $("date").textContent = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+async function poll() {
+  if (PREVIEW) { S = SAMPLE; render(); return; }
+  try {
+    const r = await fetch(`/command/state?token=${encodeURIComponent(TOKEN)}`, { cache: "no-store" });
+    if (r.ok) { S = await r.json(); render(); }
+  } catch (e) { $("mode").textContent = "Reconnecting"; }
+}
+
+$("ask").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = $("q").value.trim();
+  if (!q) return;
+  $("q").value = ""; $("said").textContent = "On it.";
+  if (PREVIEW) return;
+  try {
+    const r = await fetch(`/ask?token=${encodeURIComponent(TOKEN)}&speak=1&text=${encodeURIComponent(q)}`);
+    $("said").textContent = await r.text();
+  } catch (e) { $("said").textContent = "Couldn't reach Atlas."; }
+});
+
+/* ---------- the core: a sphere of points that breathes, listens, thinks and speaks ---------- */
+const cv = $("orb"), cx = cv.getContext("2d");
+const N = 900, pts = [];
+for (let i = 0; i < N; i++) {           // even spread over a sphere
+  const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * Math.PI * (3 - Math.sqrt(5));
+  pts.push([Math.cos(th) * r, y, Math.sin(th) * r, Math.random()]);
+}
+let amp = 0, spin = 0, level = 0;
+function size() { const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2); cv.width = r.width * d; cv.height = r.height * d; }
+addEventListener("resize", size); size();
+function frame(t) {
+  const W = cv.width, H = cv.height, R = Math.min(W, H) * 0.31, ox = W / 2, oy = H / 2;
+  const st = S.standby ? "standby" : S.orb || "idle";
+  const target = { idle: .15, listening: .55, thinking: .35, speaking: .7, standby: .03, error: .3 }[st] ?? .15;
+  level += (target - level) * 0.05;
+  spin += { thinking: .012, listening: .006, speaking: .005, standby: .0008 }[st] || .0025;
+  amp = st === "speaking" ? 0.5 + 0.5 * Math.abs(Math.sin(t / 140)) * Math.abs(Math.sin(t / 370)) : st === "listening" ? 0.35 + 0.15 * Math.sin(t / 220) : 0.2 + 0.05 * Math.sin(t / 1200);
+  cx.clearRect(0, 0, W, H);
+  // rings with ticks: an instrument, not a light show
+  cx.save(); cx.translate(ox, oy);
+  for (const [k, a] of [[1.42, .26], [1.58, .12]]) {
+    cx.beginPath(); cx.arc(0, 0, R * k, 0, Math.PI * 2); cx.strokeStyle = `rgba(143,184,255,${a})`; cx.lineWidth = 1; cx.stroke();
+  }
+  for (let i = 0; i < 120; i++) {
+    const a = i / 120 * Math.PI * 2 + spin * 0.4, long = i % 10 === 0;
+    const r1 = R * 1.42, r2 = r1 + (long ? 12 : 5) * (W / 900);
+    cx.beginPath(); cx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); cx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+    cx.strokeStyle = `rgba(143,184,255,${long ? .45 : .18})`; cx.stroke();
+  }
+  const arc = (st === "thinking" ? t / 500 : spin * 2) % (Math.PI * 2);   // a single moving marker
+  cx.beginPath(); cx.arc(0, 0, R * 1.58, arc, arc + 0.6 + level); cx.strokeStyle = "rgba(255,179,107,.75)"; cx.lineWidth = 2 * (W / 900); cx.stroke();
+  cx.restore();
+  // soft core light
+  const g = cx.createRadialGradient(ox, oy, 0, ox, oy, R * 1.25);
+  g.addColorStop(0, `rgba(199,219,255,${.24 + level * .25})`); g.addColorStop(.45, `rgba(120,150,255,${.06 + level * .08})`); g.addColorStop(1, "rgba(0,0,0,0)");
+  cx.fillStyle = g; cx.beginPath(); cx.arc(ox, oy, R * 1.3, 0, Math.PI * 2); cx.fill();
+  // the points
+  const cs = Math.cos(spin), sn = Math.sin(spin), tilt = .35, ct = Math.cos(tilt), stl = Math.sin(tilt);
+  for (const [x0, y0, z0, ph] of pts) {
+    let x = x0 * cs - z0 * sn, z = x0 * sn + z0 * cs, y = y0 * ct - z * stl; z = y0 * stl + z * ct;
+    const wob = 1 + amp * 0.08 * Math.sin(ph * 30 + t / 180 + y0 * 6);
+    const p = 1.9 / (2.6 - z), px = ox + x * R * wob * p, py = oy + y * R * wob * p;
+    const depth = (z + 1) / 2, a = 0.18 + depth * 0.82;
+    const warm = st === "thinking" && ((ph + t / 3000) % 1) < 0.06;
+    cx.fillStyle = warm ? `rgba(255,179,107,${a})` : `rgba(${170 + depth * 60 | 0},${200 + depth * 40 | 0},255,${a})`;
+    const r = (0.9 + depth * 2.0) * (W / 900);
+    cx.fillRect(px - r / 2, py - r / 2, r, r);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+tick(); setInterval(tick, 1000); poll(); setInterval(poll, 1500);
+</script>
+</body>
+</html>

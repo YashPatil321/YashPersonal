@@ -3,3 +3,4 @@ pillow
 uiautomation
 opencv-python
 mediapipe
+winocr

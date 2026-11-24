@@ -54,6 +54,7 @@ import jarvis_evolve
 import jarvis_multi
 import jarvis_persona
 import jarvis_vaultstyle
+import jarvis_learn
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -136,7 +137,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -427,6 +428,7 @@ class Speaker:
 
     capture = threading.local()   # a request from your phone collects the answer here instead of speaking
     on_said = None                 # set in main: everything Jarvis says goes in the conversation log
+    last_line = ""                 # the last thing it said, for the command center
 
     def say(self, text):
         if Speaker.on_said:
@@ -434,6 +436,7 @@ class Speaker:
                 Speaker.on_said(text)
             except Exception:
                 pass
+        Speaker.last_line = text[:240]
         cap = getattr(Speaker.capture, "lines", None)
         if cap is not None:
             cap.append(re.sub(r"[*#`_>\[\]]", "", text))
@@ -812,6 +815,10 @@ META = re.compile(r"\b(?:change|changing|edit|rename|configure|customi[sz]e|repl
 def route(text):
     """Turn a spoken line into a local command, or None to send it to Claude.
     Returns (action, arg). Only actions from this list can ever run by voice."""
+    u = re.search(r"\b(?:learn|remember|save|file|study)\b.{0,30}?((?:https?://|www\.)\S+|\b[\w-]+\.(?:com|org|edu|io|ai|net|dev)(?:/\S*)?)", text, re.I)
+    if u:   # a link in the sentence (typed, or Whisper wrote it out): the wiki learns it
+        link = u.group(1).rstrip(".,!?)")
+        return ("learn", ("url", link if link.startswith("http") else "https://" + link))
     t = re.sub(r"\s+", " ", re.sub(r"[^\w\s']", " ", text.lower())).strip()
     t = re.sub(r"^\s*(hey\s+)?(jarvis|" + re.escape(ASSISTANT_NAME.lower()) + r")\s*", "", t)
     for mod in MODS:   # your own add ons (mods folder) get first say
@@ -858,7 +865,9 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
-    cc = cc or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
+        return ("command_center", None)
+    cc = cc or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1840,6 +1849,35 @@ class Jarvis:
         else:
             self.pc.open_url(url, app_window=True)
 
+    def command_state(self):
+        """Everything the command center shows, in one go."""
+        out = dict(self.desk_state())
+        out["orb"] = jarvis_orb.LAST.get("state", "idle")
+        out["said"] = getattr(Speaker, "last_line", "")
+        out["standby"] = bool(self.standby)
+        out["model"] = getattr(self, "model_override", None)
+        out["spice"] = PERSONA.spice() if PERSONA else None
+        out["camera"] = bool(self.vision and self.vision.ok and self.vision.enabled)
+        jb = getattr(self, "jobs", None)
+        now = time.time()
+        out["jobs"] = [{"text": jarvis_multi.short(j["text"], 9), "secs": int(now - j["t"])}
+                       for j in (list(jb.running) if jb else []) if not j.get("dropped")]
+        if self.brain:
+            v = self.brain.vault
+            try:
+                rs = os.path.join(v.root, "Research")
+                out["research"] = sorted((f[:-3] for f in os.listdir(rs) if f.endswith(".md")), reverse=True)[:4] if os.path.isdir(rs) else []
+            except Exception:
+                out["research"] = []
+            mem = sum(1 for l in (v.read("Jarvis/Memory.md") or "").splitlines() if l.startswith("- "))
+            les = sum(1 for l in (v.read("Jarvis/Lessons.md") or "").splitlines() if l.startswith("- "))
+            last = (jarvis_evolve.load_state().get("changes") or [{}])[-1].get("summary", "")
+            out["self"] = [["Remembers", f"{mem} facts"], ["Learned", f"{les} lessons"]] + ([["Last change", last[:60]]] if last else [])
+        if CONVOS:
+            out["convo"] = [{"who": "you" if r["who"] == "you" else "atlas", "text": r["text"][:160]}
+                            for r in CONVOS.rows(now - 6 * 3600)[-6:]]
+        return out
+
     def desk_state(self):
         """What the desk panels show."""
         b, out = self.brain, {}
@@ -2187,6 +2225,25 @@ class Jarvis:
                 say("Give me a minute, rereading our conversations.")
                 threading.Thread(target=lambda: say("Updated myself. Ask me who I am." if pz.rewrite(force=True)
                                                     else "Couldn't rewrite myself right now."), daemon=True).start()
+            return True
+        if action in ("learn", "wiki_ask", "cards", "quiz"):
+            lr = getattr(self, "learner", None)
+            if not lr:
+                say("The wiki needs your vault, and I can't find it.")
+            else:
+                msg = lr.handle(action, arg)
+                if msg:
+                    say(msg)
+            return True
+        if action == "command_center":
+            pc.open_url(self.local_url("/command"), app_window=True)
+            say("Command center's up.")
+            return True
+        if action in ("obs_open", "obs_new", "obs_daily"):
+            if not self.brain:
+                say("I can't find your vault.")
+            else:
+                jarvis_vaultstyle.handle_obsidian(action, arg, self.brain.vault.root, say)
             return True
         if action == "vault_fix":
             if not self.brain:
@@ -2892,6 +2949,14 @@ def main():
         except Exception:
             pass
     threading.Thread(target=jarvis_vaultstyle.VaultStyle(BRAIN.vault, log).watch, daemon=True).start()
+    def start_job(label, prompt, quiet=False):
+        full = FULL_ACCESS and not (BRAIN and BRAIN.guest)
+        work = lambda: ask_claude(prompt, None, jarvis.claude, full=full, model="opus" if "upkeep" not in label else "sonnet")[0]
+        if quiet or not jarvis.jobs.start(label, work):
+            threading.Thread(target=work, daemon=True).start()
+    jarvis.learner = jarvis_learn.Learner(BRAIN.vault, start_job, lambda p: (jarvis.ask(p), None)[1],
+                                          clipboard=jarvis_extras.clipboard_text, log=log)
+    threading.Thread(target=jarvis.learner.watch, daemon=True).start()
     global PERSONA
     PERSONA = jarvis_persona.Persona(BRAIN.vault, ask=lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read", model="opus")[0],
                                      convos=CONVOS, name=ASSISTANT_NAME)
@@ -2963,6 +3028,29 @@ def main():
                 h.end_headers()
                 h.wfile.write(body)
             bridge.routes["/camera.jpg"] = camera_jpg
+
+            def command_page(h, q):
+                body = open(os.path.join(WORKDIR, "command.html"), encoding="utf-8").read().encode("utf-8")
+                h.send_response(200)
+                h.send_header("Content-Type", "text/html; charset=utf-8")
+                h.send_header("Content-Length", str(len(body)))
+                h.send_header("Cache-Control", "no-store")
+                h.end_headers()
+                h.wfile.write(body)
+
+            def command_json(h, q):
+                try:
+                    body = json.dumps(jarvis.command_state()).encode("utf-8")
+                except Exception as e:
+                    body = json.dumps({"error": str(e)}).encode("utf-8")
+                h.send_response(200)
+                h.send_header("Content-Type", "application/json")
+                h.send_header("Content-Length", str(len(body)))
+                h.send_header("Cache-Control", "no-store")
+                h.end_headers()
+                h.wfile.write(body)
+            bridge.routes["/command"] = command_page
+            bridge.routes["/command/state"] = command_json
             jarvis.cad = jarvis_cad.CadHub(say=speaker.say)
             jarvis_cad.SNAP_DIR = os.path.join(BRAIN.vault.root, "CAD")
             if BRAIN.vault.root not in jarvis_cad.CAD_FOLDERS:

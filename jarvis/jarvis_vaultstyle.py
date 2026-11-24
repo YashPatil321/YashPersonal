@@ -269,7 +269,78 @@ def add_day_link(txt, filename, in_daily=False):
     return txt.rstrip("\n") + f"\n\n*Day: [[Daily/{m.group(1)}|{m.group(1)}]] · [[Atlas]]*\n"
 
 
+def find_note(root, query):
+    """The note whose name best matches what you said (path), or None."""
+    q = [w for w in re.findall(r"[a-z0-9]+", query.lower()) if w not in ("my", "the", "note", "page", "a")]
+    if not q:
+        return None
+    best, score = None, 0
+    for dirpath, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        for f in files:
+            if not f.endswith(".md"):
+                continue
+            name = f[:-3].lower()
+            s = sum(2 if w in name.split() else 1 if w in name else 0 for w in q) - 0.01 * len(name)
+            if s > score:
+                best, score = os.path.join(dirpath, f), s
+    return best if score >= len(q) * 0.9 else None
+
+
+def obsidian_open(path, new_tab=False):
+    """Opens a note in Obsidian (the obsidian:// link works with any vault)."""
+    import urllib.parse
+    url = "obsidian://open?path=" + urllib.parse.quote(path.replace("\\", "/"), safe="/:")
+    if os.name == "nt":
+        os.startfile(url)
+    return url
+
+
+def handle_obsidian(action, arg, root, say):
+    if action == "obs_open":
+        p = os.path.join(root, "Atlas.md") if arg in ("home", "atlas") else find_note(root, arg)
+        if not p:
+            return say(f"I don't see a note called {arg}.")
+        obsidian_open(p)
+        return say(f"{os.path.basename(p)[:-3]} is open.")
+    if action == "obs_new":
+        name = re.sub(r"[\\/:*?\"<>|#^\[\]]+", " ", arg).strip().title()[:80] or "Untitled"
+        folder = os.path.join(root, "Inbox")
+        os.makedirs(folder, exist_ok=True)
+        p = os.path.join(folder, name + ".md")
+        if not os.path.exists(p):
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(f"# {name}\n\n")
+        obsidian_open(p)
+        return say(f"New note, {name}, in your Inbox.")
+    if action == "obs_daily":
+        p = os.path.join(root, "Daily", time.strftime("%Y-%m-%d") + ".md")
+        if not os.path.exists(p):
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(f"# {time.strftime('%A, %B %d')}\n\n")
+        obsidian_open(p)
+        return say("Today's note is open.")
+
+
 def route_vault(t):
+    m = re.fullmatch(r"open (?:my |the )?(.+?) (?:note|page)(?: in obsidian)?|open (?:my |the )?(.+?) in obsidian|"
+                     r"(?:show|pull up) (?:my |the )?(.+?) note", t)
+    if m:
+        what = next(g for g in m.groups() if g)
+        if what in ("atlas home", "home", "atlas"):
+            return ("obs_open", "home")
+        if what in ("daily", "today's", "todays", "today"):
+            return ("obs_daily", None)
+        return ("obs_open", what)
+    if re.fullmatch(r"open (?:my )?(?:obsidian|vault|second brain|atlas home)", t):
+        return ("obs_open", "home")
+    m = re.fullmatch(r"(?:new|make a|create a|start a) note (?:called|named|about|on|for) (.+)", t)
+    if m:
+        return ("obs_new", m.group(1))
+    if re.fullmatch(r"open (?:my |today'?s )?daily note|today'?s note", t):
+        return ("obs_daily", None)
+
     if re.fullmatch(r"(?:fix up|clean up|organi[sz]e|link up|connect|style|update) (?:my )?(?:obsidian|vault|notes)(?: vault)?|"
                     r"make my (?:vault|obsidian|graph) (?:look )?(?:like a galaxy|better|nice)", t):
         return ("vault_fix", None)

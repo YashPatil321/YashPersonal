@@ -76,13 +76,53 @@ HEAVY = re.compile(r"\b(?:think (?:hard|harder|carefully|it through)|deep ?dive|
 QUICK = re.compile(r"\b(?:real quick|quick question|just tell me|one word|short answer|use haiku)\b", re.I)
 
 
+# Jev (TypeSafe's decision model) picks the model when you give it an OpenRouter key: JEV_KEY in local_settings.py,
+# or OPENROUTER_API_KEY in Windows. It runs over Anthropic's models only (anthropic/auto) and answers in a few hundred
+# milliseconds for a fraction of a cent. No key, or no answer in time: the built in rules below decide.
+JEV_KEY = ""
+JEV_TIMEOUT = 2.0
+_JEV_CACHE = {}
+
+
+def jev_pick(text, timeout=None):
+    """'haiku', 'sonnet' or 'opus' from Jev, or None."""
+    import json
+    import os
+    import urllib.request
+    key = JEV_KEY or os.environ.get("OPENROUTER_API_KEY", "")
+    if not key:
+        return None
+    k = text.strip().lower()[:300]
+    if k in _JEV_CACHE:
+        return _JEV_CACHE[k]
+    body = json.dumps({"model": "anthropic/auto", "input": text[:4000], "max_output_tokens": 16,
+                       "plugins": [{"id": "jev-router"}]}).encode()
+    req = urllib.request.Request("https://openrouter.ai/api/v1/responses", data=body, method="POST",
+                                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout or JEV_TIMEOUT) as r:
+            model = (json.loads(r.read()).get("model") or "").lower()
+    except Exception:
+        return None
+    pick = "opus" if "opus" in model else "haiku" if "haiku" in model else "sonnet" if "sonnet" in model else None
+    if pick:
+        _JEV_CACHE[k] = pick
+    return pick
+
+
 def pick_model(text, default="sonnet", override=None):
-    """haiku for small talk and 'real quick', opus for hard thinking and big jobs, sonnet for everything else."""
+    """Jev if it's set up, else: haiku for small talk and 'real quick', opus for hard thinking and big jobs, sonnet for the rest."""
     if override:
         return override
     if not MODEL_AUTO:
         return default
     t = text.strip()
+    if QUICK.search(t) or HEAVY.search(t):
+        pass   # you said how hard to think: that wins over Jev
+    else:
+        j = jev_pick(t)
+        if j:
+            return j
     if HEAVY.search(t) or (is_task(t) and len(t.split()) > 12) or len(t.split()) > 45:
         return "opus"
     if QUICK.search(t) or (LIGHT.search(t) and len(t.split()) <= 6):
