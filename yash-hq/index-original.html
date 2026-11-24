@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yash HQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: Stark style ops wall, cinematic but readable from across the room
+   IDEA: a radar console that tracks your day like air traffic
+   PICTURE: a 24 hour radar dial with events as glowing arcs and a sweeping beam
+   COLOUR and TYPE: void black grid, arc reactor cyan, electric blue haze, amber for now and alerts; Orbitron display, Rajdhani text, JetBrains Mono data
+   LAYOUT: 12 col console: clock, dial, next up; gauge strip; heat grid, AI tasks, mail; ops chart, agents; ticker */
+:root{color-scheme:dark;--bg:#020409;--panel:rgba(6,16,28,.78);--line:rgba(0,229,255,.16);--line2:rgba(0,229,255,.45);--ink:#eafcff;--mute:#5f8798;--cy:#00e5ff;--mg:#ffb020;--vi:#2f7bff;--ok:#2dffa1;--bad:#ff3d63;--am:#ffd23f}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:600 16px/1.4 Rajdhani,system-ui,sans-serif;overflow-x:clip;min-height:100vh;
+ background:radial-gradient(1200px 700px at 15% -10%,rgba(47,123,255,.28),transparent 60%),radial-gradient(900px 600px at 100% 110%,rgba(0,229,255,.12),transparent 60%),radial-gradient(800px 500px at 60% 40%,rgba(0,229,255,.06),transparent 70%),
+ linear-gradient(rgba(0,229,255,.045) 1px,transparent 1px) 0 0/32px 32px,linear-gradient(90deg,rgba(0,229,255,.045) 1px,transparent 1px) 0 0/32px 32px,var(--bg);background-attachment:fixed}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px);z-index:50}
+a{color:inherit;text-decoration:none}a:hover{color:var(--cy)}
+.m{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1800px;margin:0 auto;padding:clamp(12px,1.8vw,26px) max(2.4vw,12px) 70px}
+.con{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.p{position:relative;background:linear-gradient(180deg,rgba(10,26,44,.82),rgba(4,12,22,.82));border:1px solid var(--line);padding:14px 16px;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px));box-shadow:inset 0 0 40px rgba(0,229,255,.04)}
+.p::before{content:"";position:absolute;top:0;left:0;width:60px;height:2px;background:var(--cy);box-shadow:0 0 10px var(--cy)}
+.p::after{content:"";position:absolute;bottom:0;right:0;width:60px;height:2px;background:var(--vi);box-shadow:0 0 10px var(--vi)}
+.h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 10px;font:700 12px Orbitron,sans-serif;letter-spacing:.18em;color:var(--cy);text-shadow:0 0 8px rgba(0,229,255,.6)}
+.h small{font:400 11px "JetBrains Mono",monospace;letter-spacing:0;color:var(--mute);text-shadow:none}
+.h::before{content:"";width:7px;height:7px;background:var(--cy);box-shadow:0 0 8px var(--cy);margin-right:8px;flex:none}
+.h span.t{flex:1}
+.s3{grid-column:span 3}.s4{grid-column:span 4}.s5{grid-column:span 5}.s6{grid-column:span 6}.s7{grid-column:span 7}.s8{grid-column:span 8}.s12{grid-column:span 12}
+/* clock */
+.clk{display:flex;flex-direction:column;justify-content:space-between;gap:10px}
+.lights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.lt{display:flex;align-items:center;gap:8px;font:600 11px Orbitron,sans-serif;letter-spacing:.14em;color:var(--mute);border:1px solid var(--line);padding:6px 8px}
+.led{width:9px;height:9px;border-radius:50%;background:#1d3442;flex:none}
+.led.on{background:var(--ok);box-shadow:0 0 10px var(--ok)}.led.err{background:var(--bad);box-shadow:0 0 10px var(--bad)}.led.busy{background:var(--vi);box-shadow:0 0 10px var(--vi)}
+.lt b{margin-left:auto;font:400 10px "JetBrains Mono",monospace;letter-spacing:0}
+.time{font:900 clamp(56px,6.6vw,118px)/.9 Orbitron,sans-serif;color:#fff;letter-spacing:.02em;text-shadow:0 0 14px rgba(0,229,255,.9),0 0 40px rgba(0,229,255,.45),0 0 80px rgba(47,123,255,.35);font-variant-numeric:tabular-nums;white-space:nowrap}
+.time small{font-size:.24em;color:var(--mg);text-shadow:0 0 10px var(--mg);margin-left:.15em}
+.sec{height:3px;background:rgba(0,229,255,.12);position:relative;overflow:hidden}.sec i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--vi),var(--cy));box-shadow:0 0 8px var(--cy)}
+.dt{font:700 clamp(15px,1.3vw,20px) Rajdhani,sans-serif;letter-spacing:.24em;color:var(--mute);text-transform:uppercase}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:700 11px Orbitron,sans-serif;letter-spacing:.16em;color:var(--cy);background:rgba(0,229,255,.06);border:1px solid var(--line2);padding:10px 14px;min-height:40px;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.btn:hover,.btn:focus-visible{background:rgba(0,229,255,.18);outline:none;box-shadow:0 0 14px rgba(0,229,255,.5)}
+/* dial */
+.dialp{display:grid;place-items:center;padding:8px}
+.dial{width:100%;max-width:440px;aspect-ratio:1;display:block}
+.dial text{font-family:"JetBrains Mono",monospace}
+.sweep{transform-origin:200px 200px}
+/* next */
+.nx .lbl{font:700 12px Orbitron,sans-serif;letter-spacing:.22em;color:var(--mg);text-shadow:0 0 8px var(--mg)}
+.nx .what{font:700 clamp(26px,2.4vw,40px)/1.05 Rajdhani,sans-serif;margin:6px 0 4px;text-wrap:balance}
+.nx .when{color:var(--cy);font:400 15px "JetBrains Mono",monospace}
+.cd{font:900 clamp(36px,3.4vw,58px)/1 Orbitron,sans-serif;color:#fff;text-shadow:0 0 14px var(--cy),0 0 34px rgba(47,123,255,.6);margin:14px 0 4px;font-variant-numeric:tabular-nums}
+.headline{margin:16px 0 0;padding:12px 14px;border:1px solid rgba(47,123,255,.5);background:linear-gradient(90deg,rgba(47,123,255,.18),transparent);font:600 18px/1.3 Rajdhani,sans-serif}
+.headline em{display:block;font:700 10px Orbitron,sans-serif;letter-spacing:.2em;color:var(--cy);font-style:normal;margin-bottom:4px}
+/* gauges */
+.gs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.g{display:flex;align-items:center;gap:14px}
+.g svg{width:clamp(78px,7vw,104px);aspect-ratio:1;flex:none}
+.g .n{font:900 clamp(30px,2.6vw,44px)/1 Orbitron,sans-serif;color:#fff}
+.g .l{font:700 11px Orbitron,sans-serif;letter-spacing:.16em;color:var(--mute);margin-top:6px}
+.g .u{font:400 11px "JetBrains Mono",monospace;color:var(--mute)}
+/* heat */
+.heat{display:grid;grid-template-columns:44px repeat(18,minmax(0,1fr));gap:3px;align-items:center}
+.heat .dl{font:600 11px Orbitron,sans-serif;letter-spacing:.08em;color:var(--mute)}
+.heat .dl.td{color:var(--mg)}
+.heat .c{aspect-ratio:1.4;background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.07)}
+.heat .hl{font:400 9px "JetBrains Mono",monospace;color:var(--mute);text-align:center}
+ul{list-style:none;margin:0;padding:0}
+.up{margin-top:14px}
+.ev{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0;border-top:1px dashed rgba(0,229,255,.12)}
+.ev .t{font:400 12px "JetBrains Mono",monospace;color:var(--cy);padding-top:3px;white-space:nowrap}
+/* tasks */
+.act{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px dashed rgba(0,229,255,.14)}
+.act:first-child{border-top:0}
+.act input{appearance:none;width:22px;height:22px;border:1.5px solid var(--cy);margin:1px 0 0;cursor:pointer;display:grid;place-content:center;clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px)}
+.act input:checked{background:var(--cy);box-shadow:0 0 12px var(--cy)}
+.act input:checked::after{content:"✓";color:#001;font-weight:900;font-size:14px}
+.act .tx{font-size:18px;font-weight:700}.act .why{color:var(--mute);font-size:14px}
+.act.done .tx{text-decoration:line-through;color:var(--mute)}
+.tag{font:700 10px Orbitron,sans-serif;letter-spacing:.14em;padding:2px 7px;border:1px solid var(--line2);color:var(--cy);margin-right:8px;vertical-align:2px}
+.tag.mg{color:var(--mg);border-color:rgba(255,176,32,.55)}.tag.ok{color:var(--ok);border-color:rgba(45,255,161,.5)}.tag.am{color:var(--am);border-color:rgba(255,210,63,.5)}.tag.bad{color:var(--bad);border-color:rgba(255,61,99,.5)}
+.due{font:400 12px "JetBrains Mono",monospace;color:var(--mg);margin-left:6px}
+/* mail */
+.ml{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px dashed rgba(0,229,255,.12)}
+.ml:first-child{border-top:0}
+.av{width:36px;height:36px;display:grid;place-content:center;font:800 13px Orbitron,sans-serif;color:#001;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+.ml .f{font-weight:700}.ml .s{color:var(--mute);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ml .a{font:400 11px "JetBrains Mono",monospace;color:var(--mute)}
+/* ops */
+.chart{width:100%;height:150px;display:block}
+.op{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px dashed rgba(0,229,255,.12)}.op:first-child{border-top:0}
+.op b{font:700 11px Orbitron,sans-serif;letter-spacing:.1em;color:var(--cy);padding-top:3px}
+.empty{color:var(--mute);font-size:14px}.bad{color:var(--bad)}
+/* ticker */
+.tick{position:fixed;left:0;right:0;bottom:0;height:34px;background:rgba(2,6,12,.92);border-top:1px solid var(--line2);overflow:hidden;z-index:40;display:flex;align-items:center}
+.tick b{flex:none;height:100%;display:grid;place-content:center;padding:0 14px;background:var(--mg);color:#1a1000;font:800 11px Orbitron,sans-serif;letter-spacing:.18em}
+.tick .rail{white-space:nowrap;font:400 13px "JetBrains Mono",monospace;color:var(--cy);padding-left:24px}
+.tick .rail span{margin-right:48px}.tick .rail span::before{content:"◆ ";color:var(--mg)}
+/* boot */
+.boot{position:fixed;inset:0;background:#000;z-index:100;display:grid;place-content:center;font:400 14px "JetBrains Mono",monospace;color:var(--cy);transition:opacity .6s}
+.boot.gone{opacity:0;pointer-events:none}
+.boot h1{font:900 clamp(28px,5vw,56px) Orbitron,sans-serif;letter-spacing:.2em;margin:0 0 16px;text-shadow:0 0 20px var(--cy)}
+.boot p{margin:3px 0}
+@media(prefers-reduced-motion:no-preference){
+ .sweep{animation:spin 6s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+ .pulse{animation:pl 1.6s ease-in-out infinite}@keyframes pl{50%{opacity:.35}}
+ .tick .rail{animation:mv 60s linear infinite}@keyframes mv{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+ .boot p{opacity:0;animation:in .2s forwards}@keyframes in{to{opacity:1}}
+}
+@media(max-width:1280px){.s3,.s4,.s5{grid-column:span 6}.s7,.s8{grid-column:span 12}.dialp{grid-column:span 6}}
+@media(max-width:820px){.con>*{grid-column:span 12!important}.gs{grid-template-columns:repeat(2,minmax(0,1fr))}.heat{grid-template-columns:34px repeat(18,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="boot" id="boot" aria-hidden="true">
+  <h1>YASH HQ</h1>
+  <p style="animation-delay:.1s">&gt; booting command layer</p>
+  <p style="animation-delay:.35s">&gt; linking calendar uplink</p>
+  <p style="animation-delay:.6s">&gt; linking mail relay</p>
+  <p style="animation-delay:.85s">&gt; spinning up AI core</p>
+  <p style="animation-delay:1.1s;color:#2dffa1">&gt; systems online</p>
+</div>
+
+<div class="wrap">
+<div class="con">
+  <section class="p s3 clk" id="clockp">
+    <div class="h"><span class="t">SYSTEM</span><small id="stamp">--</small></div>
+    <div>
+      <div class="time" id="time">--:--</div>
+      <div class="sec" aria-hidden="true"><i id="secbar" style="width:0"></i></div>
+    </div>
+    <div class="dt" id="date"></div>
+    <div class="lights">
+      <div class="lt"><span class="led" id="lCal"></span>CAL<b id="bCal">--</b></div>
+      <div class="lt"><span class="led" id="lMail"></span>MAIL<b id="bMail">--</b></div>
+      <div class="lt"><span class="led" id="lOps"></span>OPS<b id="bOps">--</b></div>
+      <div class="lt"><span class="led" id="lAi"></span>AI<b id="bAi">--</b></div>
+    </div>
+    <div class="btns"><button class="btn" id="rescan" type="button">RESCAN</button><button class="btn" id="full" type="button">FULL SCREEN</button></div>
+  </section>
+
+  <section class="p s5 dialp" id="dialp" aria-label="24 hour radar of today">
+    <svg class="dial" id="dial" viewBox="0 0 400 400" role="img" aria-label="Today's schedule on a 24 hour dial"></svg>
+  </section>
+
+  <section class="p s4 nx" id="next">
+    <div class="h"><span class="t">TARGET</span><small id="calStamp"></small></div>
+    <div class="lbl" id="nlbl">ACQUIRING</div>
+    <div class="what" id="nwhat">Linking calendar</div>
+    <div class="when" id="nwhen"></div>
+    <div class="cd" id="cd">--:--</div>
+    <div class="headline" id="headline"><em>AI READ</em><span class="pulse">Analyzing your calendar, mail and builds…</span></div>
+  </section>
+
+  <section class="p s12" id="gauges"><div class="gs" id="gs"></div></section>
+
+  <section class="p s4" id="week">
+    <div class="h"><span class="t">7 DAY LOAD</span><small>6A to 12A</small></div>
+    <div class="heat" id="heat"></div>
+    <ul class="up" id="upcoming"></ul>
+  </section>
+
+  <section class="p s4" id="tasks">
+    <div class="h"><span class="t">AI TASK QUEUE</span><small id="aiStamp"></small></div>
+    <ul id="actions"><li class="empty pulse">Generating tasks…</li></ul>
+  </section>
+
+  <section class="p s4" id="mail">
+    <div class="h"><span class="t">PRIORITY MAIL</span><small id="mailStamp"></small></div>
+    <ul id="mailList"><li class="empty pulse">Linking mail relay…</li></ul>
+  </section>
+
+  <section class="p s8" id="ops">
+    <div class="h"><span class="t">OPS TELEMETRY</span><small id="opsStamp">GitHub, 7 days</small></div>
+    <svg class="chart" id="chart" role="img" aria-label="Build activity per day"></svg>
+    <ul id="opsList"><li class="empty pulse">Reading build activity…</li></ul>
+  </section>
+
+  <section class="p s4" id="agents">
+    <div class="h"><span class="t">AGENTS</span><small>live</small></div>
+    <ul id="agentList"><li class="empty pulse">Linking…</li></ul>
+  </section>
+</div>
+</div>
+
+<div class="tick" aria-hidden="true"><b>LIVE</b><div class="rail" id="rail"><span>Systems online</span></div></div>
+
+<script>
+{
+const TZ = 'America/Los_Angeles';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safe = (u) => (typeof u === 'string' && /^https?:/.test(u)) ? u : '';
+const A = (u, t) => safe(u) ? '<a href="' + esc(safe(u)) + '" target="_blank" rel="noopener">' + esc(t) + '</a>' : esc(t);
+const fmtTime = (ts) => new Date(ts).toLocaleTimeString('en-US', {timeZone: TZ, hour: 'numeric', minute: '2-digit'});
+const dayKey = (ts) => new Date(ts).toLocaleDateString('en-CA', {timeZone: TZ});
+const dayName = (ts) => new Date(ts).toLocaleDateString('en-US', {timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric'}).toUpperCase();
+const dow = (ts) => new Date(ts).toLocaleDateString('en-US', {timeZone: TZ, weekday: 'short'}).toUpperCase();
+const laMin = (ts) => { const p = new Intl.DateTimeFormat('en-US', {timeZone: TZ, hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23'}).formatToParts(new Date(ts)); const g = (t) => +p.find((x) => x.type === t).value; return g('hour') * 60 + g('minute') + g('second') / 60; };
+const ago = (ts) => { const m = Math.round((Date.now() - new Date(ts)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 1440 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
+const hms = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(x).padStart(2, '0'); };
+const led = (id, s, txt) => { $('l' + id).className = 'led ' + s; if (txt != null) $('b' + id).textContent = txt; };
+const JUNK_LABELS = ['CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS', 'SPAM'];
+const JUNK_FROM = /no-?reply|notifications?@|newsletter|marketing|mailer|news@|updates@|hello@|info@|support@|digest|autorespond|admission/i;
+const PAL = ['#00e5ff', '#2f7bff', '#7df9ff', '#2dffa1', '#ffb020'];
+
+let ev = [], calOk = false, mailRows = [], codeRows = [], brief = null, doneIds = new Set(), db = null, mcp = null, sample = null, briefing = false;
+const got = {cal: false, mail: false, code: false};
+
+/* boot */
+setTimeout(() => $('boot').classList.add('gone'), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1600);
+
+/* clock */
+function tick() {
+  const p = new Intl.DateTimeFormat('en-US', {timeZone: TZ, hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true}).formatToParts(new Date());
+  const g = (t) => p.find((x) => x.type === t)?.value || '';
+  $('time').innerHTML = esc(g('hour')) + ':' + esc(g('minute')) + '<small>' + esc(g('dayPeriod')) + '</small>';
+  $('secbar').style.width = (+g('second') / 60 * 100) + '%';
+  $('date').textContent = new Date().toLocaleDateString('en-US', {timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric'});
+  renderNext();
+}
+let lastMin = -1;
+function minuteTick() { const m = Math.floor(laMin(Date.now())); if (m !== lastMin) { lastMin = m; renderDial(); renderGauges(); } }
+
+/* dial */
+const P = (r, min) => { const a = (min / 1440) * 2 * Math.PI - Math.PI / 2; return [200 + r * Math.cos(a), 200 + r * Math.sin(a)]; };
+function arc(r, a, b) { const [x1, y1] = P(r, a), [x2, y2] = P(r, b); return 'M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' A' + r + ' ' + r + ' 0 ' + (b - a > 720 ? 1 : 0) + ' 1 ' + x2.toFixed(1) + ' ' + y2.toFixed(1); }
+function renderDial() {
+  const now = laMin(Date.now()), today = dayKey(Date.now());
+  let s = '<defs><radialGradient id="rg"><stop offset="0" stop-color="#00e5ff" stop-opacity=".18"/><stop offset="1" stop-color="#00e5ff" stop-opacity="0"/></radialGradient>'
+    + '<linearGradient id="sw" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#00e5ff" stop-opacity="0"/><stop offset="1" stop-color="#00e5ff" stop-opacity=".45"/></linearGradient>'
+    + '<filter id="gl" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+  s += '<circle cx="200" cy="200" r="190" fill="url(#rg)"/>';
+  for (const r of [60, 100, 140, 178]) s += '<circle cx="200" cy="200" r="' + r + '" fill="none" stroke="rgba(0,229,255,' + (r === 178 ? .5 : .14) + ')" stroke-width="1"' + (r === 100 ? ' stroke-dasharray="2 6"' : '') + '/>';
+  s += '<line x1="200" y1="20" x2="200" y2="380" stroke="rgba(0,229,255,.08)"/><line x1="20" y1="200" x2="380" y2="200" stroke="rgba(0,229,255,.08)"/>';
+  for (let i = 0; i < 96; i++) { const big = i % 4 === 0, [x1, y1] = P(big ? 168 : 173, i * 15), [x2, y2] = P(178, i * 15); s += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="rgba(0,229,255,' + (big ? .7 : .25) + ')" stroke-width="' + (big ? 1.5 : 1) + '"/>'; }
+  for (const h of [0, 3, 6, 9, 12, 15, 18, 21]) { const [x, y] = P(190, h * 60); s += '<text x="' + x.toFixed(1) + '" y="' + (y + 4).toFixed(1) + '" fill="#5f8798" font-size="11" text-anchor="middle">' + (h % 12 || 12) + (h < 12 ? 'A' : 'P') + '</text>'; }
+  s += '<path d="' + arc(150, 0, Math.max(0.1, now)) + '" fill="none" stroke="rgba(47,123,255,.35)" stroke-width="2"/>';
+  if (calOk) {
+    ev.filter((e) => !e.allDay && dayKey(e.s) === today).forEach((e, i) => {
+      const a = laMin(e.s), b = dayKey(e.e) === today ? laMin(e.e) : 1439.9;
+      if (b <= a) return;
+      const col = e.free ? '#2f7bff' : (e.s <= Date.now() && e.e > Date.now() ? '#ffb020' : '#00e5ff');
+      s += '<path d="' + arc(150, a, b) + '" fill="none" stroke="' + col + '" stroke-width="16" stroke-linecap="butt" opacity="' + (e.e < Date.now() ? .35 : .95) + '" filter="url(#gl)"' + (e.free ? ' stroke-dasharray="3 3"' : '') + '><title>' + esc(e.title + ' ' + fmtTime(e.s)) + '</title></path>';
+      const [lx, ly] = P(120, (a + b) / 2);
+      if (b - a >= 45 && !e.free) s += '<text x="' + lx.toFixed(1) + '" y="' + (ly + 3).toFixed(1) + '" fill="#eafcff" font-size="9" text-anchor="middle">' + esc(e.title.slice(0, 12).toUpperCase()) + '</text>';
+    });
+  }
+  s += '<g class="sweep"><path d="M200 200 L' + P(178, now - 40).map((v) => v.toFixed(1)).join(' ') + ' A178 178 0 0 1 ' + P(178, now).map((v) => v.toFixed(1)).join(' ') + 'Z" fill="url(#sw)" opacity=".5"/></g>';
+  const [hx, hy] = P(182, now);
+  s += '<line x1="200" y1="200" x2="' + hx.toFixed(1) + '" y2="' + hy.toFixed(1) + '" stroke="#ffb020" stroke-width="2.5" filter="url(#gl)"/><circle cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="5" fill="#ffb020" filter="url(#gl)"/>';
+  s += '<circle cx="200" cy="200" r="46" fill="#020409" stroke="rgba(0,229,255,.5)"/>';
+  const left = calOk ? ev.filter((e) => !e.allDay && !e.free && dayKey(e.s) === today && e.s > Date.now()).length : null;
+  s += '<text x="200" y="198" fill="#fff" font-size="26" font-family="Orbitron" font-weight="800" text-anchor="middle">' + (left == null ? '--' : left) + '</text><text x="200" y="216" fill="#5f8798" font-size="9" text-anchor="middle">LEFT TODAY</text>';
+  $('dial').innerHTML = s;
+}
+
+/* next up */
+function renderNext() {
+  if (!calOk) return;
+  const now = Date.now(), timed = ev.filter((e) => !e.allDay && !e.free);
+  const cur = timed.find((e) => e.s <= now && e.e > now), nxt = timed.find((e) => e.s > now);
+  if (cur) { $('nlbl').textContent = '● LIVE NOW'; $('nwhat').textContent = cur.title; $('nwhen').textContent = 'ENDS ' + fmtTime(cur.e) + (nxt ? '  ›  ' + nxt.title.toUpperCase() : ''); $('cd').textContent = hms(cur.e - now); }
+  else if (nxt) { $('nlbl').textContent = 'NEXT TARGET'; $('nwhat').textContent = nxt.title; $('nwhen').textContent = (dayKey(nxt.s) === dayKey(now) ? 'TODAY' : dayName(nxt.s)) + ' · ' + fmtTime(nxt.s); $('cd').textContent = 'T-' + hms(nxt.s - now); }
+  else { $('nlbl').textContent = 'ALL CLEAR'; $('nwhat').textContent = 'Nothing scheduled'; $('nwhen').textContent = 'OPEN WEEK'; $('cd').textContent = '∞'; }
+}
+
+/* gauges */
+function freeHours() {
+  const now = Date.now(), t = dayKey(now), st = Math.max(laMin(now), 420), en = 1380;
+  if (st >= en) return 0;
+  const busy = ev.filter((e) => !e.allDay && !e.free && dayKey(e.s) === t).map((e) => [Math.max(st, laMin(e.s)), Math.min(en, laMin(e.e))]).filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  let used = 0, cur = st; for (const [a, b] of busy) if (b > cur) { used += b - Math.max(a, cur); cur = b; }
+  return Math.max(0, (en - st - used) / 60);
+}
+function gauge(label, val, max, col, shown, unit) {
+  const lit = Math.round(Math.min(1, max ? val / max : 0) * 36); let t = '';
+  for (let i = 0; i < 36; i++) { const a = i / 36 * 2 * Math.PI - Math.PI / 2, r1 = 34, r2 = 46; t += '<line x1="' + (50 + r1 * Math.cos(a)).toFixed(1) + '" y1="' + (50 + r1 * Math.sin(a)).toFixed(1) + '" x2="' + (50 + r2 * Math.cos(a)).toFixed(1) + '" y2="' + (50 + r2 * Math.sin(a)).toFixed(1) + '" stroke="' + (i < lit ? col : 'rgba(0,229,255,.12)') + '" stroke-width="3.2"' + (i < lit ? ' style="filter:drop-shadow(0 0 3px ' + col + ')"' : '') + '/>'; }
+  return '<div class="g"><svg viewBox="0 0 100 100" role="img" aria-label="' + esc(label + ' ' + shown) + '">' + t + '<circle cx="50" cy="50" r="26" fill="none" stroke="' + col + '" stroke-opacity=".3"/></svg><div><div class="n" style="text-shadow:0 0 14px ' + col + '">' + esc(shown) + '</div><div class="l">' + esc(label) + '</div><div class="u">' + esc(unit) + '</div></div></div>';
+}
+function renderGauges() {
+  const t = dayKey(Date.now());
+  const evT = calOk ? ev.filter((e) => dayKey(e.s) === t && !e.free).length : null;
+  const fr = calOk ? freeHours() : null;
+  const open = brief ? (brief.actions || []).filter((a) => !doneIds.has(aid(a))).length : null;
+  const mail = got.mail ? visibleMail().length : null;
+  const v = (x, d) => x == null ? '--' : d ? x.toFixed(d) : String(x);
+  $('gs').innerHTML = gauge('EVENTS TODAY', evT || 0, 8, '#00e5ff', v(evT), 'on calendar') + gauge('FREE HOURS', fr || 0, 16, '#2f7bff', v(fr, 1), 'until 11 PM') + gauge('TASKS OPEN', open || 0, 6, '#ffb020', v(open), 'AI queue') + gauge('PRIORITY MAIL', mail || 0, 10, '#2dffa1', v(mail), 'needs you');
+}
+
+/* week heat */
+function renderHeat() {
+  let h = '<div></div>';
+  for (let hr = 6; hr < 24; hr++) h += '<div class="hl">' + (hr % 3 === 0 ? (hr % 12 || 12) : '') + '</div>';
+  const base = Date.now();
+  for (let d = 0; d < 7; d++) {
+    const ts = base + d * 864e5, k = dayKey(ts);
+    h += '<div class="dl' + (d === 0 ? ' td' : '') + '">' + (d === 0 ? 'TDY' : dow(ts)) + '</div>';
+    const dayEv = ev.filter((e) => !e.allDay && !e.free && dayKey(e.s) === k);
+    for (let hr = 6; hr < 24; hr++) {
+      let cov = 0, title = '';
+      for (const e of dayEv) { const a = Math.max(hr * 60, laMin(e.s)), b = Math.min(hr * 60 + 60, dayKey(e.e) === k ? laMin(e.e) : 1440); if (b > a) { cov += (b - a) / 60; title = e.title; } }
+      cov = Math.min(1, cov);
+      const st = cov ? 'background:rgba(' + (d === 0 ? '255,176,32' : '0,229,255') + ',' + (0.15 + cov * 0.7).toFixed(2) + ');box-shadow:0 0 ' + (6 * cov).toFixed(0) + 'px rgba(' + (d === 0 ? '255,176,32' : '0,229,255') + ',.6)' : '';
+      h += '<div class="c" style="' + st + '"' + (title ? ' title="' + esc(title) + '"' : '') + '></div>';
+    }
+  }
+  $('heat').innerHTML = h;
+  const now = Date.now(), up = ev.filter((e) => !e.free && (e.allDay ? dayKey(e.s) >= dayKey(now) : e.e > now)).slice(0, 6);
+  $('upcoming').innerHTML = up.length ? up.map((e) => '<li class="ev"><span class="t">' + (dayKey(e.s) === dayKey(now) ? 'TDY' : dow(e.s)) + ' ' + (e.allDay ? 'ALL' : esc(fmtTime(e.s))) + '</span><span>' + A(e.link, e.title) + '</span></li>').join('') : '<li class="empty">Nothing ahead this week.</li>';
+}
+
+/* calendar feed */
+function onCal(e) {
+  if (e.type === 'error') { led('Cal', 'err', 'ERR'); if (!calOk) { $('nwhat').textContent = errCopy('Google Calendar', e.error); $('upcoming').innerHTML = ''; } return; }
+  ev = ((e.result.payload && e.result.payload.events) || []).map((x) => ({
+    id: x.id, title: x.summary || '(no title)', link: x.htmlLink,
+    s: +new Date(x.start?.dateTime || (x.start?.date + 'T00:00:00')), e: +new Date(x.end?.dateTime || (x.end?.date + 'T00:00:00')),
+    allDay: !x.start?.dateTime, free: x.transparency === 'transparent',
+  })).sort((a, b) => a.s - b.s);
+  calOk = got.cal = true; led('Cal', 'on', String(ev.length));
+  const st = e.result.cache?.storedAt || Date.now();
+  $('calStamp').textContent = 'SYNC ' + fmtTime(st); $('stamp').textContent = 'SYNC ' + fmtTime(st);
+  tick(); renderDial(); renderHeat(); renderGauges(); maybeBrief();
+}
+
+/* mail feed */
+function onMail(e) {
+  if (e.type === 'error') { led('Mail', 'err', 'ERR'); if (!got.mail) $('mailList').innerHTML = '<li class="empty bad">' + esc(errCopy('Gmail', e.error)) + '</li>'; return; }
+  mailRows = ((e.result.payload && e.result.payload.threads) || []).map((t) => {
+    const m = (t.messages || [])[0] || {};
+    const n = (m.addressDisplayNames || []).find((a) => a.emailAddress === m.sender);
+    return {id: String(t.id), from: n?.displayName || m.sender || '', addr: m.sender || '', subj: m.subject || '(no subject)', snip: (m.snippet || '').slice(0, 160), date: m.date, labels: m.labelIds || [], link: t.viewUrl};
+  }).filter((r) => !r.labels.some((l) => JUNK_LABELS.includes(l)) && !JUNK_FROM.test(r.addr));
+  got.mail = true; led('Mail', 'on'); renderMail(); renderGauges(); maybeBrief();
+}
+function visibleMail() {
+  if (!brief || !Array.isArray(brief.mail_keep)) return mailRows;
+  const keep = new Set(brief.mail_keep.map(String)), seen = new Set((brief.seen || []).map(String));
+  return mailRows.filter((r) => keep.has(r.id) || !seen.has(r.id));
+}
+function renderMail() {
+  if (!got.mail) return;
+  const rows = visibleMail(), why = (brief && brief.mail_why) || {};
+  $('bMail').textContent = String(rows.length);
+  $('mailStamp').textContent = brief ? 'AI FILTERED' : 'FILTERING';
+  $('mailList').innerHTML = rows.length ? rows.slice(0, 8).map((r, i) => {
+    const ini = (r.from.match(/\b\w/g) || ['?']).slice(0, 2).join('').toUpperCase();
+    return '<li class="ml"><span class="av" style="background:' + PAL[i % PAL.length] + '">' + esc(ini) + '</span><div><div class="f">' + esc(r.from) + '</div><div class="s">' + A(r.link, why[r.id] || r.subj) + '</div></div><span class="a">' + (r.date ? ago(r.date) : '') + '</span></li>';
+  }).join('') : '<li class="empty">Nothing needs you. Inbox clean.</li>';
+}
+
+/* ops feed */
+function onCode(e) {
+  if (e.type === 'error') { led('Ops', 'err', 'ERR'); if (!got.code) $('opsList').innerHTML = '<li class="empty bad">' + esc(errCopy('Gmail', e.error)) + '</li>'; return; }
+  codeRows = ((e.result.payload && e.result.payload.threads) || []).map((t) => {
+    const m = (t.messages || [])[0] || {};
+    const s = (m.subject || '').replace(/^Re:\s*/, '');
+    const hit = s.match(/^\[([^\]]+)\]\s*(.*?)(?:\s*\((?:PR|Issue) #(\d+)\))?$/);
+    return {repo: hit ? hit[1].split('/').pop() : 'github', title: hit ? hit[2] : s, pr: hit && hit[3] ? hit[3] : '', date: m.date, link: t.viewUrl};
+  });
+  got.code = true; led('Ops', 'on', String(codeRows.length)); renderChart(); renderOps(); maybeBrief();
+}
+function renderChart() {
+  const svg = $('chart'), W = svg.clientWidth || 600, H = svg.clientHeight || 150, pad = 22;
+  const days = []; for (let i = 6; i >= 0; i--) { const t = Date.now() - i * 864e5; days.push({k: dayKey(t), l: i === 0 ? 'TDY' : dow(t), n: 0}); }
+  for (const r of codeRows) { const d = days.find((x) => x.k === dayKey(r.date)); if (d) d.n++; }
+  const max = Math.max(1, ...days.map((d) => d.n)), x = (i) => pad + i * (W - pad * 2) / 6, y = (n) => H - pad - n / max * (H - pad * 2);
+  const pts = days.map((d, i) => [x(i), y(d.n)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  let s = '<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb020" stop-opacity=".55"/><stop offset="1" stop-color="#ffb020" stop-opacity="0"/></linearGradient></defs>';
+  for (let i = 0; i <= 4; i++) { const yy = pad + i * (H - pad * 2) / 4; s += '<line x1="' + pad + '" x2="' + (W - pad) + '" y1="' + yy + '" y2="' + yy + '" stroke="rgba(0,229,255,.08)"/>'; }
+  days.forEach((d, i) => { const bw = Math.min(26, (W - pad * 2) / 10); s += '<rect x="' + (x(i) - bw / 2) + '" y="' + y(d.n) + '" width="' + bw + '" height="' + (H - pad - y(d.n)) + '" fill="rgba(0,229,255,.12)" stroke="rgba(0,229,255,.4)"/>'; });
+  s += '<path d="' + line + ' L' + x(6) + ' ' + (H - pad) + ' L' + x(0) + ' ' + (H - pad) + 'Z" fill="url(#ag)"/><path d="' + line + '" fill="none" stroke="#ffb020" stroke-width="2.5" style="filter:drop-shadow(0 0 6px #ffb020)"/>';
+  pts.forEach((p, i) => { s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4" fill="#020409" stroke="#ffb020" stroke-width="2"/><text x="' + p[0] + '" y="' + (p[1] - 9) + '" fill="#eafcff" font-size="11" font-family="JetBrains Mono" text-anchor="middle">' + days[i].n + '</text><text x="' + p[0] + '" y="' + (H - 6) + '" fill="#5f8798" font-size="10" font-family="JetBrains Mono" text-anchor="middle">' + days[i].l + '</text>'; });
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.innerHTML = s;
+}
+new ResizeObserver(() => { if (got.code) renderChart(); }).observe($('chart'));
+function renderOps() {
+  if (brief && Array.isArray(brief.ops) && brief.ops.length) { $('opsList').innerHTML = brief.ops.map((o) => '<li class="op"><b>' + esc(String(o.project).toUpperCase()) + '</b><span>' + esc(o.update) + '</span></li>').join(''); return; }
+  if (!got.code) return;
+  const by = {}; for (const r of codeRows) (by[r.repo] ||= new Set()).add(r.pr ? '#' + r.pr + ' ' + r.title : r.title);
+  const k = Object.keys(by);
+  $('opsList').innerHTML = k.length ? k.map((n) => '<li class="op"><b>' + esc(n.toUpperCase()) + '</b><span>' + by[n].size + ' updates · ' + esc([...by[n]][0]) + '</span></li>').join('') : '<li class="empty">No build activity this week.</li>';
+}
+
+/* AI brief */
+const aid = (a) => String(a.id || a.text || 'task').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 60);
+function hash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
+async function maybeBrief(force) {
+  if (!got.cal || !got.mail || !got.code || briefing) return;
+  const key = hash(ev.map((e) => e.id).join() + '|' + mailRows.map((r) => r.id).join() + '|' + codeRows.length);
+  if (!force && brief && (brief.key === key || Date.now() - (brief.at || 0) < 30 * 60e3)) return;
+  if (!sample) { if (!brief) $('headline').innerHTML = '<em>AI READ</em>Open this page in Claude to turn on the AI.'; return; }
+  briefing = true; led('Ai', 'busy', 'RUN');
+  const today = new Date().toLocaleDateString('en-US', {timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'});
+  const prompt = 'You are the operations brain for Yash, a high school senior in San Diego who builds software and startups, plays soccer, and is applying to college. Now: ' + today + ', ' + fmtTime(Date.now()) + ' Pacific.\n\nCALENDAR (next 7 days):\n'
+    + ev.filter((e) => !e.free).map((e) => '- ' + dayName(e.s) + ' ' + (e.allDay ? 'all day' : fmtTime(e.s)) + ': ' + e.title).join('\n')
+    + '\n\nUNREAD MAIL (id | from | subject | snippet):\n' + mailRows.map((r) => r.id + ' | ' + r.from + ' <' + r.addr + '> | ' + r.subj + ' | ' + r.snip).join('\n')
+    + '\n\nGITHUB ACTIVITY (7 days):\n' + codeRows.slice(0, 40).map((r) => '- [' + r.repo + '] ' + r.title + (r.pr ? ' (#' + r.pr + ')' : '') + ' ' + dayKey(r.date)).join('\n')
+    + '\n\nReply with only JSON: {"headline":"one sharp sentence on what today is about","actions":[{"id":"short-kebab-id","text":"concrete task, imperative, under 12 words","area":"school|build|apps|life|money","due":"YYYY-MM-DD or empty","why":"under 12 words"}],"mail_keep":["ids of threads a real person wrote or that need Yash to act"],"mail_why":{"<id>":"what it needs from him, under 10 words"},"ops":[{"project":"repo or project","update":"one line on what shipped or changed"}],"ticker":["4 to 6 short status lines for a news ticker"]}\n'
+    + 'Rules: 3 to 6 actions only from the data above. Drop marketing, receipts, automated notices, college brochures and waitlist confirmations from mail_keep. Max 5 ops. Keep ids stable for the same task. No hyphens or em dashes in any text. Never invent facts.';
+  try {
+    const o = await sample.json(prompt, {cache: {gcTime: 30 * 60e3}});
+    if (!o || typeof o !== 'object') throw {code: 'invalid_json'};
+    brief = {key, at: Date.now(), headline: String(o.headline || ''), actions: Array.isArray(o.actions) ? o.actions.slice(0, 6) : [], mail_keep: Array.isArray(o.mail_keep) ? o.mail_keep.map(String) : [], mail_why: o.mail_why && typeof o.mail_why === 'object' ? o.mail_why : {}, ops: Array.isArray(o.ops) ? o.ops.slice(0, 5) : [], ticker: Array.isArray(o.ticker) ? o.ticker.slice(0, 6).map(String) : [], seen: mailRows.map((r) => r.id)};
+    if (db) db.doc('brief/latest').set(brief).catch(() => {});
+    led('Ai', 'on', 'OK'); renderBrief();
+  } catch (err) {
+    led('Ai', 'err', 'ERR');
+    if (!brief) $('headline').innerHTML = '<em>AI READ</em>' + esc(err && err.code === 'not_granted' ? 'AI is off. Allow Claude for this page to turn it on.' : err && err.code === 'rate_limited' ? 'AI is busy. It retries on the next scan.' : 'AI brief did not come through. Hit RESCAN.');
+  } finally { briefing = false; }
+}
+function renderBrief() {
+  if (!brief) return;
+  $('headline').innerHTML = '<em>AI READ · ' + esc(ago(brief.at)).toUpperCase() + ' AGO</em>' + esc(brief.headline);
+  $('aiStamp').textContent = 'BRIEFED ' + fmtTime(brief.at);
+  const acts = (brief.actions || []).slice().sort((a, b) => doneIds.has(aid(a)) - doneIds.has(aid(b)));
+  const cls = {school: 'mg', apps: 'mg', money: 'ok', life: 'am'};
+  $('actions').innerHTML = acts.length ? acts.map((a) => { const id = aid(a), d = doneIds.has(id); return '<li class="act' + (d ? ' done' : '') + '" data-id="' + esc(id) + '"><input type="checkbox" aria-label="Done"' + (d ? ' checked' : '') + '><div><div class="tx"><span class="tag ' + (cls[a.area] || '') + '">' + esc(String(a.area || 'task').toUpperCase()) + '</span>' + esc(a.text) + (a.due ? '<span class="due">' + esc(String(a.due).slice(5)) + '</span>' : '') + '</div><div class="why">' + esc(a.why || '') + '</div></div></li>'; }).join('') : '<li class="empty">Queue empty. Go build.</li>';
+  const items = [...(brief.ticker || []), ...(brief.actions || []).filter((a) => !doneIds.has(aid(a))).map((a) => 'TASK: ' + a.text)];
+  if (items.length) { const one = items.map((t) => '<span>' + esc(t) + '</span>').join(''); $('rail').innerHTML = one + one; }
+  renderMail(); renderOps(); renderGauges();
+}
+$('actions').addEventListener('change', async (e) => {
+  const li = e.target.closest('.act'); if (!li) return;
+  const id = li.dataset.id;
+  if (e.target.checked) doneIds.add(id); else doneIds.delete(id);
+  renderBrief();
+  if (db) { try { if (e.target.checked) await db.doc('done/' + id).set({at: new Date().toISOString()}); else await db.doc('done/' + id).delete(); } catch {} }
+});
+
+/* agents */
+function renderAgents(rows) {
+  const rank = {blocked: 0, working: 1, done: 2}, cls = {done: 'ok', blocked: 'bad'};
+  rows.sort((a, b) => (rank[a.status] ?? 1) - (rank[b.status] ?? 1) || String(b.updated || '').localeCompare(String(a.updated || '')));
+  $('agentList').innerHTML = rows.length ? rows.slice(0, 6).map((r) => '<li class="op"><b><span class="tag ' + (cls[r.status] || 'mg') + '">' + esc(String(r.status || 'working').toUpperCase()) + '</span></b><span>' + esc(r.name) + (r.note ? '<div class="empty">' + esc(r.note) + '</div>' : '') + '</span></li>').join('') : '<li class="empty">No agents reporting.</li>';
+}
+
+function errCopy(srv, err) {
+  const c = err && err.code;
+  if (c === 'needs_reauth') return 'Reconnect ' + srv + ' in claude.ai Settings, Connectors.';
+  if (c === 'server_not_connected') return 'Add ' + srv + ' in claude.ai Settings, Connectors.';
+  if (c === 'not_in_manifest' || c === 'approval_required') return srv + ' access is off. Hit RESCAN to allow it.';
+  return srv + ' link dropped. Retrying next scan.';
+}
+
+const FIVE = 5 * 60e3;
+const CAL = ['Google Calendar', 'list_events', {orderBy: 'startTime', pageSize: 60}];
+const MAIL = ['Gmail', 'search_threads', {query: 'in:inbox newer_than:3d -category:promotions -category:social -category:forums', view: 'THREAD_VIEW_SUMMARY', pageSize: 30}];
+const CODE = ['Gmail', 'search_threads', {query: 'from:notifications@github.com newer_than:7d', view: 'THREAD_VIEW_SUMMARY', pageSize: 50}];
+
+
+/* PREVIEW MODE: outside Claude (plain browser, local dev) there is no mcp/db/sample, so feed realistic sample data */
+function mockFeeds() {
+  const day = 864e5, base = new Date(); base.setMinutes(0, 0, 0);
+  const at = (d, h, m = 0) => { const t = new Date(base.getTime() + d * day); t.setHours(h, m, 0, 0); return t.toISOString(); };
+  const evs = [];
+  for (let d = 0; d < 7; d++) {
+    if (d % 7 < 5) evs.push({id: 's' + d, summary: 'School', start: {dateTime: at(d, 9, 46)}, end: {dateTime: at(d, 15, 35)}});
+    evs.push({id: 'p' + d, summary: 'Soccer practice', start: {dateTime: at(d, 19)}, end: {dateTime: at(d, 21)}});
+  }
+  evs.push({id: 'v1', summary: 'VR meeting with Eddie', start: {dateTime: at(0, 16)}, end: {dateTime: at(0, 16, 30)}});
+  evs.push({id: 'c1', summary: 'College counselor call', start: {dateTime: at(1, 15)}, end: {dateTime: at(1, 15, 30)}});
+  evs.push({id: 'o1', summary: 'Office hours (free)', start: {dateTime: at(0, 10, 55)}, end: {dateTime: at(0, 11, 30)}, transparency: 'transparent'});
+  const th = (id, from, addr, subj, snip, hAgo, labels = ['INBOX', 'CATEGORY_PERSONAL']) => ({id, viewUrl: 'https://mail.google.com', messages: [{sender: addr, subject: subj, snippet: snip, date: new Date(Date.now() - hAgo * 36e5).toISOString(), labelIds: labels, addressDisplayNames: [{emailAddress: addr, displayName: from}]}]});
+  const mail = {threads: [
+    th('m1', 'Eddie Park', 'eddie@promx.ai', 'Tuesday VR session', 'Can you bring the Quest build so we can walk through it', 2),
+    th('m2', 'Reshma Shanbhag', 'resh@gmail.com', 'FAFSA folder', 'Shared the folder, need your signature page by Friday', 5),
+    th('m3', 'Coach Ramirez', 'coach@school.org', 'Saturday lineup', 'Arrive 45 min early, bring both kits', 20),
+  ]};
+  const gh = (id, repo, title, pr, hAgo) => ({id, viewUrl: 'https://github.com', messages: [{sender: 'notifications@github.com', subject: '[YashPatil321/' + repo + '] ' + title + (pr ? ' (PR #' + pr + ')' : ''), date: new Date(Date.now() - hAgo * 36e5).toISOString()}]});
+  const code = {threads: [gh('g1', 'SolidHauzWeb', 'Page Manager: add /process', 152, 3), gh('g2', 'SolidHauzWeb', 'Designer production ready', 151, 4), gh('g3', 'SolidHauzWeb', 'Machine visuals across the site', 150, 28), gh('g4', 'ocs_backend', 'Broker retry logic', 41, 50), gh('g5', 'vr-game', 'Hand tracking prototype', 12, 75), gh('g6', 'SolidHauzWeb', 'New /process page with 3D CNC', 149, 100)]};
+  onCal({type: 'data', result: {payload: {events: evs}}});
+  onMail({type: 'data', result: {payload: mail}});
+  onCode({type: 'data', result: {payload: code}});
+  if (!brief) {
+    brief = {key: 'mock', at: Date.now(), headline: 'Light school day, VR demo with Eddie at 4, practice tonight.', seen: ['m1', 'm2', 'm3'], mail_keep: ['m1', 'm2', 'm3'],
+      mail_why: {m1: 'Bring the Quest build Tuesday', m2: 'Sign FAFSA page by Friday', m3: 'Arrive early Saturday'},
+      actions: [{id: 'quest-build', text: 'Charge Quest and load the latest VR build', area: 'build', why: 'Demo with Eddie at 4'}, {id: 'fafsa', text: 'Sign the FAFSA page in the shared folder', area: 'apps', due: '', why: 'Reshma needs it by Friday'}, {id: 'pr-152', text: 'Review and merge PR 152 on SolidHauzWeb', area: 'build', why: 'Process page is waiting'}],
+      ops: [{project: 'SolidHauzWeb', update: 'Shipped the process page, designer is production ready'}, {project: 'ocs_backend', update: 'Broker retries landed'}, {project: 'vr-game', update: 'Hand tracking prototype started'}],
+      ticker: ['Preview data, open in Claude for your real feed', 'Three builds shipped this week', 'Practice 7 PM']};
+    led('Ai', 'on', 'MOCK'); renderBrief();
+  }
+}
+
+async function start() {
+  tick(); renderDial(); renderGauges(); renderHeat();
+  setInterval(tick, 1000); setInterval(minuteTick, 5000);
+  const use = (n) => (window.claude && claude.use) ? claude.use(n).catch(() => null) : Promise.resolve(null);
+  [mcp, db, sample] = await Promise.all([use('mcp'), use('db'), use('sample')]);
+  if (db) {
+    try { const d = await db.doc('brief/latest').get(); if (d.exists) { brief = d.data(); led('Ai', 'on', 'OK'); renderBrief(); } } catch {}
+    db.collection('done').onSnapshot((s) => { doneIds = new Set(s.docs.map((d) => d.id)); renderBrief(); }, () => {});
+    db.collection('agents').onSnapshot((s) => renderAgents(s.docs.map((d) => ({id: d.id, ...d.data()}))), () => { $('agentList').innerHTML = '<li class="empty bad">Agent board offline.</li>'; });
+  } else $('agentList').innerHTML = '<li class="empty">Open in Claude to see agents.</li>';
+  if (!mcp) { mockFeeds(); $('stamp').textContent = 'PREVIEW DATA'; return; }
+  mcp.watchTool(...CAL, onCal, {refetchInterval: FIVE});
+  mcp.watchTool(...MAIL, onMail, {refetchInterval: FIVE});
+  mcp.watchTool(...CODE, onCode, {refetchInterval: FIVE});
+}
+$('rescan').addEventListener('click', () => {
+  if (!mcp) return;
+  led('Cal', 'busy'); led('Mail', 'busy'); led('Ops', 'busy');
+  for (const [srv, tool, input, fn] of [[...CAL, onCal], [...MAIL, onMail], [...CODE, onCode]]) mcp.callTool(srv, tool, input, {cache: {staleTime: 0, gcTime: FIVE, refresh: true}}).then((result) => fn({type: 'data', result})).catch((error) => fn({type: 'error', error}));
+  setTimeout(() => maybeBrief(true), 5000);
+});
+let lock = null;
+$('full').addEventListener('click', async () => {
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); } catch {}
+  try { if (!lock && navigator.wakeLock) lock = await navigator.wakeLock.request('screen'); } catch {}
+});
+start();
+}
+</script>
+</body>
+</html>
