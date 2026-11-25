@@ -57,6 +57,7 @@ import jarvis_vaultstyle
 import jarvis_learn
 import jarvis_audio
 import jarvis_routines
+import jarvis_trust
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -95,6 +96,8 @@ ELEVEN_VOICES = {   # ElevenLabs' built in voices
 SILENCE_SECONDS = 1.0        # how long you pause before it stops recording
 CLAUDE_MODEL = "sonnet"      # the brain for voice answers: sonnet is fast and sharp. "opus" for the deepest thinking (slower)
 STREAM = True                # start talking at the first sentence instead of waiting for the whole answer
+TELEGRAM_TOKEN = ""          # your own Telegram bot (from @BotFather) to talk to Atlas from your phone. See jarvis_trust.py
+TELEGRAM_CHAT_ID = 0         # filled in automatically when you pair
 PUSH_TO_TALK = True          # Ctrl+Alt+Space anywhere in Windows = talk to Atlas (no wake word, works with loud music)
 FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
 KEEP_LISTENING = True        # while Claude thinks, Atlas still hears you, so you can give it more commands
@@ -152,7 +155,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio, jarvis_routines):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio, jarvis_routines, jarvis_trust):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -1003,7 +1006,7 @@ def _route(text):
         return ("install_vision", None)
     if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
         return ("command_center", None)
-    cc = cc or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_trust.route_trust(t) or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1575,6 +1578,7 @@ def describe_denied(denied):
 
 ACTIVITY = None   # set in main: what he's doing right now, added to every question
 EVOLVER = None    # set in main: lessons and self improvement
+WHISPER_HOLDER = {}
 PERSONA = None    # set in main: the living character sheet
 
 
@@ -1649,7 +1653,9 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
                   "follow up on one with: claude -p --cloud <session id> --output-format json (message on stdin); pull one "
                   "down with: claude --teleport <id>; open a local session in a new terminal window; drive a session from his "
                   "phone with: claude --remote-control. Sessions you start are listed in "
-                  f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. His claude.ai chats (from his data export) are notes in his "
+                  f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. To send a file or message to Yash's phone, run: "
+                  f"\"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" phone-send <file path or text>. "
+                  "His claude.ai chats (from his data export) are notes in his "
                   "vault under Claude/Chats, one per chat: Grep them when he asks what he talked to Claude about. For a chat "
                   "newer than the export, open claude.ai/recents in the browser and read the screen with jarvis_ctl.")
     if EVOLVER:
@@ -1877,6 +1883,7 @@ class Jarvis:
         self.extras = None
         self.lock = threading.RLock()   # voice and phone requests take turns
         self.last_heard, self.follow_frames, self.recording = 0.0, [], False
+        self.undo_log = jarvis_trust.UndoLog()
         self.vision = None
         self.desk = None
         self.cad = None
@@ -2444,8 +2451,28 @@ class Jarvis:
         self.speaker.say(answer)
         return True
 
+    UNDO = {   # action -> (what it undoes, how)
+        "volume_up": ("the volume", lambda self, a: self.pc.key("vol_down", max(1, (a or 10) // 2))),
+        "volume_down": ("the volume", lambda self, a: self.pc.key("vol_up", max(1, (a or 10) // 2))),
+        "music_pause": ("the pause", lambda self, a: self.run("music_play", None)),
+        "music_play": ("that", lambda self, a: self.run("music_pause", None)),
+        "next": ("the skip", lambda self, a: self.run("prev", None)),
+        "mute": ("mute", lambda self, a: self.pc.key("mute")),
+        "focus": ("the focus session", lambda self, a: self.brain and self.brain.end_focus(early=True)),
+        "standby": ("standby", lambda self, a: self.leave_standby("undo", greet=False)),
+        "monitor_off": ("standby", lambda self, a: self.leave_standby("undo", greet=False)),
+        "gestures": ("gestures", lambda self, a: setattr(jarvis_vision, "GESTURES_ON", not a)),
+        "vision_focus": ("follow mode", lambda self, a: setattr(self.vision, "zoom_on", not a) if self.vision else None),
+        "spice": ("the spice change", lambda self, a: PERSONA and PERSONA.set_spice(delta=-a)),
+        "tab_close": ("the tab", lambda self, a: __import__("jarvis_ctl").press(__import__("jarvis_ctl").chord("ctrl+shift+t"))),
+        "remember": ("that", lambda self, a: self.brain and jarvis_trust.forget(self.brain.vault, a)),
+    }
+
     def run(self, action, arg):
         say, pc, sp = self.speaker.say, self.pc, self.spotify
+        if action in self.UNDO and getattr(self, "undo_log", None):
+            label, fn = self.UNDO[action]
+            self.undo_log.push(label, lambda f=fn, a=arg: f(self, a))
         amb = getattr(self, "ambient", None)
         if action in ("spice", "spice_set", "persona_me", "persona_jokes", "persona_reset", "persona_grow"):
             pz = PERSONA
@@ -2469,6 +2496,22 @@ class Jarvis:
                 threading.Thread(target=lambda: say("Updated myself. Ask me who I am." if pz.rewrite(force=True)
                                                     else "Couldn't rewrite myself right now."), daemon=True).start()
             return True
+        if action == "undo_action":
+            got = self.undo_log.pop() if getattr(self, "undo_log", None) else None
+            if not got:
+                say("Nothing recent I can take back.")
+            else:
+                label, fn = got
+                try:
+                    fn()
+                    say(f"Undid {label}.")
+                except Exception as e:
+                    say(f"Couldn't undo {label}: {e}")
+            return True
+        if action == "forget_fact":
+            n = jarvis_trust.forget(self.brain.vault, arg) if self.brain else 0
+            say(f"Forgot it." if n == 1 else f"Forgot {n} things." if n else "I don't have anything like that saved.")
+            return True
         if action in ("routine_add", "routine_list", "routine_del", "quiet_set"):
             rt = getattr(self, "routines", None)
             if action == "quiet_set":
@@ -2481,6 +2524,9 @@ class Jarvis:
                 say("Routines aren't running.")
             elif action == "routine_add":
                 d = rt.add(arg)
+                rid = rt.items[-1]["id"]
+                if getattr(self, "undo_log", None):
+                    self.undo_log.push("that routine", lambda: setattr(rt, "items", [r for r in rt.items if r["id"] != rid]) or rt._save())
                 say("Done. " + d[0].upper() + d[1:] + ".")
             elif action == "routine_list":
                 say("You've got " + "; ".join(jarvis_routines.describe(r) for r in rt.items) + "." if rt.items else "No routines yet.")
@@ -3093,9 +3139,27 @@ class Jarvis:
         elif action == "app":
             if arg in ("chrome", "edge"):
                 pc.open_url("about:blank", app_window=None)
-            else:
-                pc.launch(APPS[arg])
+                say("New window.")
+                return True
+            existing = jarvis_trust.find_window(arg)
+            if existing:   # already running: bring it up instead of opening a second copy
+                try:
+                    jarvis_screen.Screen().focus(existing)
+                except Exception:
+                    pass
+                say(f"{arg.title()} is up front.")
+                return True
+            before = jarvis_trust._windows()
+            pc.launch(APPS[arg])
             say("Opening " + arg + ".")
+
+            def check(name=arg):
+                h = jarvis_trust.verify_open(name, before, timeout=10)
+                if h is False:
+                    say(f"{name.title()} didn't open. Want me to try another way?")
+                elif h and getattr(self, "undo_log", None):
+                    self.undo_log.push(name, lambda: IS_WIN and __import__("ctypes").windll.user32.PostMessageW(h, 0x0010, 0, 0))
+            threading.Thread(target=check, daemon=True).start()
         return True
 
 
@@ -3233,6 +3297,7 @@ def main():
         subprocess.Popen([pyw if os.path.exists(pyw) else sys.executable, os.path.join(WORKDIR, "jarvis_orb.py")], cwd=WORKDIR)
         jarvis_orb.send("thinking")   # loading models
     whisper, _ = load_whisper()
+    WHISPER_HOLDER["model"] = whisper   # for Telegram voice notes
     speaker = Speaker()
     jarvis = Jarvis(speaker, claude=claude)
     try:
@@ -3276,8 +3341,24 @@ def main():
     PERSONA = jarvis_persona.Persona(BRAIN.vault, ask=lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read", model="opus")[0],
                                      convos=CONVOS, name=ASSISTANT_NAME)
     threading.Thread(target=PERSONA.watch, daemon=True).start()
+    if TELEGRAM_TOKEN:
+        def tg_ask(text):
+            return jarvis.remote_ask(text, speak=False)
+
+        def tg_transcribe(path):
+            from faster_whisper import decode_audio
+            return transcribe(WHISPER_HOLDER["model"], decode_audio(path, sampling_rate=16000)) if WHISPER_HOLDER.get("model") else ""
+        jarvis.telegram = jarvis_trust.Telegram(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, tg_ask, tg_transcribe,
+                                                save_chat=lambda c: set_local_setting("TELEGRAM_CHAT_ID", c), log=log)
+        threading.Thread(target=jarvis.telegram.run, daemon=True).start()
     jarvis.jobs = jarvis_multi.Jobs(speaker.say, lambda: not speaker.speaking and not getattr(jarvis, "recording", False),
                                     lock=jarvis.lock, log=log)
+    if getattr(jarvis, "telegram", None):
+        def job_say(text, _say=speaker.say):
+            _say(text)
+            if BRAIN and (BRAIN.presence.away or jarvis_brain.idle_seconds() > 600):
+                jarvis.telegram.send(text)   # you're not at the desk: it goes to your phone too
+        jarvis.jobs.say = job_say
     jarvis.chats = jarvis_chats.Chats(speaker.say, lambda pr: ask_claude(pr, None, jarvis.claude, tools="Read")[0], vault=BRAIN.vault,
                                       remember=BRAIN.vault.remember, open_url=jarvis.pc.open_url)
     threading.Thread(target=jarvis.chats.watch, daemon=True).start()
@@ -3364,6 +3445,17 @@ def main():
                 h.send_header("Cache-Control", "no-store")
                 h.end_headers()
                 h.wfile.write(body)
+            def memory_json(h, q):
+                if q.get("delete") and BRAIN:
+                    jarvis_trust.forget(BRAIN.vault, q["delete"], q.get("kind"))
+                body = json.dumps(jarvis_trust.facts(BRAIN.vault) if BRAIN else []).encode("utf-8")
+                h.send_response(200)
+                h.send_header("Content-Type", "application/json")
+                h.send_header("Content-Length", str(len(body)))
+                h.send_header("Cache-Control", "no-store")
+                h.end_headers()
+                h.wfile.write(body)
+            bridge.routes["/command/memory"] = memory_json
             bridge.routes["/command"] = command_page
             bridge.routes["/command/state"] = command_json
             jarvis.cad = jarvis_cad.CadHub(say=speaker.say)

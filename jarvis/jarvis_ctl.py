@@ -28,6 +28,7 @@ Screen control from the command line, for Claude (with full access) and for you.
   python jarvis_ctl.py wait "Sign in" [seconds]    waits until something with that name shows up
   python jarvis_ctl.py double 800 400 | right 800 400 | move 800 400
   python jarvis_ctl.py drag 300 300 900 300        press, move, release
+  python jarvis_ctl.py phone-send <file or text>    sends it to Yash's phone (his Telegram bot)
   python jarvis_ctl.py scroll down 5 [x y]         scroll (up or down, in notches) where the mouse is or at x y
   After every action, look again to check it worked before you say it's done.
   python jarvis_ctl.py camera [path]               saves a photo from the webcam (what Yash is doing) and prints the path
@@ -352,6 +353,21 @@ def main(argv):
             ctypes.windll.user32.mouse_event(0x0800, 0, 0, (120 if way == "up" else -120) * n, 0)
         print(f"scrolled {way} {n}")
         return 0
+    if cmd == "phone-send":
+        try:
+            import local_settings as L
+            token, chat = getattr(L, "TELEGRAM_TOKEN", ""), getattr(L, "TELEGRAM_CHAT_ID", 0)
+        except ImportError:
+            token, chat = "", 0
+        if not (token and chat):
+            print("Telegram isn't set up (TELEGRAM_TOKEN and pairing in local_settings.py)")
+            return 1
+        import jarvis_trust
+        tg = jarvis_trust.Telegram(token, chat, None, log=print)
+        what = " ".join(args)
+        ok = tg.send_file(what) if os.path.isfile(what) else tg.send(what)
+        print("sent to his phone" if ok else "sending failed")
+        return 0 if ok else 1
     if cmd == "read":
         print(read_text())
         return 0

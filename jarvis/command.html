@@ -69,6 +69,19 @@
   .ask input::placeholder { color: var(--faint); }
   .ask kbd { font: 11px "Geist Mono", monospace; color: var(--faint); border: 1px solid var(--line2); border-radius: 6px; padding: 2px 6px; }
   .right-foot { text-align: right; }
+  .memb { background: none; border: 1px solid var(--line2); color: var(--muted); font: 12px "Geist", sans-serif;
+    padding: 5px 12px; border-radius: 8px; cursor: pointer; } .memb:hover { color: var(--text); border-color: var(--ice); }
+  .mem { position: fixed; inset: 0; background: rgba(5, 7, 11, .72); backdrop-filter: blur(6px); display: none; z-index: 20;
+    align-items: center; justify-content: center; padding: 24px; }
+  .mem.on { display: flex; }
+  .mem .box { width: min(760px, 100%); max-height: 82vh; overflow: auto; background: var(--panel); border: 1px solid var(--line2);
+    border-radius: 16px; padding: 20px 22px; }
+  .mem h2 { font-weight: 500; font-size: 18px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .mem .hint { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .fact { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.45; }
+  .fact .k { font: 10.5px "Geist Mono", monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); width: 64px; flex: none; padding-top: 3px; }
+  .fact .t { flex: 1; } .fact button { background: none; border: 0; color: var(--faint); cursor: pointer; font-size: 18px; line-height: 1; }
+  .fact button:hover { color: var(--alert); }
   @media (max-height: 900px) and (min-width: 1101px) { .tall-only { display: none; } }
   @media (max-width: 1100px) {
     html, body { height: auto; overflow-x: hidden; overflow-y: auto; }
@@ -83,6 +96,11 @@
 </head>
 <body>
 <div class="grid-bg"></div>
+<div class="mem" id="mem"><div class="box">
+  <h2>What Atlas knows <button class="memb" id="memClose">Close</button></h2>
+  <div class="hint">Everything it remembers about you and every lesson from your corrections. Delete anything that's wrong.</div>
+  <div id="memList"><div class="empty">Loading</div></div>
+</div></div>
 <div class="app">
   <header>
     <div class="brand"><div class="mark"></div><b>ATLAS</b><span class="label" id="mode" style="margin-left:10px">Online</span></div>
@@ -90,6 +108,7 @@
       <div class="chip"><span class="dot" id="d-cam"></span><span id="s-cam">Camera</span></div>
       <div class="chip"><span class="dot" id="d-model"></span><span id="s-model">Auto model</span></div>
       <div class="chip"><span class="dot" id="d-jobs"></span><span id="s-jobs">No jobs</span></div>
+      <button class="memb" id="memBtn">Memory</button>
       <div class="clock mono" id="clock">--:--</div>
     </div>
   </header>
@@ -243,6 +262,23 @@ $("ask").addEventListener("submit", async (e) => {
     $("said").textContent = await r.text();
   } catch (e) { $("said").textContent = "Couldn't reach Atlas."; }
 });
+
+/* ---------- memory you can edit ---------- */
+const MEM_SAMPLE = [{ kind: "memory", text: "Yash is visiting Babson on December 12 with his dad (Nov 22)" },
+  { kind: "memory", text: "Yash's dad is named Neil (Nov 22)" }, { kind: "lesson", text: "When Yash says gameday he means the GAMEDAY playlist (Nov 23)" }];
+async function loadMem(del) {
+  let list = MEM_SAMPLE;
+  if (!PREVIEW) {
+    const q = del ? `&delete=${encodeURIComponent(del.text)}&kind=${del.kind}` : "";
+    try { list = await (await fetch(`/command/memory?token=${encodeURIComponent(TOKEN)}${q}`)).json(); } catch (e) { list = []; }
+  } else if (del) { MEM_SAMPLE.splice(MEM_SAMPLE.findIndex((f) => f.text === del.text), 1); }
+  $("memList").innerHTML = list.length ? list.map((f, i) => `<div class="fact"><span class="k">${f.kind === "lesson" ? "Lesson" : "Fact"}</span>`
+    + `<span class="t">${esc(f.text)}</span><button title="Forget this" data-i="${i}">×</button></div>`).join("") : '<div class="empty">Nothing saved yet</div>';
+  [...$("memList").querySelectorAll("button")].forEach((b) => b.onclick = () => loadMem(list[+b.dataset.i]));
+}
+$("memBtn").onclick = () => { $("mem").classList.add("on"); loadMem(); };
+$("memClose").onclick = () => $("mem").classList.remove("on");
+$("mem").onclick = (e) => { if (e.target.id === "mem") $("mem").classList.remove("on"); };
 
 /* ---------- the core: a gyroscope of light that folds into a reticle when Atlas pays attention ----------
    idle       rings drift slowly on their own tilted axes around a thin axis line (a gyroscope)
