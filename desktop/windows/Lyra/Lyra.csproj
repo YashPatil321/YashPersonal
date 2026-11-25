@@ -8,6 +8,7 @@
     <RootNamespace>Lyra</RootNamespace>
     <AssemblyName>Lyra</AssemblyName>
     <ApplicationManifest>..\Shared\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\installer\icons\Lyra.ico</ApplicationIcon>
     <Product>Lyra</Product>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- WFAC010 is the WinForms "use SetHighDpiMode" hint; these are WPF apps, which take DPI awareness from the manifest. -->

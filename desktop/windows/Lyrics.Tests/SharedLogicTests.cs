@@ -115,3 +115,28 @@ public class SharedLogicTests
         Assert.Empty(DominantColors.FromBgra(Array.Empty<byte>()));
     }
 }
+
+public class SpectrumTests
+{
+    [Fact]
+    public void LogBinsPeakAtTheToneAndWaveIsNormalised()
+    {
+        const double rate = 48000;
+        var a = new SpectrumAnalyzer();
+        var block = new float[SpectrumAnalyzer.BlockSize];
+        for (var i = 0; i < block.Length; i++) block[i] = (float)(0.2 * Math.Sin(2 * Math.PI * 1000 * i / rate));
+        a.Process(block, rate, 1.0);
+
+        var bins = new float[64];
+        var wave = new float[128];
+        a.CopySpectrum(bins, wave);
+
+        // 1 kHz on a 40 Hz..16 kHz log scale with 64 bins sits at bin floor(64 * ln(25) / ln(400)) = 34.
+        var max = Array.IndexOf(bins, bins.Max());
+        Assert.InRange(max, 33, 35);
+        Assert.Equal(1.0f, bins[max], 3);
+        Assert.All(bins, b => Assert.InRange(b, 0f, 1f));
+        Assert.InRange(wave.Max(), 0.9f, 1.0001f);
+        Assert.Equal(1.0, a.LastAudioTime);
+    }
+}

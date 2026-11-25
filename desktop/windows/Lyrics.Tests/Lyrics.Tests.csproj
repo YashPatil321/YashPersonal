@@ -17,6 +17,7 @@
     <Compile Include="..\Shared\NowPlaying\PositionClock.cs" Link="Linked\PositionClock.cs" />
     <Compile Include="..\Shared\Audio\SpectrumAnalyzer.cs" Link="Linked\SpectrumAnalyzer.cs" />
     <Compile Include="..\Shared\Imaging\DominantColors.cs" Link="Linked\DominantColors.cs" />
+    <Compile Include="..\Wave\Spotify\SpotifyProtocol.cs" Link="Linked\SpotifyProtocol.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\fixtures\lyricsfile-sample.yaml" Link="fixtures\lyricsfile-sample.yaml" CopyToOutputDirectory="PreserveNewest" />

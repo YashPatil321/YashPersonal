@@ -20,6 +20,7 @@ public sealed class NowPlayingService : IDisposable
     private readonly Stopwatch _clockSource = Stopwatch.StartNew();
     private readonly PositionClock _clock = new();
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
+    private GlobalSystemMediaTransportControlsSession? _session;
     private bool _polling;
     private bool _managerFailed;
     private int _artworkAttempts;
@@ -143,6 +144,7 @@ public sealed class NowPlayingService : IDisposable
         }
         Sessions = infos;
 
+        _session = chosen ?? current;
         if (chosen is null || chosenProps is null)
         {
             SetSnapshot(null);
@@ -203,6 +205,35 @@ public sealed class NowPlayingService : IDisposable
         Current = snapshot;
         if (trackChanged) TrackChanged?.Invoke(this, EventArgs.Empty);
         Updated?.Invoke(this, EventArgs.Empty);
+    }
+
+    public enum MediaCommand
+    {
+        PlayPause,
+        Next,
+        Previous,
+    }
+
+    /// <summary>Sends a transport command to the current media session. Returns false when there is none.</summary>
+    public async Task<bool> SendAsync(MediaCommand command)
+    {
+        var session = _session ?? _manager?.GetCurrentSession();
+        if (session is null) return false;
+        try
+        {
+            var ok = command switch
+            {
+                MediaCommand.Next => await session.TrySkipNextAsync(),
+                MediaCommand.Previous => await session.TrySkipPreviousAsync(),
+                _ => await session.TryTogglePlayPauseAsync(),
+            };
+            _ = PollAsync(); // reflect the change quickly
+            return ok;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private void SetSnapshot(TrackSnapshot? snapshot)

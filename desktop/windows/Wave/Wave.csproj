@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Wave</RootNamespace>
+    <AssemblyName>Wave</AssemblyName>
+    <ApplicationManifest>..\Shared\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\installer\icons\Wave.ico</ApplicationIcon>
+    <Product>Wave</Product>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- WFAC010 is the WinForms "use SetHighDpiMode" hint; this is a WPF app, which takes DPI awareness from the manifest. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <!-- Only applies to self-contained single-file publishes (as in the README); roughly halves the exe. -->
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The shared web engine, served from disk as https://wave.local/. Kept beside the exe in single-file publishes. -->
+    <Content Include="..\..\visuals\**\*" LinkBase="visuals" CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+</Project>

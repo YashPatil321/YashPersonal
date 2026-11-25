@@ -35,7 +35,31 @@ public sealed class SpectrumAnalyzer
     private double _lastBeatTime = double.NegativeInfinity;
     private double _beatTime = double.NegativeInfinity;
 
+    public const int BinCount = 64;
+    public const int WaveCount = 128;
+    public const double BinPeakDecay = 0.997;
+    public const double BinGamma = 0.6;
+
+    private readonly float[] _bins = new float[BinCount];
+    private readonly float[] _wave = new float[WaveCount];
+    private readonly double[] _spectrum = new double[BinCount];
+    private double _binPeak = 1e-4;
+    private double _lastAudioTime = double.NegativeInfinity;
+
     public double LastBeatTime => _beatTime;
+
+    /// <summary>Time of the last block that was not silent.</summary>
+    public double LastAudioTime => _lastAudioTime;
+
+    /// <summary>
+    /// 64 log-spaced bins (40 Hz to 16 kHz), each normalised against a slowly decaying peak and raised to 0.6, plus 128
+    /// waveform samples normalised to the block's peak (as in the macOS SystemAudio analyser). Copies into the spans.
+    /// </summary>
+    public void CopySpectrum(Span<float> bins, Span<float> wave)
+    {
+        _bins.AsSpan(0, Math.Min(bins.Length, BinCount)).CopyTo(bins);
+        _wave.AsSpan(0, Math.Min(wave.Length, WaveCount)).CopyTo(wave);
+    }
 
     /// <summary>Processes one block. <paramref name="time"/> is the block's timestamp in seconds (monotonic).</summary>
     /// <returns>True when this block was a beat.</returns>
@@ -58,6 +82,9 @@ public sealed class SpectrumAnalyzer
         var mid = BandEnergy(150, 2000, binHz);
         var treble = BandEnergy(2000, 8000, binHz);
         var level = Math.Sqrt(sumSquares / BlockSize);
+
+        if (level > 1e-5) _lastAudioTime = time;
+        UpdateSpectrum(block, binHz);
 
         var raw = new[] { level, bass, mid, treble };
         var norm = new double[4];
@@ -107,6 +134,42 @@ public sealed class SpectrumAnalyzer
         _fluxSum = 0;
         _previousBass = 0;
         _lastBeatTime = _beatTime = double.NegativeInfinity;
+        Array.Clear(_bins);
+        Array.Clear(_wave);
+        _binPeak = 1e-4;
+        _lastAudioTime = double.NegativeInfinity;
+    }
+
+    private void UpdateSpectrum(ReadOnlySpan<float> block, double binHz)
+    {
+        double lo = Math.Log(40.0), hi = Math.Log(16000.0), frameMax = 0;
+        for (var b = 0; b < BinCount; b++)
+        {
+            var f0 = Math.Exp(lo + (hi - lo) * b / BinCount);
+            var f1 = Math.Exp(lo + (hi - lo) * (b + 1) / BinCount);
+            var v = RmsMagnitude(f0, Math.Max(f1, f0 + binHz), binHz);
+            _spectrum[b] = v;
+            frameMax = Math.Max(frameMax, v);
+        }
+        _binPeak = Math.Max(frameMax, _binPeak * BinPeakDecay);
+        for (var b = 0; b < BinCount; b++)
+            _bins[b] = (float)Math.Pow(Math.Min(1, _spectrum[b] / Math.Max(_binPeak, 1e-4)), BinGamma);
+
+        double wavePeak = 1e-3;
+        for (var i = 0; i < WaveCount; i++) wavePeak = Math.Max(wavePeak, Math.Abs(block[i * BlockSize / WaveCount]));
+        var scale = 1 / Math.Max(wavePeak, 0.05);
+        for (var i = 0; i < WaveCount; i++) _wave[i] = (float)(block[i * BlockSize / WaveCount] * scale);
+    }
+
+    /// <summary>sqrt(mean |X|²) over the bins in [lo, hi] Hz; 0 when the range holds no bin.</summary>
+    private double RmsMagnitude(double lo, double hi, double binHz)
+    {
+        var a = Math.Max(1, (int)(lo / binHz));
+        var b = Math.Min(BlockSize / 2 - 1, (int)(hi / binHz));
+        if (b < a) return 0;
+        double sum = 0;
+        for (var k = a; k <= b; k++) sum += _re[k] * _re[k] + _im[k] * _im[k];
+        return Math.Sqrt(sum / (b - a + 1));
     }
 
     /// <summary>Mean magnitude of the bins in [lo, hi) Hz.</summary>

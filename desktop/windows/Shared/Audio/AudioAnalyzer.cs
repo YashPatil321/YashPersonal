@@ -84,6 +84,38 @@ public sealed class AudioAnalyzer : IDisposable
         }
     }
 
+    /// <summary>The time base used by <see cref="SpectrumAnalyzer.LastBeatTime"/> (seconds).</summary>
+    public double Now => _clock.Elapsed.TotalSeconds;
+
+    /// <summary>Time of the most recent beat on the <see cref="Now"/> clock (negative infinity when none yet).</summary>
+    public double LastBeatTime
+    {
+        get { lock (_gate) return _analyzer.LastBeatTime; }
+    }
+
+    /// <summary>True when non-silent audio arrived in the last two seconds.</summary>
+    public bool HasRecentAudio
+    {
+        get { lock (_gate) return Now - _analyzer.LastAudioTime < 2; }
+    }
+
+    /// <summary>
+    /// Copies the 64-bin spectrum and 128-sample waveform. Both read as silence when no audio arrived for a second.
+    /// </summary>
+    public void CopySpectrum(Span<float> bins, Span<float> wave)
+    {
+        lock (_gate)
+        {
+            if (Now - _analyzer.LastAudioTime > 1.0)
+            {
+                bins.Clear();
+                wave.Clear();
+                return;
+            }
+            _analyzer.CopySpectrum(bins, wave);
+        }
+    }
+
     private void StartCaptureLocked()
     {
         if (_disposed || !_running || _capture is not null) return;

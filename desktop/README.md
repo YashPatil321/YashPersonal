@@ -58,6 +58,8 @@ The apps are ad-hoc signed, not notarized. The first time, right-click the app a
 cd desktop\windows
 dotnet publish Halo\Halo.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out\Halo
 dotnet publish Lyra\Lyra.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out\Lyra
+dotnet publish Wave\Wave.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out\Wave
+iscc installer\WaveSuite.iss   # Inno Setup 6, builds out\WaveSuite-Setup.exe
 ```
 
 ---

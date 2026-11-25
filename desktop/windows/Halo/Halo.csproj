@@ -8,6 +8,7 @@
     <RootNamespace>Halo</RootNamespace>
     <AssemblyName>Halo</AssemblyName>
     <ApplicationManifest>..\Shared\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\installer\icons\Halo.ico</ApplicationIcon>
     <Product>Halo</Product>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- WFAC010 is the WinForms "use SetHighDpiMode" hint; these are WPF apps, which take DPI awareness from the manifest. -->

@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Halo", "Halo\Halo.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lyra", "Lyra\Lyra.csproj", "{75B4502F-5A61-4A68-BFB7-51EECBAE3936}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wave", "Wave\Wave.csproj", "{ECAD7396-794A-4DD5-9A21-463BD56D43DB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{75B4502F-5A61-4A68-BFB7-51EECBAE3936}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{75B4502F-5A61-4A68-BFB7-51EECBAE3936}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{75B4502F-5A61-4A68-BFB7-51EECBAE3936}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECAD7396-794A-4DD5-9A21-463BD56D43DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECAD7396-794A-4DD5-9A21-463BD56D43DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECAD7396-794A-4DD5-9A21-463BD56D43DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECAD7396-794A-4DD5-9A21-463BD56D43DB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
