@@ -1653,9 +1653,7 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
                   "follow up on one with: claude -p --cloud <session id> --output-format json (message on stdin); pull one "
                   "down with: claude --teleport <id>; open a local session in a new terminal window; drive a session from his "
                   "phone with: claude --remote-control. Sessions you start are listed in "
-                  f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. To send a file or message to Yash's phone, run: "
-                  f"\"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" phone-send <file path or text>. "
-                  "His claude.ai chats (from his data export) are notes in his "
+                  f"{os.path.join(WORKDIR, '.cloud_sessions.json')}. His claude.ai chats (from his data export) are notes in his "
                   "vault under Claude/Chats, one per chat: Grep them when he asks what he talked to Claude about. For a chat "
                   "newer than the export, open claude.ai/recents in the browser and read the screen with jarvis_ctl.")
     if EVOLVER:
