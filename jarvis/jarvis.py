@@ -1184,6 +1184,30 @@ def claude_cmd(claude):
     return [claude]
 
 
+SYS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache", "sys")
+
+
+def system_prompt_args(text):
+    """Atlas's instructions (personality sheet, memory, lessons, what's on screen...) go to Claude in a file:
+    on the command line they hit Windows' length limit ("The command line is too long")."""
+    try:
+        os.makedirs(SYS_DIR, exist_ok=True)
+        now = time.time()
+        for f in os.listdir(SYS_DIR):   # tidy up old ones
+            try:
+                if now - os.path.getmtime(os.path.join(SYS_DIR, f)) > 1800:
+                    os.remove(os.path.join(SYS_DIR, f))
+            except OSError:
+                pass
+        path = os.path.join(SYS_DIR, f"{os.getpid()}-{threading.get_ident()}-{int(now * 1000)}.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return ["--append-system-prompt-file", path]
+    except Exception as e:
+        log(f"system prompt file: {e}")
+        return ["--append-system-prompt", one_line(text)[:7000]]
+
+
 def one_line(text):
     """Command line safe: no new lines (Windows stops reading there) and no double quotes."""
     return re.sub(r"\s*\n\s*", " | ", text).replace('"', "'")
@@ -1483,8 +1507,8 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
                           + recent + "\n[/context]\n\n" + prompt)
         except Exception:
             pass
-    cmd = claude_cmd(claude) + ["-p", "--output-format", "stream-json" if on_text else "json", "--append-system-prompt",
-           one_line(style_now() + " Local time now: " + now + "." + extra), "--allowedTools", tools]
+    cmd = claude_cmd(claude) + ["-p", "--output-format", "stream-json" if on_text else "json"] + \
+        system_prompt_args(style_now() + " Local time now: " + now + "." + extra) + ["--allowedTools", tools]
     if on_text:
         cmd += ["--verbose", "--include-partial-messages"]
     if model or CLAUDE_MODEL:
