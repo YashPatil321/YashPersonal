@@ -911,7 +911,11 @@ def _route(text):
     # music
     if re.search(r"\b(what'?s|what is) (playing|this song)\b|\bwhat song is this\b", t):
         return ("now_playing", None)
-    if re.fullmatch(r"(pause|stop)( the)?( music| song| spotify)?|(resume|unpause)( the)?( music| song| spotify)?|play( the)? music|play spotify|resume|play", t):
+    if re.fullmatch(r"(pause|stop)( the)?( music| song| spotify| it)?|(?:shut up|quiet) the music", t):
+        return ("music_pause", None)
+    if re.fullmatch(r"(resume|unpause|continue)( the)?( music| song| spotify| it)?|play( the)? music|play spotify|play|keep playing|put (the )?music back on", t):
+        return ("music_play", None)
+    if re.fullmatch(r"play ?pause|toggle (the )?music", t):
         return ("play_pause", None)
     if re.search(r"\b(next|skip)( the)?( song| track)?\b", t) and len(t.split()) <= 4 and not t.startswith(("play ", "queue ")):
         return ("next", None)
@@ -1258,6 +1262,35 @@ def load_gesture_map():
 def save_gesture_map(m):
     with open(GESTURE_MAP_FILE, "w", encoding="utf-8") as f:
         json.dump(m, f, indent=1)
+
+
+def spotify_api(sp, method, path):
+    """True when Spotify did it."""
+    try:
+        sp._api(method, path)
+        return True
+    except Exception as e:
+        log(f"spotify {path}: {e}")
+        return False
+
+
+def music_playing(sp, pc):
+    """True or False when we can tell, None when we can't. Spotify's API first, then its window title
+    (it shows the song while playing and just 'Spotify' when paused)."""
+    if sp is not None and getattr(sp, "ready", False):
+        try:
+            st = sp._api("GET", "/me/player") or {}
+            if "is_playing" in st:
+                return bool(st["is_playing"])
+        except Exception:
+            pass
+    try:
+        for _, exe, title in jarvis_screen.Screen().windows():
+            if exe.lower().startswith("spotify"):
+                return title.strip() not in ("", "Spotify", "Spotify Free", "Spotify Premium")
+    except Exception:
+        pass
+    return None
 
 
 RELATIONS = {"dad", "mom", "brother", "sister", "grandma", "grandpa", "uncle", "aunt", "cousin", "girlfriend", "boyfriend",
@@ -2232,8 +2265,6 @@ class Jarvis:
     def run(self, action, arg):
         say, pc, sp = self.speaker.say, self.pc, self.spotify
         amb = getattr(self, "ambient", None)
-        if amb and amb.ducked == "paused" and action in ("play_pause", "spotify_play", "spotify_queue", "mute", "party", "focus"):
-            amb.ducked = None   # you just took charge of the music: don't un-pause it behind your back
         if action in ("spice", "spice_set", "persona_me", "persona_jokes", "persona_reset", "persona_grow"):
             pz = PERSONA
             if not pz:
@@ -2780,10 +2811,21 @@ class Jarvis:
             pc.lock()
         elif action == "play_pause":
             pc.key("play_pause")
+        elif action in ("music_pause", "music_play"):
+            playing = music_playing(sp, pc)
+            want = action == "music_play"
+            if playing is want:
+                pass   # already how you want it: pressing the key would flip it the wrong way
+            elif sp.ready and spotify_api(sp, "PUT", "/me/player/" + ("play" if want else "pause")):
+                pass
+            else:
+                pc.key("play_pause")
         elif action == "next":
-            pc.key("next")
+            if not (sp.ready and spotify_api(sp, "POST", "/me/player/next")):
+                pc.key("next")
         elif action == "prev":
-            pc.key("prev")
+            if not (sp.ready and spotify_api(sp, "POST", "/me/player/previous")):
+                pc.key("prev")
         elif action == "mute":
             pc.key("mute")
         elif action == "volume_up":
@@ -3117,7 +3159,12 @@ def main():
     claps = ClapDetector()
     mic, _ = resolve_devices()
 
-    ambient = jarvis_audio.Ambient(own_voice=lambda: speaker.speaking, spotify_title=jarvis.pc.spotify_title, media_key=jarvis.pc.key)
+    def sp_volume():
+        if not jarvis.spotify.ready:
+            return None
+        return ((jarvis.spotify._api("GET", "/me/player") or {}).get("device") or {}).get("volume_percent")
+    ambient = jarvis_audio.Ambient(own_voice=lambda: speaker.speaking, spotify_title=jarvis.pc.spotify_title,
+                                   volume_get=sp_volume, volume_set=lambda v: jarvis.spotify._api("PUT", f"/me/player/volume?volume_percent={int(v)}"))
     jarvis.ambient = ambient
     ambient.release_when_idle(lambda: speaker.speaking or jarvis.recording or jarvis.listen_requested
                               or bool(getattr(jarvis, "convo_lock", None) and jarvis.convo_lock.locked()))

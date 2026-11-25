@@ -8,8 +8,8 @@ Atlas and your music, getting along.
   Ducks when you talk to it     the moment you say "Atlas" or "Hey Jarvis", every other app drops to 15% volume, so
                                 it can hear you and you can hear it. Your music comes back up a second after it's done.
 
-Uses pycaw (Windows audio). Without it, Spotify's window title tells whether music is playing, and ducking pauses
-and resumes with the media key instead.
+Uses pycaw (Windows audio). Without it, Spotify's window title tells whether music is playing, and ducking lowers
+Spotify's own volume through its API (when Spotify is connected). It never pauses and unpauses to duck.
 """
 
 import sys
@@ -27,9 +27,10 @@ def _log(msg):
 
 
 class Ambient:
-    def __init__(self, own_voice=lambda: False, spotify_title=None, media_key=None):
+    def __init__(self, own_voice=lambda: False, spotify_title=None, media_key=None, volume_get=None, volume_set=None):
         """own_voice(): True while Atlas itself is talking (that's not 'music')."""
         self.own_voice, self.spotify_title, self.media_key = own_voice, spotify_title, media_key
+        self.volume_get, self.volume_set = volume_get, volume_set
         self.playing = False
         self.ducked = None           # {session name: old volume} or "paused"
         self.lock = threading.Lock()
@@ -106,18 +107,25 @@ class Ambient:
                     return
                 except Exception as e:
                     _log(f"duck: {e}")
-            if self.media_key:
-                self.media_key("play_pause")
-                self.ducked = "paused"
+            if self.volume_get and self.volume_set:
+                try:   # Spotify's own volume, through its API (never pause and unpause: that fights your commands)
+                    old = self.volume_get()
+                    if old and old > DUCK_TO * 100:
+                        self.volume_set(int(DUCK_TO * 100))
+                        self.ducked = {"spotify": old}
+                except Exception as e:
+                    _log(f"duck spotify: {e}")
 
     def unduck(self):
         with self.lock:
             d, self.ducked = self.ducked, None
             if not d:
                 return
-            if d == "paused":
-                if self.media_key:
-                    self.media_key("play_pause")
+            if "spotify" in d and self.volume_set:
+                try:
+                    self.volume_set(d["spotify"])
+                except Exception as e:
+                    _log(f"unduck spotify: {e}")
                 return
             try:
                 from comtypes import CoInitialize

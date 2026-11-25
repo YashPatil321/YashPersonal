@@ -183,10 +183,11 @@ class GestureReader:
             elif low:
                 # a resting or fidgeting hand down low never counts. A real, deliberate sweep still does, as long as
                 # it's clearly on purpose: longer, faster and flatter than a normal swipe.
-                m = None if very_low else self._sweep(now, lm, label, strict=True)
+                m = None   # a hand down at the desk (mouse, keyboard, phone) never counts, not even a swipe
                 self.cur, self.fired_cur, self.arm_since = None, False, None
                 self.votes.clear()
-                self.why = "hand low: only a big deliberate swipe counts down there"
+                self.mtrack.clear()
+                self.why = "hand low, ignored (raise it to use gestures)"
                 return m
         if lm is not None:
             # swipes, waves and circles come first and skip arming: you raise your hand and go, no pause needed
@@ -360,7 +361,7 @@ class GestureReader:
         while len(self.mtrack) > 1 and now - self.mtrack[0][0] > 0.9:
             self.mtrack.popleft()
         pts = list(self.mtrack)
-        if len(pts) < 4 or sum(p[3] for p in pts) < 0.5 * len(pts):
+        if len(pts) < 4 or sum(p[3] for p in pts) < 0.7 * len(pts):
             return None
         hw = sorted(p[4] for p in pts)[len(pts) // 2]   # typical hand width
         xs = [p[1] for p in pts]
@@ -385,9 +386,9 @@ class GestureReader:
         dx, dy = xs[-1] - pts[start][1], pts[-1][2] - pts[start][2]
         seg = xs[start:]
         back = max((abs(b - a) for a, b in zip(seg, seg[1:]) if (b - a) * dx < 0), default=0)
-        settled = pts[start][0] - self.present_since >= 0.15   # hand was up before it moved (not someone passing by)
+        settled = pts[start][0] - self.present_since >= 0.25   # hand was up before it moved (not someone passing by)
         quick = pts[-1][0] - pts[start][0] <= (0.45 if strict else 0.6)   # a flick, not slowly moving your hand over
-        need, flat = (hw * 3.2, 0.45) if strict else (hw * 2.0, 0.7)
+        need, flat = (hw * 3.2, 0.45) if strict else (hw * 2.3, 0.6)
         if settled and quick and abs(dx) > max(0.09, need) and abs(dy) < abs(dx) * flat and back < hw * 0.5 and turns <= 1:
             way = "swipe_right" if dx > 0 else "swipe_left"
             opposite = self.last_swipe and self.last_swipe != way and now - self.swiped_at < 1.0   # the hand swinging back

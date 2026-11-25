@@ -224,9 +224,9 @@ class Persona:
 
 
 def route_persona(t):
-    if re.fullmatch(r"(?:turn (?:it|yourself) up|be more (?:savage|crazy|wild|unhinged|funny)|go crazy|more chaos|spice it up|unleash yourself|go off)", t):
+    if re.fullmatch(r"(?:turn (?:yourself|your personality|the personality|the spice) up|be more (?:savage|crazy|wild|unhinged|funny)|go crazy|more chaos|spice it up|unleash yourself|go off)", t):
         return ("spice", 1)
-    if re.fullmatch(r"(?:chill(?: out)?|tone it down|calm down|be (?:more )?(?:chill|normal|serious|calm)|less (?:chaos|jokes))", t):
+    if re.fullmatch(r"(?:chill(?: out)?|tone (?:it|yourself) down|calm down|be (?:more )?(?:chill|normal|serious|calm)|less (?:chaos|jokes))", t):
         return ("spice", -1)
     m = re.fullmatch(r"(?:set )?(?:your )?(?:spice|personality|chaos)(?: level)? (?:to )?(one|two|three|four|five|[1-5])", t)
     if m:
