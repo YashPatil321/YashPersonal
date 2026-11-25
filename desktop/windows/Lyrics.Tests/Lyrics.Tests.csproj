@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Lyrics\Lyrics.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Platform-neutral pieces of the Windows-only Shared library, compiled in here so they are tested on Linux too. -->
+    <Compile Include="..\Shared\NowPlaying\PositionClock.cs" Link="Linked\PositionClock.cs" />
+    <Compile Include="..\Shared\Audio\SpectrumAnalyzer.cs" Link="Linked\SpectrumAnalyzer.cs" />
+    <Compile Include="..\Shared\Imaging\DominantColors.cs" Link="Linked\DominantColors.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\fixtures\lyricsfile-sample.yaml" Link="fixtures\lyricsfile-sample.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

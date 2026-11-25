@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!-- Lets the WPF / WinForms projects compile on Linux and macOS CI agents. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <Company>Halo + Lyra</Company>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+</Project>
