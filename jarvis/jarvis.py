@@ -55,6 +55,7 @@ import jarvis_multi
 import jarvis_persona
 import jarvis_vaultstyle
 import jarvis_learn
+import jarvis_audio
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -137,7 +138,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -2230,6 +2231,9 @@ class Jarvis:
 
     def run(self, action, arg):
         say, pc, sp = self.speaker.say, self.pc, self.spotify
+        amb = getattr(self, "ambient", None)
+        if amb and amb.ducked == "paused" and action in ("play_pause", "spotify_play", "spotify_queue", "mute", "party", "focus"):
+            amb.ducked = None   # you just took charge of the music: don't un-pause it behind your back
         if action in ("spice", "spice_set", "persona_me", "persona_jokes", "persona_reset", "persona_grow"):
             pz = PERSONA
             if not pz:
@@ -3113,8 +3117,13 @@ def main():
     claps = ClapDetector()
     mic, _ = resolve_devices()
 
+    ambient = jarvis_audio.Ambient(own_voice=lambda: speaker.speaking, spotify_title=jarvis.pc.spotify_title, media_key=jarvis.pc.key)
+    jarvis.ambient = ambient
+    ambient.release_when_idle(lambda: speaker.speaking or jarvis.recording or jarvis.listen_requested
+                              or bool(getattr(jarvis, "convo_lock", None) and jarvis.convo_lock.locked()))
+
     def barge(frame):
-        if CLAP_WAKE and claps.feed(frame):
+        if CLAP_WAKE and not ambient.playing and claps.feed(frame):   # songs are full of claps
             return True
         return wake.predict(frame).get(WAKE_KEY, 0) >= max(WAKE_THRESHOLD, BARGE_THRESHOLD)
     speaker.watch = barge
@@ -3156,13 +3165,13 @@ def main():
                 spotter.feed(frame)
                 named = spotter.poll()
             follow = None
-            if FOLLOWUP_SECONDS and not speaker.speaking and not named and not jarvis.listen_requested \
+            if FOLLOWUP_SECONDS and not speaker.speaking and not named and not jarvis.listen_requested and not ambient.playing \
                     and 0.35 < time.time() - speaker.last_end < FOLLOWUP_SECONDS and speaker.last_end > jarvis.last_heard:
                 loud = float(np.sqrt(np.mean(frame.astype(np.float32) ** 2))) > max(noise * 3.5, 400)
                 jarvis.follow_frames = (jarvis.follow_frames + [frame])[-3:] if loud else []
                 if len(jarvis.follow_frames) >= 2:   # you started talking again: keep going, no name needed
                     follow, jarvis.follow_frames = list(jarvis.follow_frames), []
-            if CLAP_WAKE and claps.feed(frame):
+            if CLAP_WAKE and not ambient.playing and claps.feed(frame):
                 wake.reset()
                 try:
                     jarvis.wake_room()
@@ -3188,6 +3197,7 @@ def main():
             elif named:
                 # "Atlas" alone: chime and listen. "Atlas, open Spotify": the rest of the sentence is the command.
                 audio, finished, rest = named
+                ambient.duck()   # music down so it can hear the rest of what you say
                 jarvis.leave_standby("voice", greet=False)
                 if speaker.speaking:
                     speaker.stop()
@@ -3217,6 +3227,7 @@ def main():
 
             if text is None:
                 jarvis.recording = True   # background jobs wait to report until you're done talking
+                ambient.duck()            # music down while you talk and it answers
                 wake.reset()
                 if spotter:
                     spotter.reset()

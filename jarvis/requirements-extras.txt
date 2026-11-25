@@ -4,3 +4,4 @@ uiautomation
 opencv-python
 mediapipe
 winocr
+pycaw
