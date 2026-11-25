@@ -78,7 +78,19 @@ WAKE_WORD = "hey_jarvis"     # built in: hey_jarvis, alexa, hey_mycroft, hey_rha
 BARGE_THRESHOLD = 0.7        # how sure it must be it heard the wake word to cut itself off while talking (higher = fewer accidents)
 WAKE_THRESHOLD = 0.5         # raise to 0.6 or 0.7 if it triggers by accident
 WHISPER_MODEL = "large-v3-turbo"   # "small.en" if your GPU setup gives you trouble
-VOICE = "am_michael"         # kokoro voices: am_michael, am_adam, af_heart, bf_emma ...
+VOICE = "am_michael"         # kokoro voices: am_michael, am_fenrir, am_puck, bm_george, af_heart ...
+VOICE_SPEED = 1.06           # kokoro: a touch quicker sounds more like a person and less like a reader
+# The most human voice: ElevenLabs. Make a free account at elevenlabs.io, copy your API key, put it here
+# (in local_settings.py). Pick a voice by name with "change your voice to Chris" (or paste any voice id).
+ELEVENLABS_KEY = ""
+ELEVEN_VOICE = "Chris"
+ELEVEN_MODEL = "eleven_flash_v2_5"   # fastest; "eleven_multilingual_v2" sounds a little richer but is slower
+ELEVEN_VOICES = {   # ElevenLabs' built in voices
+    "chris": "iP95p4xoKVk53GoZ742B", "brian": "nPczCjzI2devNBz1zQrb", "will": "bIHbv24MWmeRgasZH58o",
+    "eric": "cjVigY5qzO86Huf0OWal", "liam": "TX3LPaxmHKxFdv7VOQHJ", "adam": "pNInz6obpgDQGcFmaJgB",
+    "roger": "CwhRBWXzGAHq8TQ4Fs17", "george": "JBFqnCBsd6RMkjVDRZzb", "daniel": "onwK4e9ZLuTAKqWW03F9",
+    "charlie": "IKne3meq5aSn9XLyUdCD", "callum": "N2lVS1w4EtoT3dr4eOWO",
+}
 SILENCE_SECONDS = 1.0        # how long you pause before it stops recording
 CLAUDE_MODEL = "sonnet"      # the brain for voice answers: sonnet is fast and sharp. "opus" for the deepest thinking (slower)
 STREAM = True                # start talking at the first sentence instead of waiting for the whole answer
@@ -175,6 +187,10 @@ SPOKEN_STYLE = (
     f"You are {ASSISTANT_NAME}, Yash's AI, living on his PC. Everything you write is read aloud by a text to speech engine, "
     "so answer in plain spoken sentences. No markdown, no lists, no code blocks, no URLs, no emoji, no hyphens or em dashes. "
     "Keep it under 60 words unless he asks for detail, and put the answer in the first sentence. "
+    "Sound like a real person talking, not reading: contractions always, mix short and longer sentences, react first when "
+    "it fits (oh nice, wait, okay so, honestly, no way), a small 'hmm' or 'ha' only when it's natural, and say numbers "
+    "and times the way people say them (quarter past four, like twenty bucks). Never list things out loud, never sound "
+    "like customer service, never say you're an AI unless he asks. "
     "For his calendar and email use the Google Calendar and Gmail tools. Times are Pacific. " + PERSONALITY
 )
 
@@ -196,6 +212,41 @@ def log(msg):
 
 
 # ================= audio devices =================
+KOKORO_NAMES = {"michael": "am_michael", "fenrir": "am_fenrir", "puck": "am_puck", "echo": "am_echo", "adam": "am_adam",
+                "eric": "am_eric", "liam": "am_liam", "onyx": "am_onyx", "george": "bm_george", "fable": "bm_fable",
+                "lewis": "bm_lewis", "heart": "af_heart", "bella": "af_bella", "emma": "bf_emma"}
+
+
+def set_local_setting(name, value):
+    """Writes NAME = value into local_settings.py (replacing an earlier line), so it sticks across restarts and updates."""
+    path = os.path.join(WORKDIR, "local_settings.py")
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except OSError:
+        lines = []
+    lines = [l for l in lines if not re.match(rf"\s*{name}\s*=", l)]
+    lines.append(f"{name} = {value!r}")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def eleven_tts(text):
+    """One sentence from ElevenLabs as 24 kHz float audio, or None."""
+    import urllib.request
+    vid = ELEVEN_VOICES.get(ELEVEN_VOICE.lower(), ELEVEN_VOICE)
+    body = json.dumps({"text": text, "model_id": ELEVEN_MODEL,
+                       "voice_settings": {"stability": 0.38, "similarity_boost": 0.8, "style": 0.35, "use_speaker_boost": True}}).encode()
+    req = urllib.request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{vid}?output_format=pcm_24000", data=body,
+                                 method="POST", headers={"xi-api-key": ELEVENLABS_KEY, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read()
+        return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    except Exception as e:
+        log(f"elevenlabs: {str(e)[:160]}")
+        return None
+
+
 def _sd():
     import sounddevice as sd
     return sd
@@ -462,8 +513,17 @@ class Speaker:
         text = re.sub(r"[*#`_>\[\]]", "", text)
         text = re.sub(r"https?://\S+", "", text)
         print("  >>", text, flush=True)
+        if ELEVENLABS_KEY and not getattr(self, "eleven_broken", False):
+            audio = eleven_tts(text)
+            if audio is not None:
+                self._play(audio, 24000)
+                return
+            self.eleven_fail = getattr(self, "eleven_fail", 0) + 1
+            if self.eleven_fail >= 3:
+                self.eleven_broken = True
+                log("ElevenLabs keeps failing, using the built in voice for now")
         if self.kokoro:
-            for _, _, audio in self.kokoro(text, voice=VOICE):
+            for _, _, audio in self.kokoro(text, voice=VOICE, speed=VOICE_SPEED):
                 if self.stop_flag.is_set():
                     break
                 sd.play(audio, 24000, device=SPEAKER_DEVICE)
@@ -476,6 +536,17 @@ class Speaker:
         else:
             self.engine.say(text)
             self.engine.runAndWait()
+
+    def _play(self, audio, rate):
+        sd = _sd()
+        if self.stop_flag.is_set():
+            return
+        sd.play(audio, rate, device=SPEAKER_DEVICE)
+        end = time.time() + len(audio) / rate + 0.05
+        while time.time() < end and not self.stop_flag.is_set():
+            time.sleep(0.02)
+        if self.stop_flag.is_set():
+            sd.stop()
 
     def powerup(self):
         """The walk in sound: a deep drop, a rising whoosh, then a bright chord that blooms. About 2.6 seconds."""
@@ -900,6 +971,11 @@ def _route(text):
         return ("whatsapp", (m.group(1).strip(), m.group(2).strip()))
     # screen and Claude commands first: "type the weather is nice" must type, not check the weather
     cc = jarvis_screen.route_screen(t) if re.match(r"(?:type|press|hit) ", t) else None
+    m = re.fullmatch(r"(?:change|switch|set) your voice to (\w+)|use (?:the )?(\w+) voice|talk (?:like|as) (\w+)", t)
+    if m:
+        return ("voice_set", next(g for g in m.groups() if g))
+    if re.fullmatch(r"(?:what|which) voices? (?:can you (?:use|do)|do you have|are there)|list (?:your )?voices", t):
+        return ("voice_list", None)
     if re.fullmatch(r"(?:install|set up|turn on) (?:vision clicking|omni ?parser|better clicking|screen vision)", t):
         return ("install_vision", None)
     if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
@@ -2329,6 +2405,27 @@ class Jarvis:
                 msg = lr.handle(action, arg)
                 if msg:
                     say(msg)
+            return True
+        if action in ("voice_set", "voice_list"):
+            global ELEVEN_VOICE, VOICE
+            if action == "voice_list":
+                say(("With ElevenLabs: " + ", ".join(n.title() for n in ELEVEN_VOICES) + ". Built in: ") if ELEVENLABS_KEY else
+                    "Built in voices: " + ", ".join(n.title() for n in KOKORO_NAMES) + ". Add an ElevenLabs key for the really human ones.")
+                return True
+            name = arg.lower()
+            if ELEVENLABS_KEY and name in ELEVEN_VOICES:
+                ELEVEN_VOICE = name.title()
+                set_local_setting("ELEVEN_VOICE", ELEVEN_VOICE)
+                self.speaker.eleven_broken = False
+                say(f"This is {ELEVEN_VOICE}. Better?")
+            elif name in KOKORO_NAMES:
+                VOICE = KOKORO_NAMES[name]
+                set_local_setting("VOICE", VOICE)
+                say(f"Okay, this is {name.title()}. What do you think?")
+            elif name in ELEVEN_VOICES:
+                say(f"{name.title()} is an ElevenLabs voice. Put your ElevenLabs key in local settings and I can use it.")
+            else:
+                say(f"I don't have a voice called {name}. Say list your voices.")
             return True
         if action == "install_vision":
             say("Installing vision clicking. It's a big download, I'll tell you when it's ready.")

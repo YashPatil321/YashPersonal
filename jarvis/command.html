@@ -222,7 +222,10 @@ function tick() {
 }
 
 async function poll() {
-  if (PREVIEW) { S = SAMPLE; render(); return; }
+  if (PREVIEW) {
+    const forced = params.get("state");
+    S = SAMPLE; S.orb = forced || ["idle", "listening", "speaking", "thinking"][Math.floor(Date.now() / 5000) % 4]; render(); return;
+  }
   try {
     const r = await fetch(`/command/state?token=${encodeURIComponent(TOKEN)}`, { cache: "no-store" });
     if (r.ok) { S = await r.json(); render(); }
@@ -241,54 +244,109 @@ $("ask").addEventListener("submit", async (e) => {
   } catch (e) { $("said").textContent = "Couldn't reach Atlas."; }
 });
 
-/* ---------- the core: a sphere of points that breathes, listens, thinks and speaks ---------- */
+/* ---------- the core: a gyroscope of light that folds into a reticle when Atlas pays attention ----------
+   idle       rings drift slowly on their own tilted axes around a thin axis line (a gyroscope)
+   thinking   the gyroscope spins up, amber sparks run along the rings
+   listening  the rings swing flat and lock into a targeting reticle, ATLAS appears in the middle
+   speaking   the reticle stays and its rings pulse with the voice
+   standby    everything dims and slows to a crawl
+   The swing between gyroscope and reticle is the transition: every ring eases from its 3D tilt to flat. */
 const cv = $("orb"), cx = cv.getContext("2d");
-const N = 900, pts = [];
-for (let i = 0; i < N; i++) {           // even spread over a sphere
-  const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * Math.PI * (3 - Math.sqrt(5));
-  pts.push([Math.cos(th) * r, y, Math.sin(th) * r, Math.random()]);
-}
-let amp = 0, spin = 0, level = 0;
+const RINGS = [   // radius, offset along the axis, own wobble, spin speed, dash count, dash fill, width, warm accent
+  { r: 0.62, off: -0.95, wob: 0.10, sp: 0.35, dashes: 20, fill: 0.55, w: 2.0, warm: false },
+  { r: 0.80, off: -0.20, wob: -0.08, sp: -0.55, dashes: 1, fill: 1.0, w: 3.6, warm: true },
+  { r: 0.70, off: 0.25, wob: 0.14, sp: 0.8, dashes: 1, fill: 1.0, w: 2.2, warm: false },
+  { r: 1.05, off: 0.95, wob: -0.05, sp: -0.25, dashes: 46, fill: 0.3, w: 1.5, warm: false },
+];
+const TX = 0.95, TY = 0.75;   // the gyroscope's lean
+let mode = 0, spinBoost = 0, pulse = 0, dim = 1, born = performance.now(), lastT = 0;
 function size() { const r = cv.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2); cv.width = r.width * d; cv.height = r.height * d; }
 addEventListener("resize", size); size();
+const ease = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+function rot(p, ax, ay) {   // tilt around x, then y
+  let [x, y, z] = p;
+  let c = Math.cos(ax), s = Math.sin(ax); [y, z] = [y * c - z * s, y * s + z * c];
+  c = Math.cos(ay); s = Math.sin(ay); [x, z] = [x * c + z * s, -x * s + z * c];
+  return [x, y, z];
+}
 function frame(t) {
-  const W = cv.width, H = cv.height, R = Math.min(W, H) * 0.31, ox = W / 2, oy = H / 2;
+  const W = cv.width, H = cv.height, R = Math.min(W, H) * 0.29, ox = W / 2, oy = H / 2, u = W / 900;
   const st = S.standby ? "standby" : S.orb || "idle";
-  const target = { idle: .15, listening: .55, thinking: .35, speaking: .7, standby: .03, error: .3 }[st] ?? .15;
-  level += (target - level) * 0.05;
-  spin += { thinking: .012, listening: .006, speaking: .005, standby: .0008 }[st] || .0025;
-  amp = st === "speaking" ? 0.5 + 0.5 * Math.abs(Math.sin(t / 140)) * Math.abs(Math.sin(t / 370)) : st === "listening" ? 0.35 + 0.15 * Math.sin(t / 220) : 0.2 + 0.05 * Math.sin(t / 1200);
+  const target = (st === "listening" || st === "speaking") ? 1 : 0;
+  const dt = Math.min(0.1, lastT ? (t - lastT) / 1000 : 0.016); lastT = t;
+  const k = (sec) => 1 - Math.exp(-dt / sec);                       // frame rate independent easing
+  mode += (target - mode) * k(0.28);                                 // the fold between gyroscope and reticle
+  spinBoost += ((st === "thinking" ? 3.2 : st === "standby" ? 0.15 : 1) - spinBoost) * k(0.5);
+  dim += ((st === "standby" ? 0.35 : 1) - dim) * k(0.4);
+  const voice = st === "speaking" ? Math.abs(Math.sin(t / 130)) * Math.abs(Math.sin(t / 410)) : 0;
+  pulse += (voice - pulse) * k(0.05);
+  const intro = Math.min(1, (t - born) / 1600), grow = ease(intro);
+  const m = ease(Math.max(0, Math.min(1, mode)));
   cx.clearRect(0, 0, W, H);
-  // rings with ticks: an instrument, not a light show
-  cx.save(); cx.translate(ox, oy);
-  for (const [k, a] of [[1.42, .26], [1.58, .12]]) {
-    cx.beginPath(); cx.arc(0, 0, R * k, 0, Math.PI * 2); cx.strokeStyle = `rgba(143,184,255,${a})`; cx.lineWidth = 1; cx.stroke();
+  // soft glow behind
+  const g = cx.createRadialGradient(ox, oy, 0, ox, oy, R * 1.6);
+  g.addColorStop(0, `rgba(143,184,255,${(.10 + m * .08 + pulse * .08) * dim})`); g.addColorStop(1, "rgba(0,0,0,0)");
+  cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+  cx.save(); cx.globalCompositeOperation = "lighter"; cx.lineCap = "round";
+  // the axis line of the gyroscope (it fades as the rings fold flat)
+  const drift = Math.sin(t / 6000) * 0.25;
+  const axis = rot([0, 0, 1], TX, TY + drift);
+  const al = R * 1.7 * grow;
+  cx.strokeStyle = `rgba(255,179,107,${(1 - m) * .45 * dim})`; cx.lineWidth = 1.6 * u; cx.shadowColor = "rgba(255,179,107,.8)"; cx.shadowBlur = 10 * u;
+  cx.beginPath(); cx.moveTo(ox - axis[0] * al, oy - axis[1] * al); cx.lineTo(ox + axis[0] * al, oy + axis[1] * al); cx.stroke();
+  RINGS.forEach((ring, i) => {
+    const spin = t / 1000 * ring.sp * spinBoost + i;
+    const tx = (TX + ring.wob + Math.sin(t / 3000 + i) * 0.05) * (1 - m);
+    const ty = (TY + drift + ring.wob) * (1 - m);
+    const flatR = [0.72, 0.92, 0.56, 1.12][i];   // where each ring lands in the reticle
+    const rr = R * (ring.r * (1 - m) + flatR * m) * grow * (1 + pulse * .05 * (i + 1) * m);
+    const cxo = axis[0] * ring.off * R * (1 - m) * grow, cyo = axis[1] * ring.off * R * (1 - m) * grow;
+    const N = 160, pts = [];
+    for (let k = 0; k <= N; k++) {
+      const a = k / N * Math.PI * 2 + spin;
+      const p = rot([Math.cos(a), Math.sin(a), 0], tx, ty);
+      const persp = 1 / (1.9 - p[2] * .35);
+      pts.push([ox + cxo + p[0] * rr * persp * 1.9 / 1.9, oy + cyo + p[1] * rr * persp * 1.9 / 1.9, p[2]]);
+    }
+    const warm = ring.warm || (st === "thinking" && i === 2);
+    const col = warm ? [255, 179, 107] : [199, 219, 255];
+    cx.shadowColor = `rgba(${col},.9)`; cx.shadowBlur = (warm ? 16 : 8) * u;
+    cx.lineWidth = ring.w * u;
+    const per = N / ring.dashes, on = per * ring.fill;
+    for (let k = 0; k < N; k++) {
+      if ((k % per) > on) continue;
+      const [x1, y1, z1] = pts[k], [x2, y2] = pts[k + 1];
+      const a = (.25 + (z1 + 1) * .38) * (0.55 + .45 * m) * dim * (.6 + .4 * grow);
+      cx.strokeStyle = `rgba(${col},${Math.min(1, a)})`;
+      cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.stroke();
+    }
+    // a bright runner on each ring (sparks when thinking)
+    const run = pts[Math.floor(((t / 1000 * (0.6 + i * .2) * spinBoost * 40) % N + N) % N)];
+    cx.fillStyle = `rgba(255,255,255,${(.5 + .5 * (st === "thinking")) * dim})`;
+    cx.beginPath(); cx.arc(run[0], run[1], (st === "thinking" ? 3 : 2) * u, 0, Math.PI * 2); cx.fill();
+  });
+  // reticle details that only exist once the rings are flat: ticks, corner brackets, the name
+  if (m > .02) {
+    cx.shadowBlur = 6 * u; cx.shadowColor = "rgba(199,219,255,.8)";
+    for (let k = 0; k < 72; k++) {
+      const a = k / 72 * Math.PI * 2 - t / 9000, long = k % 6 === 0, r1 = R * 1.24, r2 = r1 + (long ? 10 : 4) * u;
+      cx.strokeStyle = `rgba(199,219,255,${(long ? .55 : .22) * m * dim})`; cx.lineWidth = 1.2 * u;
+      cx.beginPath(); cx.moveTo(ox + Math.cos(a) * r1, oy + Math.sin(a) * r1); cx.lineTo(ox + Math.cos(a) * r2, oy + Math.sin(a) * r2); cx.stroke();
+    }
+    for (const q of [0, 1, 2, 3]) {   // corner brackets
+      const a = q * Math.PI / 2 + Math.PI / 4, r = R * 1.38 + (1 - m) * 40 * u;
+      cx.strokeStyle = `rgba(199,219,255,${.5 * m * dim})`; cx.lineWidth = 1.6 * u;
+      cx.beginPath(); cx.arc(ox, oy, r, a - .12, a + .12); cx.stroke();
+    }
+    cx.shadowBlur = 0; cx.globalCompositeOperation = "source-over";
+    cx.fillStyle = `rgba(230,235,245,${m * dim})`;
+    cx.font = `500 ${Math.round(30 * u)}px Geist, system-ui, sans-serif`; cx.textAlign = "center"; cx.textBaseline = "middle";
+    const word = "A T L A S";
+    cx.fillText(word.slice(0, Math.ceil(word.length * Math.min(1, m * 1.4))), ox, oy);
+    cx.font = `${Math.round(11 * u)}px "Geist Mono", monospace`; cx.fillStyle = `rgba(133,144,166,${m * dim})`;
+    cx.fillText(st === "speaking" ? "SPEAKING" : "LISTENING", ox, oy + 28 * u);
   }
-  for (let i = 0; i < 120; i++) {
-    const a = i / 120 * Math.PI * 2 + spin * 0.4, long = i % 10 === 0;
-    const r1 = R * 1.42, r2 = r1 + (long ? 12 : 5) * (W / 900);
-    cx.beginPath(); cx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); cx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
-    cx.strokeStyle = `rgba(143,184,255,${long ? .45 : .18})`; cx.stroke();
-  }
-  const arc = (st === "thinking" ? t / 500 : spin * 2) % (Math.PI * 2);   // a single moving marker
-  cx.beginPath(); cx.arc(0, 0, R * 1.58, arc, arc + 0.6 + level); cx.strokeStyle = "rgba(255,179,107,.75)"; cx.lineWidth = 2 * (W / 900); cx.stroke();
   cx.restore();
-  // soft core light
-  const g = cx.createRadialGradient(ox, oy, 0, ox, oy, R * 1.25);
-  g.addColorStop(0, `rgba(199,219,255,${.24 + level * .25})`); g.addColorStop(.45, `rgba(120,150,255,${.06 + level * .08})`); g.addColorStop(1, "rgba(0,0,0,0)");
-  cx.fillStyle = g; cx.beginPath(); cx.arc(ox, oy, R * 1.3, 0, Math.PI * 2); cx.fill();
-  // the points
-  const cs = Math.cos(spin), sn = Math.sin(spin), tilt = .35, ct = Math.cos(tilt), stl = Math.sin(tilt);
-  for (const [x0, y0, z0, ph] of pts) {
-    let x = x0 * cs - z0 * sn, z = x0 * sn + z0 * cs, y = y0 * ct - z * stl; z = y0 * stl + z * ct;
-    const wob = 1 + amp * 0.08 * Math.sin(ph * 30 + t / 180 + y0 * 6);
-    const p = 1.9 / (2.6 - z), px = ox + x * R * wob * p, py = oy + y * R * wob * p;
-    const depth = (z + 1) / 2, a = 0.18 + depth * 0.82;
-    const warm = st === "thinking" && ((ph + t / 3000) % 1) < 0.06;
-    cx.fillStyle = warm ? `rgba(255,179,107,${a})` : `rgba(${170 + depth * 60 | 0},${200 + depth * 40 | 0},255,${a})`;
-    const r = (0.9 + depth * 2.0) * (W / 900);
-    cx.fillRect(px - r / 2, py - r / 2, r, r);
-  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
