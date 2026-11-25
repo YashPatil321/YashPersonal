@@ -10,6 +10,10 @@
     <ApplicationManifest>..\Shared\app.manifest</ApplicationManifest>
     <Product>Halo</Product>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- WFAC010 is the WinForms "use SetHighDpiMode" hint; these are WPF apps, which take DPI awareness from the manifest. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <!-- Only applies to self-contained single-file publishes (as in the README); roughly halves the exe. -->
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />

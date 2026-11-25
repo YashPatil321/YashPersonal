@@ -1,11 +1,35 @@
-# Halo + Lyra: desktop music apps
+# Halo, Lyra and Wave: desktop music apps
 
-Two small menu-bar / system-tray apps that react to whatever is playing on your computer.
+Three menu-bar / system-tray apps that react to whatever is playing on your computer.
 
 | App | What it does |
 | --- | --- |
 | **Halo** | Draws a soft light around the edges of your screen. The colours follow the album art and the glow pulses with the music. |
 | **Lyra** | Floats the lyrics of the current song over your screen and lights each word at the moment it is sung. |
+| **Wave** | A music visualizer that lives on your wallpaper, plus a desktop clock, a full-screen player and Spotify control. It has 12 visualizers, themes and album-colour mood sync. |
+
+## Download
+
+Every push builds installers in GitHub Actions (**Actions › Desktop apps › latest run › Artifacts**):
+
+* `WaveSuite-macOS`: a .dmg with Halo, Lyra and Wave. Drag them to Applications. The first time, right-click an app and
+  choose **Open** (the apps are not notarized).
+* `WaveSuite-Windows`: `WaveSuite-Setup.exe`, which installs all three apps with Start menu shortcuts.
+
+## Spotify
+
+Wave follows any player with no sign-in. That is Spotify and Apple Music over AppleScript on a Mac, and anything in the
+media flyout on Windows. **Connect Spotify** in Wave's dashboard adds:
+
+* liking the song,
+* playback control on any device,
+* sharp cover art,
+* exact song position.
+
+Sign-in uses Authorization Code + PKCE against the Spotify app already set up for Jarvis (redirect
+`http://127.0.0.1:8765/callback`), so no secret ships in the app. While a Spotify app is in development mode, only accounts
+added under *User Management* on developer.spotify.com can sign in. To use your own app instead, paste its Client ID
+in the dashboard's Spotify tab.
 
 Both apps ship for **macOS** (Swift, `desktop/macos`) and **Windows** (C# / WPF, `desktop/windows`).
 They are original apps. They follow one shared spec (this file), so they behave the same on both platforms.
@@ -171,7 +195,48 @@ Centre or Top. It fades in and out over 300 ms. It is hidden when nothing is pla
 Settings persist as JSON in the user's settings store: mac uses `UserDefaults`; Windows uses
 `%APPDATA%\Halo\settings.json` and `%APPDATA%\Lyra\settings.json`. Saves are debounced by 500 ms.
 
-### 6. Not included
+### 6. Wave
+
+The visuals are one web engine in `desktop/visuals` (plain HTML, canvas and JS, no build step). It is shared by both
+native shells: WKWebView on macOS and WebView2 on Windows. Open `desktop/visuals/index.html?mode=dashboard` in a browser
+to try it with demo audio. The modes are `widget`, `clock`, `fullscreen`, `dashboard` and `gallery`.
+
+**Host → page** (call in the page):
+
+| Call | Purpose |
+| --- | --- |
+| `Wave.config(obj)` | Settings, full or partial. Keys are listed in `Wave.DEFAULTS` in `core.js`. |
+| `Wave.setTrack(obj \| null)` | `{title, artist, album, art (URL or data URL), colors: [hex], isPlaying, position, duration, liked, source}` |
+| `Wave.setStatus(obj)` | `{spotify: connected\|connecting\|disconnected\|error, spotifyUser, spotifyError, audio, platform, version}` |
+| `Wave.pushAudio(obj)` | Every frame: `{bins: 64 log-spaced values 0..1 (40 Hz to 16 kHz), wave: 128 samples -1..1, level, bass, mid, treble, beat: bool}` |
+| `Wave.setPaused(bool)` | Stop drawing while covered. |
+
+**Page → host** (`webkit.messageHandlers.wave` / `chrome.webview.postMessage`), as `{cmd, ...}`:
+
+| `cmd` | Meaning |
+| --- | --- |
+| `ready` | The page loaded. |
+| `set` | `{key, value}`. Persist it and broadcast `config({key: value})` to the other pages. |
+| `playpause`, `next`, `previous`, `like` | Media and Spotify actions. |
+| `openFullscreen`, `closeFullscreen` | The full-screen player. |
+| `editLayout` | Arrange mode: bring the widgets forward, then drag to move or resize. |
+| `spotifyConnect`, `spotifyDisconnect`, `resetSettings`, `quit` | Spotify sign-in and app actions. |
+
+**Native duties**:
+
+* **Widget windows**: visualizer and clock.
+  * Wallpaper placement: macOS uses window level `desktopWindow + 1`. Windows re-parents into the WorkerW behind the
+    desktop icons, and re-attaches if Explorer restarts.
+  * The other placements are *always on top* and *normal*. Frames persist.
+* **Full-screen window**: shortcuts are Ctrl+Alt+F (⌃⌥F) for full screen and Ctrl+Alt+M (⌃⌥M) to show or hide the widgets.
+* **System audio spectrum**: Core Audio tap / WASAPI loopback, fed in at the chosen frame rate.
+* **Now playing**: AppleScript / SMTC, merged with Spotify Web API data when connected.
+* **Spotify PKCE sign-in** with a loopback listener on port 8765.
+  * Refresh token storage: Keychain on mac, DPAPI-protected file on Windows.
+  * API calls: `/me/player` polled every second, `/me/tracks/contains`, `PUT`/`DELETE /me/tracks`,
+    `/me/player/play|pause|next|previous`.
+
+### 7. Not included
 
 Unlike some commercial apps in this category, neither app draws over the **macOS lock screen**. That needs private
 SkyLight APIs that change between macOS releases and are not allowed in signed apps. There is no licensing or payment
