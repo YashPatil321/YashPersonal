@@ -60,6 +60,31 @@ struct LyraSettings: Codable, Equatable {
     var latency = 0.15
 }
 
+extension LyraSettings {
+    /// Built from Wave's shared settings dictionary (keys documented in desktop/visuals/core.js).
+    init(dict d: [String: Any]) {
+        self.init()
+        func num(_ k: String) -> Double? { (d[k] as? NSNumber)?.doubleValue }
+        showLyrics = d["lyricsEnabled"] as? Bool ?? showLyrics
+        if let v = d["lyricsStyle"] as? String, let st = LyricStyle.allCases.first(where: { $0.rawValue.lowercased() == v.lowercased() }) { style = st }
+        if let v = d["lyricsFont"] as? String, let f = LyricFont.allCases.first(where: { $0.rawValue.lowercased() == v.lowercased() }) { font = f }
+        size = num("lyricsSize") ?? size
+        textColor = (d["lyricsText"] as? String).flatMap(RGBAColor.init(hex:)) ?? textColor
+        highlightColor = (d["lyricsHighlight"] as? String).flatMap(RGBAColor.init(hex:)) ?? highlightColor
+        let dim = num("lyricsDimOpacity") ?? 0.38
+        dimColor = RGBAColor(textColor.r, textColor.g, textColor.b, dim)
+        matchAlbum = d["lyricsMatchAlbum"] as? Bool ?? matchAlbum
+        shadow = d["lyricsShadow"] as? Bool ?? shadow
+        switch d["lyricsPlacement"] as? String {
+        case "top": placement = .top
+        case "center": placement = .center
+        default: placement = .bottom
+        }
+        keepAwake = d["lyricsKeepAwake"] as? Bool ?? keepAwake
+        latency = num("lyricsLatency") ?? latency
+    }
+}
+
 enum LyricsStatus: Equatable {
     case idle, loading, found(LyricsSource), notFound
     var label: String {
@@ -85,6 +110,8 @@ final class LyricsEngine: ObservableObject {
     private var currentKey = ""
     private var fetch: Task<Void, Never>?
     private var bag = Set<AnyCancellable>()
+    /// When set and returning a value, used instead of the local player's position (e.g. Spotify's exact progress).
+    var positionOverride: (() -> Double?)?
 
     init(nowPlaying: NowPlayingMonitor, settings: SettingsStore<LyraSettings>) {
         self.nowPlaying = nowPlaying
@@ -123,7 +150,7 @@ final class LyricsEngine: ObservableObject {
 
     /// The lyric clock, including the user's nudge and the latency setting.
     func time(at now: CFTimeInterval = CACurrentMediaTime()) -> Double {
-        nowPlaying.position(at: now) + offset + settings.value.latency
+        (positionOverride?() ?? nowPlaying.position(at: now)) + offset + settings.value.latency
     }
 
     var shouldShow: Bool {

@@ -139,6 +139,151 @@
         row('Glow', toggle('clockGlow'))));
   }
 
+  // ---------------------------------------------------------------- screen glow
+
+  function glowTab() {
+    const screen = el('div', { class: 'glow-screen' }, el('div', { class: 'glow-ring' }), el('div', { class: 'glow-core' }));
+    let rot = 0;
+    Wave.previews.push({
+      canvas: screen,
+      render(now) {
+        const s = Wave.settings, A = Wave.audio;
+        let cols;
+        if (s.glowAlbumColors && Wave.track && Wave.track.colors && Wave.track.colors.length) cols = Wave.track.colors.slice(0, s.glowColorCount);
+        else cols = [s.glowPrimary, s.glowSecondary, s.glowTertiary].slice(0, s.glowColorCount);
+        let bright, speed;
+        if (s.glowMode === 'music' && A.level > 0.01) { bright = 0.35 + 0.45 * A.bass + 0.25 * A.beat; speed = 0.04 + 0.25 * A.mid; }
+        else if (s.glowMode === 'still') { bright = 0.8; speed = 0; }
+        else { bright = 0.55 + 0.25 * Math.sin((2 * Math.PI * now) / 4000); speed = 0.03; }
+        rot = (rot + speed * 6) % 360;
+        const split = Math.round(s.glowSplit * 100);
+        const grad = cols.length >= 3
+          ? `conic-gradient(from ${rot}deg, ${cols[0]}, ${cols[1]}, ${cols[2]}, ${cols[0]})`
+          : `conic-gradient(from ${rot}deg, ${cols[0]} 0%, ${cols[0]} ${split - 8}%, ${cols[1]} ${split + 8}%, ${cols[1]} 92%, ${cols[0]})`;
+        const k = 0.42; // preview scale
+        screen.style.setProperty('--g', grad);
+        screen.style.setProperty('--t', `${Math.max(1.5, s.glowThickness * k)}px`);
+        screen.style.setProperty('--blur', `${s.glowSize * k}px`);
+        screen.style.setProperty('--b', Math.min(1, bright).toFixed(3));
+        screen.style.opacity = s.glowEnabled ? 1 : 0.35;
+      },
+    });
+    return el('div', { class: 'tab' },
+      section('Preview', screen),
+      section('Screen glow',
+        row('Light up my screen edges', toggle('glowEnabled'), 'A soft light along the edges of every display, over everything, never taking a click'),
+        row('Animation', segmented('glowMode', { music: 'Music sync', breathe: 'Breathe', still: 'Static' })),
+        row('Thickness', slider('glowThickness', 2, 60, 1, (v) => `${v} px`)),
+        row('Glow', slider('glowSize', 0, 80, 1, (v) => `${v} px`)),
+        row('Notch compatibility', toggle('glowNotch'), 'Mac only: run the light around the camera notch')),
+      section('Colour',
+        row('Match album art', toggle('glowAlbumColors')),
+        row('Gradient', segmented('glowColorCount', { 2: '2 colours', 3: '3 colours' })),
+        row('Colours', el('div', { class: 'pair' }, color('glowPrimary'), color('glowSecondary'), color('glowTertiary'))),
+        row('Primary / secondary', slider('glowSplit', 0.15, 0.85, 0.01, (v) => `${Math.round(v * 100)} / ${100 - Math.round(v * 100)}`))));
+  }
+
+  // ---------------------------------------------------------------- lyrics
+
+  const DEMO_LINES = ['Every word lights up', 'the moment it is sung', 'follow along with me', 'one word at a time'];
+  const LINE_LEN = 2.4;
+
+  /** A small DOM version of the five lyric styles, played on a loop for the preview. */
+  function lyricPreview() {
+    const box = el('div', { class: 'ly-preview' });
+    let last = '';
+    return {
+      el: box,
+      canvas: box,
+      render(now) {
+        const s = Wave.settings;
+        const t = (now / 1000) % (DEMO_LINES.length * LINE_LEN);
+        const li = Math.floor(t / LINE_LEN), lt = t - li * LINE_LEN;
+        const words = DEMO_LINES[li].split(' ');
+        const wi = Math.min(words.length - 1, Math.floor((lt / 2.0) * words.length));
+        const prog = Math.min(1, ((lt / 2.0) * words.length) - wi);
+        const hi = s.lyricsMatchAlbum && Wave.track && Wave.track.colors ? Wave.track.colors[0] : s.lyricsHighlight;
+        box.style.setProperty('--ly-text', s.lyricsText);
+        box.style.setProperty('--ly-hi', hi);
+        box.style.setProperty('--ly-dim', s.lyricsDimOpacity);
+        box.style.setProperty('--ly-size', s.lyricsSize);
+        box.style.fontFamily = Wave.fonts[s.lyricsFont] || Wave.fonts.system;
+        box.style.justifyContent = { top: 'flex-start', center: 'center', bottom: 'flex-end' }[s.lyricsPlacement] || 'flex-end';
+        box.classList.toggle('shadow', !!s.lyricsShadow);
+        const key = [s.lyricsStyle, li, wi].join('|');
+        const style = s.lyricsStyle;
+        if (key !== last) {
+          last = key;
+          box.className = 'ly-preview ly-' + style + (s.lyricsShadow ? ' shadow' : '');
+          box.innerHTML = '';
+          const stage = el('div', { class: 'ly-stage' });
+          if (style === 'spotlight') {
+            const line = el('div', { class: 'ly-line' });
+            words.forEach((w, i) => line.append(el('span', { class: i < wi ? 'sung' : i === wi ? 'cur' : 'up' }, w), ' '));
+            stage.append(line, el('div', { class: 'ly-next' }, DEMO_LINES[(li + 1) % DEMO_LINES.length]));
+          } else if (style === 'stack') {
+            const flat = [];
+            DEMO_LINES.forEach((l, i) => l.split(' ').forEach((w, j) => flat.push([i, j, w])));
+            const idx = flat.findIndex(([i, j]) => i === li && j === wi);
+            [idx - 2, idx - 1, idx].forEach((k, n) => { if (k >= 0) stage.append(el('div', { class: 'ly-stack s' + n }, flat[k][2])); });
+          } else if (style === 'thread') {
+            for (let k = Math.max(0, li - 2); k <= li; k++) {
+              const text = k === li ? words.slice(0, wi + 1).join(' ') : DEMO_LINES[k];
+              stage.append(el('div', { class: 'ly-bubble ' + (k % 2 ? 'right' : 'left') + (k === li ? ' new' : '') }, text));
+            }
+          } else if (style === 'terminal') {
+            const term = el('div', { class: 'ly-term' });
+            for (let k = Math.max(0, li - 2); k < li; k++) term.append(el('div', { class: 'old' }, '> ' + DEMO_LINES[k]));
+            term.append(el('div', {}, el('b', {}, '> '), words.slice(0, wi + 1).join(' '), el('i', { class: 'cursor' }, '█')));
+            stage.append(term);
+          } else {
+            const line = el('div', { class: 'ly-line drift' });
+            words.forEach((w, i) => line.append(el('span', { class: i <= wi ? 'in' : 'wait', style: `--age:${i <= wi ? wi - i : 0}` }, w), ' '));
+            stage.append(line);
+          }
+          box.append(stage);
+        }
+        const cur = box.querySelector('.cur');
+        if (cur) cur.style.setProperty('--p', `${Math.round(prog * 100)}%`);
+      },
+    };
+  }
+
+  function lyricsTab() {
+    const preview = lyricPreview();
+    Wave.previews.push(preview);
+    const status = el('div', { class: 'sp-status' });
+    const offset = el('output', { class: 'small' });
+    const sync = () => {
+      status.textContent = Wave.status.lyrics || '';
+      const o = Number(Wave.status.lyricsOffset || 0);
+      offset.textContent = `${o >= 0 ? '+' : ''}${o.toFixed(2)} s`;
+    };
+    Wave.subscribe(sync);
+    sync();
+    return el('div', { class: 'tab' },
+      preview.el,
+      section('Lyrics',
+        row('Show lyrics on screen', toggle('lyricsEnabled'), 'Words light up as they are sung, over everything, never taking a click'),
+        row('Now', status),
+        row('Style', segmented('lyricsStyle', { spotlight: 'Spotlight', stack: 'Stack', thread: 'Thread', terminal: 'Terminal', drift: 'Drift' })),
+        row('Position', segmented('lyricsPlacement', { top: 'Top', center: 'Centre', bottom: 'Bottom' }))),
+      section('Look',
+        row('Font', segmented('lyricsFont', { system: 'System', rounded: 'Rounded', serif: 'Serif', mono: 'Mono', condensed: 'Condensed' })),
+        row('Size', slider('lyricsSize', 0.6, 2, 0.01, (v) => `${Math.round(v * 100)}%`)),
+        row('Sung / current word', el('div', { class: 'pair' }, color('lyricsText'), color('lyricsHighlight'))),
+        row('Upcoming words', slider('lyricsDimOpacity', 0.1, 0.9, 0.01, (v) => `${Math.round(v * 100)}%`)),
+        row('Match the album cover', toggle('lyricsMatchAlbum')),
+        row('Shadow', toggle('lyricsShadow'))),
+      section('Timing',
+        row('This song', el('div', { class: 'btn-row tight' },
+          el('button', { class: 'btn', onclick: () => Wave.send({ cmd: 'lyricsNudge', delta: 0.25 }) }, 'Earlier'),
+          offset,
+          el('button', { class: 'btn', onclick: () => Wave.send({ cmd: 'lyricsNudge', delta: -0.25 }) }, 'Later')), 'Resets when the next song starts'),
+        row('Latency', slider('lyricsLatency', -0.5, 0.8, 0.01, (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)} s`), 'Applies to every song'),
+        row('Keep the screen awake while music plays', toggle('lyricsKeepAwake'))));
+  }
+
   function spotifyTab() {
     const status = el('div', { class: 'sp-status' });
     const connect = el('button', { class: 'btn primary', onclick: () => Wave.send({ cmd: 'spotifyConnect' }) }, 'Connect Spotify');
@@ -198,6 +343,7 @@
 
   Wave.mountDashboard = function (root) {
     const tabs = { visualizer: ['Visualizer', visualizerTab], nowplaying: ['Now playing', nowPlayingTab], clock: ['Clock', clockTab],
+      lyrics: ['Lyrics', lyricsTab], glow: ['Screen glow', glowTab],
       spotify: ['Spotify', spotifyTab], audio: ['Audio', audioTab], system: ['System', systemTab] };
     const built = {};
     const nav = el('nav', { class: 'nav' }, el('div', { class: 'brand' }, el('span', { class: 'logo' }), 'Wave'));

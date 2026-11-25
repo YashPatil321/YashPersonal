@@ -5,13 +5,16 @@ import QuartzCore
 import SharedKit
 import WebKit
 
-/// Wave: a music visualizer and clock on the desktop, a full-screen player, and Spotify control.
+/// Wave: a music visualizer and clock on the desktop, lyrics over the screen, light along the screen edges,
+/// a full-screen player, and Spotify control. One app.
 @MainActor
 final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private let nowPlaying = NowPlayingMonitor()
     private var spotify: SpotifyClient!
     private var tap: AnyObject?
     private var analyzer: AudioAnalyzer?
+    private var glow: GlowFeature!
+    private var lyrics: LyricsFeature!
 
     private var widget: WebPanel?
     private var clock: WebPanel?
@@ -75,6 +78,14 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
             analyzer = t.analyzer
         }
 
+        glow = GlowFeature(nowPlaying: nowPlaying, analyzer: { [weak self] in self?.analyzer })
+        lyrics = LyricsFeature(nowPlaying: nowPlaying)
+        lyrics.engine.positionOverride = { [weak self] in self?.spotifyPosition() }
+        applyFeatureSettings()
+        lyrics.engine.$status.map { _ in () }.merge(with: lyrics.engine.$offset.map { _ in () })
+            .sink { [weak self] in DispatchQueue.main.async { self?.pushStatus() } }
+            .store(in: &bag)
+
         applyWidgets()
         registerHotKeys()
 
@@ -85,7 +96,11 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
             .sink { [weak self] in DispatchQueue.main.async { self?.pushStatus() } }
             .store(in: &bag)
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
-            .sink { [weak self] _ in self?.applyWidgets() }
+            .sink { [weak self] _ in
+                self?.applyWidgets()
+                self?.glow.rebuildWindows()
+                self?.lyrics.rebuildWindows()
+            }
             .store(in: &bag)
 
         restartFrameTimer()
@@ -235,6 +250,8 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
             saveSettings()
             for p in panels where p !== panel { p.call("config", [key: settings[key] ?? NSNull()]) }
             applySetting(key)
+        case "lyricsNudge":
+            lyrics.engine.nudge((msg["delta"] as? NSNumber)?.doubleValue ?? 0)
         case "playpause": media("playpause")
         case "next": media("next")
         case "previous": media("previous")
@@ -251,12 +268,26 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
             saveSettings()
             for p in panels { p.webView.reload() }
             applyWidgets()
+            applyFeatureSettings()
         case "quit": NSApp.terminate(nil)
         default: break
         }
     }
 
+    private func applyFeatureSettings() {
+        glow.apply(GlowSettings(settings))
+        lyrics.apply(LyraSettings(dict: settings))
+    }
+
+    /// Spotify's exact progress, when it is playing the same song the lyrics are for.
+    private func spotifyPosition() -> Double? {
+        guard spotify.isConnected, let p = spotify.playback,
+              let local = nowPlaying.track, local.title.lowercased() == p.title.lowercased() else { return nil }
+        return p.position + (p.isPlaying ? Date().timeIntervalSince(p.fetchedAt) : 0)
+    }
+
     private func applySetting(_ key: String) {
+        if key.hasPrefix("glow") || key.hasPrefix("lyrics") { applyFeatureSettings() }
         switch key {
         case "widgetEnabled", "clockEnabled", "widgetPlacement", "clockPlacement": applyWidgets()
         case "launchAtLogin": LoginItem.set(setting("launchAtLogin", false))
@@ -351,7 +382,8 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
         }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let status: [String: Any] = ["spotify": sp, "spotifyUser": spotify.userName, "spotifyError": err, "audio": audio,
-                                     "platform": "macOS", "version": version]
+                                     "platform": "macOS", "version": version,
+                                     "lyrics": lyrics?.engine.status.label ?? "", "lyricsOffset": lyrics?.engine.offset ?? 0]
         for p in panels { p.call("setStatus", status) }
     }
 
@@ -371,6 +403,7 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
 
     /// Send one audio frame to every visible page.
     private func frame() {
+        glow?.tick()
         guard let analyzer else { return }
         let now = CACurrentMediaTime()
         let levels = analyzer.levels(at: now)
@@ -416,6 +449,14 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
         }
     }
 
+    private func toggleSetting(_ key: String, default d: Bool) {
+        let v = !setting(key, d)
+        settings[key] = v
+        saveSettings()
+        for p in panels { p.call("config", [key: v]) }
+        applySetting(key)
+    }
+
     func toggleWidgets() {
         widgetsHidden.toggle()
         applyWidgets()
@@ -434,6 +475,16 @@ final class WaveController: NSObject, NSApplicationDelegate, NSMenuDelegate, NSW
         menu.addItem(ActionMenuItem("Full Screen  ⌃⌥F") { [unowned self] in toggleFullscreen() })
         menu.addItem(ActionMenuItem(widgetsHidden ? "Show Widgets  ⌃⌥M" : "Hide Widgets  ⌃⌥M") { [unowned self] in toggleWidgets() })
         menu.addItem(ActionMenuItem(editing ? "Done Arranging" : "Arrange Widgets") { [unowned self] in setEditing(!editing) })
+        menu.addItem(.separator())
+        menu.addItem(ActionMenuItem("Show Lyrics", key: "l", state: setting("lyricsEnabled", true)) { [unowned self] in
+            toggleSetting("lyricsEnabled", default: true)
+        })
+        menu.addItem(ActionMenuItem("Screen Glow", state: setting("glowEnabled", false)) { [unowned self] in
+            toggleSetting("glowEnabled", default: false)
+        })
+        let offset = lyrics.engine.offset == 0 ? "" : String(format: "  (%+.2f s)", lyrics.engine.offset)
+        menu.addItem(ActionMenuItem("Lyrics Earlier" + offset, key: "[") { [unowned self] in lyrics.engine.nudge(0.25) })
+        menu.addItem(ActionMenuItem("Lyrics Later", key: "]") { [unowned self] in lyrics.engine.nudge(-0.25) })
         menu.addItem(.separator())
         menu.addItem(ActionMenuItem("Play / Pause") { [unowned self] in media("playpause") })
         menu.addItem(ActionMenuItem("Next Track") { [unowned self] in media("next") })

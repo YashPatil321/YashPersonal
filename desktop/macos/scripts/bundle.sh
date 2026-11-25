@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Halo.app, Lyra.app and Wave.app into build/ (universal: Apple silicon + Intel), ad-hoc signed.
+# Builds Wave.app into build/ (universal: Apple silicon + Intel), ad-hoc signed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -11,7 +11,7 @@ swift build -c release "${ARCH_FLAGS[@]}"
 BIN_DIR=$(swift build -c release "${ARCH_FLAGS[@]}" --show-bin-path)
 
 rm -rf build && mkdir -p build
-for APP in Halo Lyra Wave; do
+for APP in Wave; do
   DEST="build/$APP.app/Contents"
   mkdir -p "$DEST/MacOS" "$DEST/Resources"
   cp "$BIN_DIR/$APP" "$DEST/MacOS/$APP"

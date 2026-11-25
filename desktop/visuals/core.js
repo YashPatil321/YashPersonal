@@ -44,6 +44,31 @@ Wave.DEFAULTS = {
   // full screen
   fsStyle: 'ring',
   fsTheme: 'album', // album | <theme id>
+  // screen glow (light along the display edges)
+  glowEnabled: false,
+  glowMode: 'music', // music | breathe | still
+  glowAlbumColors: true,
+  glowColorCount: 2,
+  glowPrimary: '#ff2e6b',
+  glowSecondary: '#3873ff',
+  glowTertiary: '#9e4dff',
+  glowSplit: 0.6,
+  glowThickness: 10,
+  glowSize: 36,
+  glowNotch: true,
+  // lyrics overlay
+  lyricsEnabled: true,
+  lyricsStyle: 'spotlight', // spotlight | stack | thread | terminal | drift
+  lyricsFont: 'system', // system | rounded | serif | mono | condensed
+  lyricsSize: 1,
+  lyricsText: '#ffffff',
+  lyricsHighlight: '#ff6b9e',
+  lyricsDimOpacity: 0.38,
+  lyricsMatchAlbum: false,
+  lyricsShadow: true,
+  lyricsPlacement: 'bottom', // top | center | bottom
+  lyricsKeepAwake: false,
+  lyricsLatency: 0.15,
   // system
   fps: 60,
   pauseWhenCovered: true,
@@ -84,7 +109,7 @@ Wave.hasHost = !!((window.webkit && window.webkit.messageHandlers && window.webk
 
 Wave.settings = Object.assign({}, Wave.DEFAULTS);
 Wave.track = null; // {title, artist, album, art, colors[], isPlaying, position, duration, liked, source}
-Wave.status = { spotify: 'disconnected', spotifyUser: '', audio: 'starting', platform: 'web', version: '1.0.0' };
+Wave.status = { spotify: 'disconnected', spotifyUser: '', audio: 'starting', platform: 'web', version: '1.0.0', lyrics: 'Waiting for a song', lyricsOffset: 0 };
 const listeners = [];
 Wave.subscribe = (fn) => listeners.push(fn);
 const emit = (what) => listeners.forEach((fn) => { try { fn(what); } catch (e) { console.error(e); } });
