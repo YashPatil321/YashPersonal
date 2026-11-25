@@ -741,6 +741,40 @@ def update_waiting():
         return False
 
 
+def run_update_now(jarvis, speak=False):
+    """Installs the update while Atlas is still running (you see every step in this window and in jarvis.log),
+    and only then restarts into it. If anything goes wrong, it says so and keeps running the current version."""
+    say = jarvis.speaker.say if speak else (lambda t: None)
+    try:
+        r = subprocess.Popen([sys.executable, os.path.join(WORKDIR, "update.py")], cwd=WORKDIR, stdout=subprocess.PIPE,
+                             env=dict(os.environ, ATLAS_RUNNING="1", PYTHONUNBUFFERED="1"),
+                             stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                             creationflags=0x08000000 if IS_WIN else 0)
+        out = []
+        for line in r.stdout:
+            line = line.rstrip()
+            if line:
+                out.append(line)
+                log(line)
+        code = r.wait(timeout=1800)
+    except Exception as e:
+        log(f"update failed: {e}")
+        say("The update didn't install. Check the Atlas window.")
+        return False
+    try:
+        st = json.load(open(os.path.join(WORKDIR, ".update_status.json")))
+    except Exception:
+        st = {"ok": code == 0}
+    if code != 0 or not st.get("ok", True):
+        why = re.sub(r"[^\w\s.,']", " ", st.get("error", "") or (out[-1] if out else ""))[:160]
+        say("The update didn't install. " + why)
+        return False
+    say("Updated. Restarting.")
+    time.sleep(1.5)
+    jarvis.restart_for_update = True   # start.bat starts the new code (its own update check finds nothing left to do)
+    return True
+
+
 def nightly_update_watch(jarvis):
     """Checks for new code every 30 minutes. Restarts into it when you've been away from the keyboard for 15 minutes
     (so it never cuts you off mid task), or at AUTO_UPDATE_HOUR no matter what."""
@@ -758,8 +792,8 @@ def nightly_update_watch(jarvis):
         b = jarvis.brain
         away = jarvis_brain.idle_seconds() > 900 and not (b and b.focus_started) and not jarvis.speaker.speaking
         if away or (AUTO_UPDATE_HOUR is not None and lt.tm_hour == AUTO_UPDATE_HOUR):
-            log("restarting into the update")
-            jarvis.restart_for_update = True
+            log("installing the update")
+            run_update_now(jarvis)
             return
 
 
@@ -2447,8 +2481,8 @@ class Jarvis:
             return True
         if action == "update":
             if update_waiting():
-                say("Updating. Back in a few seconds.")
-                self.restart_for_update = True
+                say("Updating. Give me a minute.")
+                threading.Thread(target=run_update_now, args=(self, True), daemon=True).start()
             else:
                 try:
                     st = json.load(open(os.path.join(WORKDIR, ".update_status.json")))
@@ -2948,6 +2982,7 @@ def levels():
 
 
 def main():
+    no_quick_edit()
     if "--profiles" in sys.argv:
         pick = browser_profile()
         for d, n, e in browser_profiles():
@@ -3318,6 +3353,22 @@ def main():
             wake.reset()
             if spotter:
                 spotter.reset()
+
+
+def no_quick_edit():
+    """Clicking inside a Windows console window pauses the program until you press a key (Quick Edit). For a
+    program that runs all day in that window, that's a freeze. Turn it off for this window."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.GetStdHandle(-10)
+        mode = ctypes.c_uint32()
+        if k.GetConsoleMode(h, ctypes.byref(mode)):
+            k.SetConsoleMode(h, (mode.value & ~0x0040) | 0x0080)
+    except Exception:
+        pass
 
 
 def hard_exit(code, why=""):

@@ -303,7 +303,25 @@ def install_extras(pip_run=None, force=False):
     return done
 
 
+def no_quick_edit():
+    """Clicking inside a Windows console window pauses the program until you press a key (Quick Edit). For a
+    program that runs all day in that window, that's a freeze. Turn it off for this window."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.GetStdHandle(-10)
+        mode = ctypes.c_uint32()
+        if k.GetConsoleMode(h, ctypes.byref(mode)):
+            k.SetConsoleMode(h, (mode.value & ~0x0040) | 0x0080)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    no_quick_edit()
+    print("update: checking for a new version...", flush=True)
     if "--check" in sys.argv:
         w = waiting()
         print("update waiting" if w else "up to date")
@@ -313,7 +331,8 @@ if __name__ == "__main__":
     else:
         try:
             import jarvis_evolve
-            jarvis_evolve.boot_guard()   # undo a self edit that keeps Atlas from starting
+            if not os.environ.get("ATLAS_RUNNING"):   # only count real starts, not Atlas updating itself
+                jarvis_evolve.boot_guard()   # undo a self edit that keeps Atlas from starting
         except Exception as e:
             print(f"update: boot guard: {e}")
         update()
