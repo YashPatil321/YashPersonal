@@ -4,7 +4,7 @@ Atlas says what actually happened, and can take it back.
   Honest results   opening an app is checked against the real windows: "Spotify's open" only once a Spotify
                    window shows up; if nothing appears in a few seconds it says so. If the app is already running
                    it brings that window to the front instead of starting a second copy.
-  Undo             "undo that" / "take that back" reverses the last thing Atlas did: volume, pause or play, skip,
+  Undo             "undo that" / "take that back" (plain "undo" is still Ctrl+Z) reverses the last thing Atlas did: volume, pause or play, skip,
                    an app it opened (closes it), a tab it closed (reopens it), a focus session, a routine, a fact it
                    remembered, a gesture shortcut, standby. "Undo your last change" is still the one for its code.
   Memory, editable every fact in Memory.md and every lesson, listed in the command center with a delete button
@@ -113,7 +113,7 @@ def forget(vault, text, kind=None):
 
 
 def route_trust(t):
-    if re.fullmatch(r"undo(?: (?:that|it|the last thing|what you (?:just )?did))?|take (?:that|it) back|reverse (?:that|it)|never mind,? undo (?:that|it)", t):
+    if re.fullmatch(r"undo (?:that|it|the last thing|what you (?:just )?did)|take (?:that|it) back|reverse (?:that|it)|never mind,? undo (?:that|it)", t):
         return ("undo_action", None)
     m = re.fullmatch(r"forget (?:that )?(?:i |my |about )?(.{6,})", t)
     if m and not re.search(r"\b(?:face|gesture|sign|routine|job)\b", m.group(1)):
