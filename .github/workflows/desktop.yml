@@ -17,20 +17,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Unit tests
         run: swift test
-      - name: Build Halo.app and Lyra.app
+      - name: Build Halo.app, Lyra.app and Wave.app
         run: ./scripts/bundle.sh
-      - name: Zip
+      - name: Disk image
         run: |
-          ditto -c -k --keepParent build/Halo.app build/Halo-macOS.zip
-          ditto -c -k --keepParent build/Lyra.app build/Lyra-macOS.zip
+          mkdir -p dmg && cp -R build/*.app dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname "Wave Suite" -srcfolder dmg -ov -format UDZO build/WaveSuite-macOS.dmg
       - uses: actions/upload-artifact@v4
         with:
-          name: Halo-macOS
-          path: desktop/macos/build/Halo-macOS.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Lyra-macOS
-          path: desktop/macos/build/Lyra-macOS.zip
+          name: WaveSuite-macOS
+          path: desktop/macos/build/WaveSuite-macOS.dmg
 
   windows:
     runs-on: windows-latest

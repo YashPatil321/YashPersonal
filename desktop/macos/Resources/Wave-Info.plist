@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>Wave</string>
+	<key>CFBundleDisplayName</key><string>Wave</string>
+	<key>CFBundleIdentifier</key><string>dev.yash.wave</string>
+	<key>CFBundleExecutable</key><string>Wave</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>1.0.0</string>
+	<key>CFBundleVersion</key><string>1</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>LSUIElement</key><true/>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSHumanReadableCopyright</key><string>A music visualizer and clock on your desktop.</string>
+	<key>NSAppleEventsUsageDescription</key><string>Wave reads the song playing in Spotify or Apple Music so it can follow along.</string>
+	<key>NSAudioCaptureUsageDescription</key><string>Wave listens to your Mac's system audio to draw the visualizer. It never uses the microphone and nothing is recorded.</string>
+	<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+</dict>
+</plist>

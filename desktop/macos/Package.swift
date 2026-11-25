@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .executable(name: "Halo", targets: ["Halo"]),
         .executable(name: "Lyra", targets: ["Lyra"]),
+        .executable(name: "Wave", targets: ["Wave"]),
     ],
     targets: [
         // Pure Foundation: builds and tests on Linux too.
@@ -14,6 +15,7 @@ let package = Package(
         .target(name: "SharedKit"),
         .executableTarget(name: "Halo", dependencies: ["SharedKit"]),
         .executableTarget(name: "Lyra", dependencies: ["SharedKit", "LyricsKit"]),
+        .executableTarget(name: "Wave", dependencies: ["SharedKit"]),
         .testTarget(name: "LyricsKitTests", dependencies: ["LyricsKit"]),
     ]
 )

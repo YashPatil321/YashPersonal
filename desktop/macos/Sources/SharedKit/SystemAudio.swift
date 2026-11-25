@@ -35,6 +35,12 @@ public final class AudioAnalyzer: @unchecked Sendable {
 
     private let lock = NSLock()
 
+    /// 64 log-spaced bins (40 Hz to 16 kHz), 0...1, for visualizers.
+    public static let binCount = 64
+    private var bins = [Float](repeating: 0, count: 64)
+    private var binPeak: Float = 1e-4
+    private var waveform = [Float](repeating: 0, count: 128)
+
     public init() {
         fft = vDSP_create_fftsetup(10, FFTRadix(kFFTRadix2))!
         window = [Float](repeating: 0, count: n)
@@ -85,6 +91,20 @@ public final class AudioAnalyzer: @unchecked Sendable {
         }
         let raw: [Float] = [rms, band(20, 150), band(150, 2000), band(2000, 8000)]
 
+        // Log-spaced spectrum for the visualizers, normalised against a slowly falling peak.
+        var spectrum = [Float](repeating: 0, count: Self.binCount)
+        let lo = log(40.0), hi = log(16000.0)
+        var frameMax: Float = 0
+        for b in 0..<Self.binCount {
+            let f0 = exp(lo + (hi - lo) * Double(b) / Double(Self.binCount))
+            let f1 = exp(lo + (hi - lo) * Double(b + 1) / Double(Self.binCount))
+            let v = band(f0, max(f1, f0 + binHz))
+            spectrum[b] = v
+            frameMax = max(frameMax, v)
+        }
+        var wave = [Float](repeating: 0, count: 128)
+        for i in 0..<128 { wave[i] = block[i * n / 128] }
+
         let now = CACurrentMediaTime()
         lock.lock()
         defer { lock.unlock() }
@@ -95,6 +115,12 @@ public final class AudioAnalyzer: @unchecked Sendable {
             let k: Float = norm > smooth[i] ? 0.5 : 0.08
             smooth[i] += (norm - smooth[i]) * k
         }
+
+        binPeak = max(frameMax, binPeak * 0.997)
+        for b in 0..<Self.binCount { bins[b] = pow(min(1, spectrum[b] / max(binPeak, 1e-4)), 0.6) }
+        var wavePeak: Float = 1e-3
+        for v in wave { wavePeak = max(wavePeak, abs(v)) }
+        for i in 0..<128 { waveform[i] = wave[i] / max(wavePeak, 0.05) }
 
         let bassNorm = min(1, raw[1] / max(peaks[1], 1e-4))
         let flux = max(0, bassNorm - previousBass)
@@ -115,6 +141,18 @@ public final class AudioAnalyzer: @unchecked Sendable {
         if now - lastAudio > 1.0 { return .silent }
         let beat = lastBeat > 0 ? Float(pow(0.88, (now - lastBeat) * 60)) : 0
         return AudioLevels(level: smooth[0], bass: smooth[1], mid: smooth[2], treble: smooth[3], beat: beat)
+    }
+
+    /// Spectrum and waveform snapshot for visualizers (silence when no audio arrives).
+    public func spectrum(at now: CFTimeInterval = CACurrentMediaTime()) -> (bins: [Float], wave: [Float]) {
+        lock.lock(); defer { lock.unlock() }
+        if now - lastAudio > 1.0 { return ([Float](repeating: 0, count: Self.binCount), [Float](repeating: 0, count: 128)) }
+        return (bins, waveform)
+    }
+
+    public var lastBeatTime: CFTimeInterval {
+        lock.lock(); defer { lock.unlock() }
+        return lastBeat
     }
 
     public var hasRecentAudio: Bool {
