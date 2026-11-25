@@ -8,26 +8,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  macos:
-    runs-on: macos-15
-    defaults:
-      run:
-        working-directory: desktop/macos
-    steps:
-      - uses: actions/checkout@v4
-      - name: Unit tests
-        run: swift test
-      - name: Build Wave.app
-        run: ./scripts/bundle.sh
-      - name: Disk image
-        run: |
-          mkdir -p dmg && cp -R build/Wave.app dmg/ && ln -s /Applications dmg/Applications
-          hdiutil create -volname "Wave" -srcfolder dmg -ov -format UDZO build/Wave-macOS.dmg
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Wave-macOS
-          path: desktop/macos/build/Wave-macOS.dmg
-
   windows:
     runs-on: windows-latest
     defaults:
