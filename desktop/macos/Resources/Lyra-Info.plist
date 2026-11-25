@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>Lyra</string>
+	<key>CFBundleDisplayName</key><string>Lyra</string>
+	<key>CFBundleIdentifier</key><string>dev.yash.lyra</string>
+	<key>CFBundleExecutable</key><string>Lyra</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>1.0.0</string>
+	<key>CFBundleVersion</key><string>1</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>LSUIElement</key><true/>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSHumanReadableCopyright</key><string>Word-by-word lyrics over your screen.</string>
+	<key>NSAppleEventsUsageDescription</key><string>Lyra reads the song playing in Spotify or Apple Music so it can follow along.</string>
+</dict>
+</plist>

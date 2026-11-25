@@ -1,0 +1,58 @@
+name: Desktop apps
+
+on:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: desktop/macos
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        run: swift test
+      - name: Build Halo.app and Lyra.app
+        run: ./scripts/bundle.sh
+      - name: Zip
+        run: |
+          ditto -c -k --keepParent build/Halo.app build/Halo-macOS.zip
+          ditto -c -k --keepParent build/Lyra.app build/Lyra-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Halo-macOS
+          path: desktop/macos/build/Halo-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lyra-macOS
+          path: desktop/macos/build/Lyra-macOS.zip
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop/windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Unit tests
+        run: dotnet test Lyrics.Tests/Lyrics.Tests.csproj -c Release
+      - name: Publish Halo
+        run: dotnet publish Halo/Halo.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out/Halo
+      - name: Publish Lyra
+        run: dotnet publish Lyra/Lyra.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out/Lyra
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Halo-Windows
+          path: desktop/windows/out/Halo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lyra-Windows
+          path: desktop/windows/out/Lyra

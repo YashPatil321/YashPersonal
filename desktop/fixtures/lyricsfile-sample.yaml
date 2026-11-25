@@ -1,0 +1,44 @@
+version: '1.0'
+metadata:
+  title: "Test Song: \"Quoted\""
+  artist: Someone
+  album: Sample
+  duration_ms: 60000
+lines:
+- text: "Hello there world "
+  start_ms: 1000
+  end_ms: 3000
+  words:
+  - text: "Hello "
+    start_ms: 1000
+    end_ms: 1500
+  - text: "there "
+    start_ms: 1500
+    end_ms: 2000
+  - text: "world "
+    start_ms: 2000
+    end_ms: 3000
+- text: 'It''s a "test" line'
+  start_ms: 4000
+  end_ms: 6000
+  words:
+  - text: 'It''s '
+    start_ms: 4000
+    end_ms: 4400
+  - text: a
+    start_ms: 4400
+    end_ms: 4600
+  - text: "\"test\" "
+    start_ms: 4600
+    end_ms: 5200
+  - text: line
+    start_ms: 5200
+    end_ms: 6000
+- text: No words here, just a line
+  start_ms: 7000
+  end_ms: 9000
+- text: Last line without an end
+  start_ms: 10000
+plain: |
+  Hello there world
+  It's a "test" line
