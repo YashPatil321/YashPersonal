@@ -64,6 +64,12 @@ public sealed class NowPlayingService : IDisposable
 
     public bool IsPlaying => Current?.IsPlaying == true;
 
+    /// <summary>
+    /// The artwork of the newest track. Read this in <see cref="ArtworkChanged"/> handlers: the event fires before
+    /// <see cref="Current"/> is replaced with the new snapshot.
+    /// </summary>
+    public BitmapSource? Artwork => _artwork;
+
     private async Task PollAsync()
     {
         if (_polling) return;

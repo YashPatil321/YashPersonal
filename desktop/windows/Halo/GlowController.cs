@@ -89,7 +89,7 @@ public sealed class GlowController : IDisposable
 
     private void OnArtworkChanged()
     {
-        _albumColors = ArtworkColors.Extract(_nowPlaying.Current?.Artwork, 3);
+        _albumColors = ArtworkColors.Extract(_nowPlaying.Artwork, 3);
         UpdateTargetColors(immediate: false);
     }
 

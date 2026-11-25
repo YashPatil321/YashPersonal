@@ -193,7 +193,7 @@ public sealed class LyraController : IDisposable
 
     private void OnArtworkChanged()
     {
-        _albumHighlight = ArtworkColors.MostVibrant(_nowPlaying.Current?.Artwork);
+        _albumHighlight = ArtworkColors.MostVibrant(_nowPlaying.Artwork);
         _look = null;
     }
 
