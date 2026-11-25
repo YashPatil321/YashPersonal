@@ -17,12 +17,15 @@ using Wave.Desktop;
 using Wave.Panels;
 using Wave.Spotify;
 using Forms = System.Windows.Forms;
+using Halo;
+using Lyra;
 
 namespace Wave;
 
 /// <summary>
-/// Wave: a music visualizer and clock on the desktop, a full-screen player and Spotify control, around the shared web
-/// engine in desktop/visuals. Mirrors desktop/macos/Sources/Wave/main.swift.
+/// Wave: a music visualizer and clock on the desktop, a full-screen player, Spotify control, the screen glow (Halo) and
+/// the lyrics overlay (Lyra), around the shared web engine in desktop/visuals. Mirrors desktop/macos/Sources/Wave/main.swift.
+/// One now-playing service and one WASAPI capture feed everything.
 /// </summary>
 public sealed class WaveController : IDisposable
 {
@@ -42,6 +45,8 @@ public sealed class WaveController : IDisposable
     private readonly Dictionary<PanelKind, ArrangeOverlay> _overlays = new();
 
     private WebPanel? _widget, _clock, _dashboard, _fullscreen;
+    private GlowController? _glow;
+    private LyraController? _lyrics;
     private TrayIcon? _tray;
     private Forms.ToolStripMenuItem? _headerItem, _widgetsItem, _arrangeItem, _likeItem;
     private bool _widgetsHidden;
@@ -66,11 +71,16 @@ public sealed class WaveController : IDisposable
     public void Start()
     {
         _spotify.StartPolling();
-        _spotify.Changed += (_, _) => { PushTrack(force: false); PushStatus(); };
+        _spotify.Changed += (_, _) => { ReportSpotifyTiming(); PushTrack(force: false); PushStatus(); };
         _nowPlaying.Updated += (_, _) => PushTrack(force: false);
         _nowPlaying.ArtworkChanged += (_, _) => OnArtworkChanged();
         _nowPlaying.Start();
         _audio.Start();
+
+        _glow = new GlowController(_nowPlaying, _audio);
+        _lyrics = new LyraController(_nowPlaying);
+        _lyrics.Changed += (_, _) => PushStatus();
+        ApplyFeatures(glow: true, lyrics: true);
 
         BuildTray();
         _messages.HotKey += id =>
@@ -85,7 +95,7 @@ public sealed class WaveController : IDisposable
 
         ApplyWidgets();
         StartFrames();
-        _tick.Tick += (_, _) => { PushTrack(force: true); PushStatus(); };
+        _tick.Tick += (_, _) => { ReportSpotifyTiming(); PushTrack(force: true); PushStatus(); };
         _tick.Start();
 
         if (!_layout.Launched)
@@ -340,6 +350,11 @@ public sealed class WaveController : IDisposable
                     p.Call("config", new JsonObject { [key] = value?.DeepClone() });
                 ApplySetting(key);
                 break;
+            case "lyricsNudge":
+                var delta = msg["delta"] is JsonValue dv && double.TryParse(dv.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var dd) ? dd : 0;
+                if (delta != 0 && double.IsFinite(delta)) _lyrics?.Nudge(Math.Clamp(delta, -5, 5)); // + = earlier
+                PushStatus();
+                break;
             case "playpause": Media(NowPlayingService.MediaCommand.PlayPause); break;
             case "next": Media(NowPlayingService.MediaCommand.Next); break;
             case "previous": Media(NowPlayingService.MediaCommand.Previous); break;
@@ -356,6 +371,7 @@ public sealed class WaveController : IDisposable
                 _settings.Clear();
                 foreach (var p in Panels.ToList()) p.Reload();
                 ApplyWidgets();
+                ApplyFeatures(glow: true, lyrics: true);
                 break;
             case "quit":
                 Application.Current.Dispatcher.BeginInvoke(new Action(Quit));
@@ -363,8 +379,40 @@ public sealed class WaveController : IDisposable
         }
     }
 
+    /// <summary>Re-maps the settings dictionary onto the glow and lyrics features.</summary>
+    private void ApplyFeatures(bool glow, bool lyrics)
+    {
+        if (glow) _glow?.Apply(HaloSettings.FromWave(_settings.Values));
+        if (lyrics) _lyrics?.Apply(LyraSettings.FromWave(_settings.Values));
+    }
+
+    /// <summary>Gives the lyrics clock Spotify's exact position when Spotify is connected and playing something.</summary>
+    private void ReportSpotifyTiming()
+    {
+        if (_lyrics is null) return;
+        if (_spotify.IsConnected && _spotify.Playback is { } p)
+        {
+            var age = Math.Max(0, (DateTime.UtcNow - p.FetchedAtUtc).TotalSeconds);
+            _lyrics.ReportSpotify(p.Title, p.Position + (p.IsPlaying ? age : 0), p.IsPlaying);
+        }
+        else
+        {
+            _lyrics.ReportSpotify(null, 0, false);
+        }
+    }
+
+    /// <summary>Changes one setting from native UI (the tray): persist, tell every page, react.</summary>
+    private void SetSetting(string key, JsonNode? value)
+    {
+        _settings[key] = value;
+        foreach (var p in Panels.ToList()) p.Call("config", new JsonObject { [key] = value?.DeepClone() });
+        ApplySetting(key);
+    }
+
     private void ApplySetting(string key)
     {
+        if (key.StartsWith("glow", StringComparison.Ordinal)) ApplyFeatures(glow: true, lyrics: false);
+        else if (key.StartsWith("lyrics", StringComparison.Ordinal)) ApplyFeatures(glow: false, lyrics: true);
         switch (key)
         {
             case "widgetEnabled" or "clockEnabled" or "widgetPlacement" or "clockPlacement":
@@ -508,6 +556,8 @@ public sealed class WaveController : IDisposable
             ["audio"] = audio,
             ["platform"] = "Windows",
             ["version"] = _version,
+            ["lyrics"] = _lyrics?.StatusLabel ?? "Waiting for a song",
+            ["lyricsOffset"] = _lyrics?.Offset ?? 0,
         };
     }
 
@@ -647,6 +697,13 @@ public sealed class WaveController : IDisposable
         _tray.Add("Next Track", () => Media(NowPlayingService.MediaCommand.Next));
         _likeItem = _tray.Add("Save to Liked Songs", ToggleLike);
         _tray.AddSeparator();
+        _tray.AddCheck("Screen Glow", () => _settings.Bool("glowEnabled", false),
+            () => SetSetting("glowEnabled", JsonValue.Create(!_settings.Bool("glowEnabled", false))));
+        _tray.AddCheck("Show Lyrics", () => _settings.Bool("lyricsEnabled", true),
+            () => SetSetting("lyricsEnabled", JsonValue.Create(!_settings.Bool("lyricsEnabled", true))));
+        _tray.Add("Lyrics Earlier", () => { _lyrics?.Nudge(+LyraController.NudgeSeconds); PushStatus(); }).ShortcutKeyDisplayString = "+0.25 s";
+        _tray.Add("Lyrics Later", () => { _lyrics?.Nudge(-LyraController.NudgeSeconds); PushStatus(); }).ShortcutKeyDisplayString = "−0.25 s";
+        _tray.AddSeparator();
         _tray.Add("Quit Wave", Quit);
         _tray.LeftClick += (_, _) => ShowDashboard();
         _tray.Opening += (_, _) => RefreshTray();
@@ -701,6 +758,8 @@ public sealed class WaveController : IDisposable
         if (_rendering) System.Windows.Media.CompositionTarget.Rendering -= OnRendering;
         SystemEvents.DisplaySettingsChanged -= OnDisplaysChanged;
         _tick.Stop();
+        _glow?.Dispose();
+        _lyrics?.Dispose();
         foreach (var p in Panels.ToList())
         {
             if (p.Window is DesktopWidgetWindow w)

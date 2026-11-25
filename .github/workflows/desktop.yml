@@ -40,10 +40,6 @@ jobs:
           dotnet-version: "8.0.x"
       - name: Unit tests
         run: dotnet test Lyrics.Tests/Lyrics.Tests.csproj -c Release
-      - name: Publish Halo
-        run: dotnet publish Halo/Halo.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out/Halo
-      - name: Publish Lyra
-        run: dotnet publish Lyra/Lyra.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out/Lyra
       - name: Publish Wave
         run: dotnet publish Wave/Wave.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out/Wave
       - name: Install Inno Setup
@@ -57,10 +53,10 @@ jobs:
         run: |
           $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
-          & $iscc installer\WaveSuite.iss
+          & $iscc installer\Wave.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
-          name: WaveSuite-Windows
-          path: desktop/windows/out/WaveSuite-Setup.exe
+          name: Wave-Windows
+          path: desktop/windows/out/Wave-Setup.exe
           if-no-files-found: error

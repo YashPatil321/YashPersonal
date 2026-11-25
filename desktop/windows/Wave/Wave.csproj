@@ -26,6 +26,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Shared\Shared.csproj" />
+    <ProjectReference Include="..\Halo\Halo.csproj" />
+    <ProjectReference Include="..\Lyra\Lyra.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The shared web engine, served from disk as https://wave.local/. Kept beside the exe in single-file publishes. -->

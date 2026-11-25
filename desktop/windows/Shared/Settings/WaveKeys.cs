@@ -15,7 +15,9 @@ public static class WaveKeys
     public static double Number(JsonObject? d, string key, double fallback)
     {
         if (d?[key] is not JsonValue v) return fallback;
-        if (v.TryGetValue<double>(out var x) && double.IsFinite(x)) return x;
+        double x;
+        if (v.GetValueKind() == System.Text.Json.JsonValueKind.Number &&
+            double.TryParse(v.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out x) && double.IsFinite(x)) return x;
         if (v.TryGetValue<string>(out var str) &&
             double.TryParse(str, NumberStyles.Float, CultureInfo.InvariantCulture, out x) && double.IsFinite(x)) return x;
         return fallback;

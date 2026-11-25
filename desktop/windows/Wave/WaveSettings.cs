@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Threading;
+using Shared.Settings;
 
 namespace Wave;
 
@@ -35,16 +36,9 @@ public sealed class WaveSettings
         }
     }
 
-    public bool Bool(string key, bool fallback) =>
-        Values[key] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : fallback;
+    public bool Bool(string key, bool fallback) => WaveKeys.Bool(Values, key, fallback);
 
-    public double Number(string key, double fallback)
-    {
-        if (Values[key] is not JsonValue v) return fallback;
-        if (v.TryGetValue<double>(out var d)) return d;
-        if (v.TryGetValue<string>(out var s) && double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d)) return d;
-        return fallback;
-    }
+    public double Number(string key, double fallback) => WaveKeys.Number(Values, key, fallback);
 
     public string String(string key, string fallback) =>
         Values[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : fallback;

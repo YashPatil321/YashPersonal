@@ -10,11 +10,15 @@ Three menu-bar / system-tray apps that react to whatever is playing on your comp
 
 ## Download
 
-Every push builds installers in GitHub Actions (**Actions › Desktop apps › latest run › Artifacts**):
+Wave is **one app** that does everything. The lyrics and the screen glow (the Lyra and Halo specs below) are built in,
+and you turn them on and off in Wave's dashboard or menu.
 
-* `WaveSuite-macOS`: a .dmg with Halo, Lyra and Wave. Drag them to Applications. The first time, right-click an app and
-  choose **Open** (the apps are not notarized).
-* `WaveSuite-Windows`: `WaveSuite-Setup.exe`, which installs all three apps with Start menu shortcuts.
+Every push builds an installer in GitHub Actions (**Actions › Desktop apps › latest run › Artifacts**):
+
+* **Mac:** `Wave-macOS` contains `Wave-macOS.dmg`. Drag Wave to Applications. The first time, right-click it and choose
+  **Open**, because it is not notarized.
+* **Windows:** `Wave-Windows` contains `Wave-Setup.exe`. It installs Wave with a Start menu shortcut and can start it at
+  login. If you have the older "Wave Suite" installed, it replaces it.
 
 ## Spotify
 
@@ -45,8 +49,8 @@ Each run uploads `Halo-macOS.zip`, `Lyra-macOS.zip`, `Halo-Windows.zip` and `Lyr
 
 ```bash
 cd desktop/macos
-./scripts/bundle.sh          # builds both apps into desktop/macos/build/*.app
-open build/Halo.app
+./scripts/bundle.sh          # builds desktop/macos/build/Wave.app
+open build/Wave.app
 ```
 
 The apps are ad-hoc signed, not notarized. The first time, right-click the app and choose **Open**. You can also run
@@ -56,10 +60,8 @@ The apps are ad-hoc signed, not notarized. The first time, right-click the app a
 
 ```powershell
 cd desktop\windows
-dotnet publish Halo\Halo.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out\Halo
-dotnet publish Lyra\Lyra.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out\Lyra
 dotnet publish Wave\Wave.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o out\Wave
-iscc installer\WaveSuite.iss   # Inno Setup 6, builds out\WaveSuite-Setup.exe
+iscc installer\Wave.iss   # Inno Setup 6, builds out\Wave-Setup.exe
 ```
 
 ---
