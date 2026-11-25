@@ -54,7 +54,7 @@ open build/Wave.app
 ```
 
 The apps are ad-hoc signed, not notarized. The first time, right-click the app and choose **Open**. You can also run
-`xattr -dr com.apple.quarantine Halo.app`.
+`xattr -dr com.apple.quarantine /Applications/Wave.app`.
 
 ### Windows (needs the .NET 8 SDK on Windows 10 22H2 or Windows 11)
 
