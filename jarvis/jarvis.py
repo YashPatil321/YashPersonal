@@ -1692,6 +1692,38 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
     return data.get("result") or "I didn't get an answer back.", data.get("session_id") or session_id
 
 
+# What Atlas says while Claude uses a tool, so you hear what it's actually doing instead of "one sec".
+# (The idea comes from Huw Prosser's Fury: tool call announcements.) Each phrase at most once per answer.
+TOOL_PHRASES = [
+    (r"Google_Calendar", "Checking your calendar."), (r"Gmail", "Looking through your email."),
+    (r"Google_Drive", "Checking your Drive."), (r"Solidhauz", "Checking the shop."), (r"Spotify", "Checking Spotify."),
+    (r"Claude_Code_Remote", "Checking your Claude sessions."), (r"Vercel", "Checking Vercel."), (r"Supabase", "Checking the database."),
+    (r"^WebSearch$", "Searching the web."), (r"^WebFetch$", "Reading up on it."),
+    (r"jarvis_ctl\.py\W+camera", "Taking a look."), (r"jarvis_ctl\.py\W+(?:look|screenshot)", "Looking at your screen."),
+    (r"jarvis_ctl\.py\W+(?:click|type|keys|drag|scroll|double|right|focus|snap|open)", "On it."),
+    (r"jarvis_ctl\.py\W+read", "Reading what's on screen."),
+    (r"^(?:Read|Grep|Glob)$", "Checking your notes."), (r"^(?:Edit|Write|MultiEdit)$", "Making the change."),
+]
+TOOL_SAYINGS = {p for _, p in TOOL_PHRASES}
+
+
+def tool_phrase(name, inp):
+    """'Checking your calendar.' for a calendar tool call, None for ones not worth saying."""
+    key = name
+    if name in ("Bash", "PowerShell"):
+        key = str((inp or {}).get("command", ""))
+        if "jarvis_ctl" not in key:
+            return None   # plain commands: quiet
+    elif name in ("Read", "Grep", "Glob"):
+        path = str((inp or {}).get("file_path") or (inp or {}).get("path") or "")
+        if not path.lower().endswith(".md"):
+            return None   # reading code or settings, not his notes
+    for pat, phrase in TOOL_PHRASES:
+        if re.search(pat, key):
+            return phrase
+    return None
+
+
 SENTENCE_END = re.compile(r"(.+?[.!?])(\s+|$)", re.S)
 
 
@@ -1714,6 +1746,7 @@ def stream_claude(cmd, prompt, on_text, filler_after=2.5):
     except Exception:
         pass
     buf, result, spoke, t0, filled = "", None, False, time.time(), False
+    announced = set()
 
     def flush(final=False):
         nonlocal buf, spoke
@@ -1760,6 +1793,16 @@ def stream_claude(cmd, prompt, on_text, filler_after=2.5):
             elif (ev.get("event") or {}).get("type") == "content_block_stop" and buf.strip() and not stopped:
                 if not flush(final=True):
                     stopped = True
+        elif kind == "assistant" and not stopped:   # a finished message: say which tools it's about to use
+            for blk in ((ev.get("message") or {}).get("content") or []):
+                if isinstance(blk, dict) and blk.get("type") == "tool_use":
+                    ph = tool_phrase(blk.get("name", ""), blk.get("input"))
+                    if ph and ph not in announced and not buf.strip():
+                        announced.add(ph)
+                        filled = True   # this replaces the generic "one sec"
+                        if on_text(ph) is False:
+                            stopped = True
+                            p.kill()
         elif kind == "result":
             result = ev
     if not stopped:
@@ -2351,7 +2394,8 @@ class Jarvis:
                     log(f"backup: {e}")
                 threading.Timer(4.0, lambda: setattr(self, "restart_for_update", True)).start()
         denied = list(LAST_DENIED)
-        real = [x for x in spoken if x not in ("One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.")]
+        real = [x for x in spoken if x not in ("One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.")
+                and x not in TOOL_SAYINGS]
         if STREAM and real and not denied:
             return True   # already said it, sentence by sentence
         if self.speaker.cut_at > asked_at:

@@ -18,7 +18,10 @@ import time
 
 RECENT_HOURS = 8             # how far back the "what we just talked about" context goes
 RECENT_CHARS = 2400          # and how much of it, at most
-FILLERS = {"One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.", "Looking."}
+FILLERS = {"One sec.", "On it.", "Checking.", "Give me a second.", "Working on it.", "Looking.", "Checking your calendar.",
+           "Looking through your email.", "Checking your Drive.", "Checking the shop.", "Checking Spotify.", "Searching the web.",
+           "Reading up on it.", "Taking a look.", "Looking at your screen.", "Reading what's on screen.", "Checking your notes.",
+           "Making the change.", "Checking your Claude sessions.", "Checking Vercel.", "Checking the database."}
 
 
 def _log(msg):
