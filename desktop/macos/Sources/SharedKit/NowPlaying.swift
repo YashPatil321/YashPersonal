@@ -40,6 +40,12 @@ public struct PlayerStatus: Equatable, Sendable {
     public var running = false
     public var permission: PermissionState = .unknown
     public var track: Track?
+
+    public init(running: Bool = false, permission: PermissionState = .unknown, track: Track? = nil) {
+        self.running = running
+        self.permission = permission
+        self.track = track
+    }
 }
 
 /// Polls Spotify and Apple Music over AppleScript and extrapolates the playback position between polls.
