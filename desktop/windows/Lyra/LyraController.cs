@@ -31,7 +31,9 @@ public sealed class LyraController : IDisposable
     public const double NudgeSeconds = 0.25;
     private static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(30);
 
-    private readonly SettingsStore<LyraSettings> _store;
+    private LyraSettings _settings = new();
+    private readonly PositionClock _spotifyClock = new();
+    private string? _spotifyTitle;
     private readonly NowPlayingService _nowPlaying;
     private readonly LrclibClient _client = new();
     private readonly Dictionary<string, LyricsOverlayWindow> _windows = new();
@@ -41,19 +43,24 @@ public sealed class LyraController : IDisposable
     private Color? _albumHighlight;
     private LyricsLook? _look;
 
-    public LyraController(SettingsStore<LyraSettings> store, NowPlayingService nowPlaying)
+    public LyraController(NowPlayingService nowPlaying)
     {
-        _store = store;
         _nowPlaying = nowPlaying;
         _nowPlaying.TrackChanged += (_, _) => OnTrackChanged();
         _nowPlaying.ArtworkChanged += (_, _) => OnArtworkChanged();
         _nowPlaying.Updated += (_, _) => OnUpdated();
-        _store.Changed += (_, _) => Apply();
         Accent.Changed += (_, _) => _look = null;
         SystemEvents.DisplaySettingsChanged += OnDisplaysChanged;
     }
 
-    private LyraSettings S => _store.Value;
+    private LyraSettings S => _settings;
+
+    /// <summary>Applies new settings (style, look, placement, keep awake).</summary>
+    public void Apply(LyraSettings settings)
+    {
+        _settings = settings;
+        Apply();
+    }
 
     public LyricsDocument Lyrics { get; private set; } = LyricsDocument.Empty;
     public LyricsStatus Status { get; private set; } = LyricsStatus.Idle;
@@ -68,10 +75,49 @@ public sealed class LyraController : IDisposable
     public event EventHandler? Changed;
 
     /// <summary>Lyrics time: extrapolated position + nudge offset + global latency.</summary>
-    public double LyricsTime => _nowPlaying.Position + Offset + S.Latency;
+    public double LyricsTime => PlaybackPosition + Offset + S.Latency;
+
+    /// <summary>
+    /// The playback position: Spotify's when it reports the same song as the media session (it is exact), else the
+    /// media session's. Both are extrapolated between reports with the snap/ease clock.
+    /// </summary>
+    public double PlaybackPosition =>
+        _spotifyTitle is not null && _nowPlaying.Current is { } t &&
+        string.Equals(_spotifyTitle, t.Title, StringComparison.OrdinalIgnoreCase)
+            ? _spotifyClock.PositionAt(_nowPlaying.Now)
+            : _nowPlaying.Position;
+
+    /// <summary>
+    /// Feeds Spotify Web API timing (null when not connected or nothing is playing there). <paramref name="position"/>
+    /// is the reported progress plus the time since it was fetched.
+    /// </summary>
+    public void ReportSpotify(string? title, double position, bool isPlaying)
+    {
+        if (title is null)
+        {
+            _spotifyTitle = null;
+            return;
+        }
+        var now = _nowPlaying.Now;
+        if (!string.Equals(title, _spotifyTitle, StringComparison.Ordinal)) _spotifyClock.Reset(position, isPlaying, now);
+        else _spotifyClock.Report(position, isPlaying, now);
+        _spotifyTitle = title;
+    }
+
+    /// <summary>A short label for the dashboard's status line.</summary>
+    public string StatusLabel => Status switch
+    {
+        LyricsStatus.Searching => "Looking for lyrics…",
+        LyricsStatus.Found => Lyrics.Source == LyricsSource.WordSynced ? "Found (word by word)" : "Found (line by line)",
+        LyricsStatus.NotFound => "No synced lyrics for this song",
+        LyricsStatus.Instrumental => "Instrumental: no lyrics",
+        LyricsStatus.Error => StatusDetail ?? "Could not reach lrclib.net",
+        _ => "Waiting for a song",
+    };
 
     public void Start() => Apply();
 
+    /// <summary>Adds to this song's offset. Positive values light words earlier. Resets on track change.</summary>
     public void Nudge(double seconds)
     {
         Offset = Math.Round(Offset + seconds, 2);
@@ -218,9 +264,7 @@ public sealed class LyraController : IDisposable
 
     private void SyncWindows()
     {
-        var wanted = DisplayInfo.Resolve(S.Displays, defaultAll: false);
-        if (wanted.Count == 0 && S.Displays is not null && S.Displays.Count > 0)
-            wanted = DisplayInfo.Resolve(null, defaultAll: false); // the chosen display was unplugged
+        var wanted = DisplayInfo.All();
         var ids = wanted.Select(d => d.Id).ToHashSet();
 
         foreach (var id in _windows.Keys.Where(id => !ids.Contains(id)).ToList())

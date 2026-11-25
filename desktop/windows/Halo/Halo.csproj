@@ -1,20 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- The screen glow feature of Wave (a library; Wave is the only app). -->
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Halo</RootNamespace>
     <AssemblyName>Halo</AssemblyName>
-    <ApplicationManifest>..\Shared\app.manifest</ApplicationManifest>
-    <ApplicationIcon>..\installer\icons\Halo.ico</ApplicationIcon>
-    <Product>Halo</Product>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <!-- WFAC010 is the WinForms "use SetHighDpiMode" hint; these are WPF apps, which take DPI awareness from the manifest. -->
-    <NoWarn>$(NoWarn);WFAC010</NoWarn>
-    <!-- Only applies to self-contained single-file publishes (as in the README); roughly halves the exe. -->
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />

@@ -18,6 +18,9 @@
     <Compile Include="..\Shared\Audio\SpectrumAnalyzer.cs" Link="Linked\SpectrumAnalyzer.cs" />
     <Compile Include="..\Shared\Imaging\DominantColors.cs" Link="Linked\DominantColors.cs" />
     <Compile Include="..\Wave\Spotify\SpotifyProtocol.cs" Link="Linked\SpotifyProtocol.cs" />
+    <Compile Include="..\Shared\Settings\WaveKeys.cs" Link="Linked\WaveKeys.cs" />
+    <Compile Include="..\Halo\HaloSettings.cs" Link="Linked\HaloSettings.cs" />
+    <Compile Include="..\Lyra\LyraSettings.cs" Link="Linked\LyraSettings.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\fixtures\lyricsfile-sample.yaml" Link="fixtures\lyricsfile-sample.yaml" CopyToOutputDirectory="PreserveNewest" />

@@ -1,3 +1,6 @@
+using System.Text.Json.Nodes;
+using Shared.Settings;
+
 namespace Halo;
 
 public enum GlowMode
@@ -7,7 +10,7 @@ public enum GlowMode
     Static,
 }
 
-/// <summary>Persisted to %APPDATA%\Halo\settings.json.</summary>
+/// <summary>The screen-glow settings, built from Wave's settings dictionary by <see cref="FromWave"/>.</summary>
 public sealed class HaloSettings
 {
     public const double MinThickness = 2, MaxThickness = 60;
@@ -27,10 +30,33 @@ public sealed class HaloSettings
     public double Thickness { get; set; } = 10;
     public double Glow { get; set; } = 36;
 
-    /// <summary>Selected display device names; null means every display.</summary>
-    public List<string>? Displays { get; set; }
-
-    public bool LaunchAtLogin { get; set; }
+    /// <summary>
+    /// Maps the <c>glow*</c> keys of Wave's settings dictionary (defaults as in <c>Wave.DEFAULTS</c> in
+    /// desktop/visuals/core.js). <c>glowNotch</c> is macOS only and ignored. The glow covers every display.
+    /// </summary>
+    public static HaloSettings FromWave(JsonObject? d)
+    {
+        var s = new HaloSettings
+        {
+            Enabled = WaveKeys.Bool(d, "glowEnabled", false),
+            Mode = WaveKeys.String(d, "glowMode", "music") switch
+            {
+                "breathe" => GlowMode.Breathe,
+                "still" => GlowMode.Static,
+                _ => GlowMode.MusicSync,
+            },
+            UseAlbumColors = WaveKeys.Bool(d, "glowAlbumColors", true),
+            UseTertiary = WaveKeys.Number(d, "glowColorCount", 2) >= 3,
+            PrimaryColor = WaveKeys.String(d, "glowPrimary", "#ff2e6b"),
+            SecondaryColor = WaveKeys.String(d, "glowSecondary", "#3873ff"),
+            TertiaryColor = WaveKeys.String(d, "glowTertiary", "#9e4dff"),
+            Split = WaveKeys.Number(d, "glowSplit", 0.6),
+            Thickness = WaveKeys.Number(d, "glowThickness", 10),
+            Glow = WaveKeys.Number(d, "glowSize", 36),
+        };
+        s.Normalize();
+        return s;
+    }
 
     public void Normalize()
     {
@@ -40,3 +66,4 @@ public sealed class HaloSettings
         if (!Enum.IsDefined(Mode)) Mode = GlowMode.MusicSync;
     }
 }
+

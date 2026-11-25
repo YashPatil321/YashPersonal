@@ -1,3 +1,7 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
+using Shared.Settings;
+
 namespace Lyra;
 
 public enum LyricStyle
@@ -25,7 +29,7 @@ public enum Placement
     Top,
 }
 
-/// <summary>Persisted to %APPDATA%\Lyra\settings.json.</summary>
+/// <summary>The lyrics-overlay settings, built from Wave's settings dictionary by <see cref="FromWave"/>.</summary>
 public sealed class LyraSettings
 {
     public const double MinSize = 0.6, MaxSize = 2.0;
@@ -51,13 +55,67 @@ public sealed class LyraSettings
     public bool Shadow { get; set; } = true;
     public Placement Placement { get; set; } = Placement.Bottom;
 
-    /// <summary>Selected display device names; null means the main display.</summary>
-    public List<string>? Displays { get; set; }
-
     public bool KeepAwake { get; set; }
 
     /// <summary>Added to the playback position so words light slightly early (reads as on time).</summary>
     public double Latency { get; set; } = 0.15;
+
+    /// <summary>
+    /// Maps the <c>lyrics*</c> keys of Wave's settings dictionary (defaults as in <c>Wave.DEFAULTS</c> in
+    /// desktop/visuals/core.js). Upcoming words use the text colour at <c>lyricsDimOpacity</c>. Every display.
+    /// </summary>
+    public static LyraSettings FromWave(JsonObject? d)
+    {
+        var text = WaveKeys.String(d, "lyricsText", "#ffffff");
+        var dimAlpha = Math.Clamp(WaveKeys.Number(d, "lyricsDimOpacity", 0.38), 0, 1);
+        var s = new LyraSettings
+        {
+            ShowLyrics = WaveKeys.Bool(d, "lyricsEnabled", true),
+            Style = WaveKeys.String(d, "lyricsStyle", "spotlight") switch
+            {
+                "stack" => LyricStyle.Stack,
+                "thread" => LyricStyle.Thread,
+                "terminal" => LyricStyle.Terminal,
+                "drift" => LyricStyle.Drift,
+                _ => LyricStyle.Spotlight,
+            },
+            Font = WaveKeys.String(d, "lyricsFont", "system") switch
+            {
+                "rounded" => LyricFont.Rounded,
+                "serif" => LyricFont.Serif,
+                "mono" => LyricFont.Mono,
+                "condensed" => LyricFont.Condensed,
+                _ => LyricFont.System,
+            },
+            Size = WaveKeys.Number(d, "lyricsSize", 1),
+            TextColor = text,
+            HighlightColor = WaveKeys.String(d, "lyricsHighlight", "#ff6b9e"),
+            DimColor = WithAlpha(text, dimAlpha),
+            MatchAlbumArt = WaveKeys.Bool(d, "lyricsMatchAlbum", false),
+            Shadow = WaveKeys.Bool(d, "lyricsShadow", true),
+            Placement = WaveKeys.String(d, "lyricsPlacement", "bottom") switch
+            {
+                "top" => Placement.Top,
+                "center" or "centre" => Placement.Centre,
+                _ => Placement.Bottom,
+            },
+            KeepAwake = WaveKeys.Bool(d, "lyricsKeepAwake", false),
+            Latency = WaveKeys.Number(d, "lyricsLatency", 0.15),
+        };
+        s.Normalize();
+        return s;
+    }
+
+    /// <summary>"#rrggbb" (or "#rgb") plus an opacity → "#AARRGGBB". Unparseable input gives white.</summary>
+    public static string WithAlpha(string hex, double alpha)
+    {
+        var h = hex.Trim().TrimStart('#');
+        if (h.Length == 3) h = string.Concat(h.Select(c => new string(c, 2)));
+        if (h.Length == 8) h = h[2..];
+        if (h.Length != 6 || !int.TryParse(h, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _)) h = "FFFFFF";
+        var a = (int)Math.Round(Math.Clamp(alpha, 0, 1) * 255);
+        return $"#{a:X2}{h.ToUpperInvariant()}";
+    }
 
     public void Normalize()
     {

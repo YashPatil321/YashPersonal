@@ -5,7 +5,6 @@ using Shared.Audio;
 using Shared.Imaging;
 using Shared.NowPlaying;
 using Shared.Overlay;
-using Shared.Settings;
 using Shared.Ui;
 
 namespace Halo;
@@ -18,7 +17,7 @@ public sealed class GlowController : IDisposable
 {
     public const double ColorFadeSeconds = 0.6;
 
-    private readonly SettingsStore<HaloSettings> _store;
+    private HaloSettings _settings = new() { Enabled = false };
     private readonly NowPlayingService _nowPlaying;
     private readonly AudioAnalyzer _audio;
     private readonly Dictionary<string, GlowWindow> _windows = new();
@@ -33,17 +32,26 @@ public sealed class GlowController : IDisposable
     private double _brightness = 0.6;
     private bool _rendering;
 
-    public GlowController(SettingsStore<HaloSettings> store, NowPlayingService nowPlaying, AudioAnalyzer audio)
+    /// <summary>
+    /// The screen-glow feature. Shares the app's now-playing service and audio analyser (one WASAPI capture for the
+    /// whole app); the analyser is started and stopped by its owner, not here.
+    /// </summary>
+    public GlowController(NowPlayingService nowPlaying, AudioAnalyzer audio)
     {
-        _store = store;
         _nowPlaying = nowPlaying;
         _audio = audio;
         _nowPlaying.ArtworkChanged += (_, _) => OnArtworkChanged();
-        _store.Changed += (_, _) => Apply();
         SystemEvents.DisplaySettingsChanged += OnDisplaysChanged;
     }
 
-    private HaloSettings S => _store.Value;
+    private HaloSettings S => _settings;
+
+    /// <summary>Applies new settings (windows on every display, colours, mode).</summary>
+    public void Apply(HaloSettings settings)
+    {
+        _settings = settings;
+        Apply();
+    }
 
     /// <summary>The most recent frame (the settings preview mirrors it).</summary>
     public GlowFrame? LastFrame { get; private set; }
@@ -66,11 +74,7 @@ public sealed class GlowController : IDisposable
         UpdateTargetColors(immediate: false);
         SyncWindows();
 
-        var wantAudio = S.Enabled && S.Mode == GlowMode.MusicSync;
-        if (wantAudio) _audio.Start();
-        else _audio.Stop();
-
-        var wantRender = S.Enabled || AnyPreview;
+        var wantRender = S.Enabled;
         if (wantRender && !_rendering)
         {
             _lastTime = _clock.Elapsed.TotalSeconds;
@@ -83,9 +87,6 @@ public sealed class GlowController : IDisposable
             _rendering = false;
         }
     }
-
-    /// <summary>Set by the settings window so frames keep coming for its preview while the glow is off.</summary>
-    public bool AnyPreview { get; set; }
 
     private void OnArtworkChanged()
     {
@@ -184,7 +185,7 @@ public sealed class GlowController : IDisposable
 
     private void SyncWindows()
     {
-        var wanted = S.Enabled ? DisplayInfo.Resolve(S.Displays, defaultAll: true) : Array.Empty<DisplayInfo>();
+        var wanted = S.Enabled ? DisplayInfo.All() : Array.Empty<DisplayInfo>();
         var ids = wanted.Select(d => d.Id).ToHashSet();
 
         foreach (var id in _windows.Keys.Where(id => !ids.Contains(id)).ToList())
