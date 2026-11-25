@@ -56,6 +56,7 @@ import jarvis_persona
 import jarvis_vaultstyle
 import jarvis_learn
 import jarvis_audio
+import jarvis_routines
 import jarvis_screen
 import jarvis_vision
 import jarvis_cad
@@ -94,6 +95,7 @@ ELEVEN_VOICES = {   # ElevenLabs' built in voices
 SILENCE_SECONDS = 1.0        # how long you pause before it stops recording
 CLAUDE_MODEL = "sonnet"      # the brain for voice answers: sonnet is fast and sharp. "opus" for the deepest thinking (slower)
 STREAM = True                # start talking at the first sentence instead of waiting for the whole answer
+PUSH_TO_TALK = True          # Ctrl+Alt+Space anywhere in Windows = talk to Atlas (no wake word, works with loud music)
 FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
 KEEP_LISTENING = True        # while Claude thinks, Atlas still hears you, so you can give it more commands
 # words Whisper should expect, so names come out right. Add your own in local_settings.py as VOCAB_EXTRA
@@ -150,7 +152,7 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio, jarvis_routines):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
@@ -812,6 +814,27 @@ def update_waiting():
         return False
 
 
+def push_to_talk(jarvis):
+    """A global shortcut, Ctrl+Alt+Space: Atlas listens right away, wherever you are. Pressing it while Atlas talks
+    cuts it off. (Ctrl+Space alone is taken by too many apps, like VS Code.)"""
+    if not IS_WIN:
+        return
+    import ctypes
+    from ctypes import wintypes
+    u = ctypes.windll.user32
+    MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, VK_SPACE, WM_HOTKEY = 0x1, 0x2, 0x4000, 0x20, 0x0312
+    if not u.RegisterHotKey(None, 0xA71A, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_SPACE):
+        log("push to talk: Ctrl+Alt+Space is already used by another app")
+        return
+    log("push to talk: Ctrl+Alt+Space")
+    msg = wintypes.MSG()
+    while u.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+        if msg.message == WM_HOTKEY:
+            if jarvis.speaker.speaking:
+                jarvis.speaker.stop()
+            jarvis.listen_requested = True
+
+
 def run_update_now(jarvis, speak=False):
     """Installs the update while Atlas is still running (you see every step in this window and in jarvis.log),
     and only then restarts into it. If anything goes wrong, it says so and keeps running the current version."""
@@ -980,7 +1003,7 @@ def _route(text):
         return ("install_vision", None)
     if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
         return ("command_center", None)
-    cc = cc or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -1684,8 +1707,13 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
     try:
         data = json.loads(r.stdout)
     except Exception:
-        log(f"claude failed (code {r.returncode}): {(r.stderr or r.stdout)[:400]}")
-        return "I couldn't reach Claude. Check the Jarvis window.", session_id
+        err = (r.stderr or r.stdout or "")
+        log(f"claude failed (code {r.returncode}): {err[:400]}")
+        nxt = {"opus": "sonnet", "sonnet": "haiku"}.get(model or CLAUDE_MODEL)
+        if nxt and re.search(r"overload|rate.?limit|usage limit|quota|529|too many requests|capacity|not available", err, re.I):
+            log(f"model ladder: {model or CLAUDE_MODEL} is busy, trying {nxt}")
+            return ask_claude(prompt, None, claude, tools, full, None, nxt)
+        return "I couldn't reach Claude. Check the Atlas window.", session_id
     LAST_DENIED = data.get("permission_denials") or []
     if LAST_DENIED:
         log("claude wanted to: " + "; ".join(describe_denied([d]) for d in LAST_DENIED[:5]))
@@ -2440,6 +2468,25 @@ class Jarvis:
                 say("Give me a minute, rereading our conversations.")
                 threading.Thread(target=lambda: say("Updated myself. Ask me who I am." if pz.rewrite(force=True)
                                                     else "Couldn't rewrite myself right now."), daemon=True).start()
+            return True
+        if action in ("routine_add", "routine_list", "routine_del", "quiet_set"):
+            rt = getattr(self, "routines", None)
+            if action == "quiet_set":
+                a, b = arg
+                jarvis_brain.QUIET_HOURS = (a, b)
+                set_local_setting("QUIET_HOURS", (a, b))
+                say(f"Got it. Nothing unprompted from {(a % 12) or 12} {'PM' if a >= 12 else 'AM'} to {(b % 12) or 12} "
+                    f"{'PM' if b >= 12 else 'AM'}. Routines you set inside that still go off.")
+            elif not rt:
+                say("Routines aren't running.")
+            elif action == "routine_add":
+                d = rt.add(arg)
+                say("Done. " + d[0].upper() + d[1:] + ".")
+            elif action == "routine_list":
+                say("You've got " + "; ".join(jarvis_routines.describe(r) for r in rt.items) + "." if rt.items else "No routines yet.")
+            else:
+                n = rt.remove(arg)
+                say(f"Removed {n} routine{'s' if n != 1 else ''}." if n else "I don't see a routine like that.")
             return True
         if action in ("learn", "wiki_ask", "cards", "quiz"):
             lr = getattr(self, "learner", None)
@@ -3344,6 +3391,15 @@ def main():
     jarvis.ambient = ambient
     ambient.release_when_idle(lambda: speaker.speaking or jarvis.recording or jarvis.listen_requested
                               or bool(getattr(jarvis, "convo_lock", None) and jarvis.convo_lock.locked()))
+
+    def run_routine(text):
+        with jarvis.lock:
+            jarvis.handle(text)
+    jarvis.routines = jarvis_routines.Routines(speaker.say, run_routine,
+                                               busy=lambda: speaker.speaking or jarvis.recording, log=log)
+    threading.Thread(target=jarvis.routines.watch, daemon=True).start()
+    if PUSH_TO_TALK:
+        threading.Thread(target=push_to_talk, args=(jarvis,), daemon=True).start()
 
     def barge(frame):
         if CLAP_WAKE and not ambient.playing and claps.feed(frame):   # songs are full of claps
