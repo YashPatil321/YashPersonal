@@ -36,6 +36,9 @@ DESK_DISPLAY = None          # which screen is the projector (0, 1, 2 ...). None
 DWELL_SECONDS = 0.6
 DESK_MODE = "screen"         # "screen": the projector is a Windows touchscreen (touch any app). "panels": Atlas's desk page
 DESK_TOUCH = "camera"        # "camera": hand tracking from the down camera. "laser": an IR line laser + IR camera, real touch
+DESK_EXPOSURE = None         # None keeps what the camera picked. -7 or -8 = sharper fast fingers if the room is bright enough
+DESK_OVERLAY = True          # rings under your fingertips on the projector, over every app (click-through)
+DESK_LOCK_CAMERA = True      # freeze focus, exposure and white balance once the camera settles
 DESK_GLOW = 12               # 0 = pure black desk. A little glow lets the down camera see your hand in a dark room
 CALIB_FILE = os.path.join(HERE, ".cache", "desk_calib.json")
 # ArUco 4x4 marker ids printed on the cards
@@ -227,6 +230,45 @@ def timer_minutes(turn_deg):
 
 
 # ================= the desk =================
+def fast_camera(cap):
+    """Highest frame rate the camera can do: MJPG over USB, no frame queue, 60 fps at 720p if it can, else 1080p."""
+    import cv2
+    import jarvis_vision
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    best = None
+    for w, h in ((1280, 720), tuple(DESK_CAMERA_SIZE), (1920, 1080)):
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+        cap.set(cv2.CAP_PROP_FPS, 60)
+        fps, size = jarvis_vision._measure(cap)
+        _log(f"desk camera {size[0]}x{size[1]}: {fps:.0f} fps")
+        if best is None or fps > best[0] * 1.2:
+            best = (fps, w, h)
+        if fps >= 50:
+            break
+    if best:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, best[1])
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, best[2])
+        cap.set(cv2.CAP_PROP_FPS, 60)
+
+
+def lock_camera(cap, settle=3.0):
+    """Once the camera has adjusted to the room, freeze focus, exposure and white balance. Otherwise it keeps
+    re-adjusting every time the projected picture changes, and the hand model sees a flickering hand."""
+    import cv2
+    time.sleep(settle)
+    try:
+        cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        exp = cap.get(cv2.CAP_PROP_EXPOSURE)
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)      # manual (DirectShow's value for it)
+        cap.set(cv2.CAP_PROP_EXPOSURE, DESK_EXPOSURE if DESK_EXPOSURE is not None else exp)   # -7 or -8 = less motion blur, darker
+        cap.set(cv2.CAP_PROP_AUTO_WB, 0)
+        _log(f"desk camera locked (exposure {cap.get(cv2.CAP_PROP_EXPOSURE):.0f}, focus fixed)")
+    except Exception as e:
+        _log(f"camera lock: {e}")
+
+
 class Desk:
     def __init__(self, ask, key, state=None, say=None):
         """ask(phrase) runs it like you said it. key(name, times) presses media keys. state() -> dict for the panels."""
@@ -243,6 +285,8 @@ class Desk:
         self.surface = None          # touch -> Windows, built once calibrated (see jarvis_surface)
         self.touchcal = None
         self.mode = DESK_MODE
+        import jarvis_surface
+        self.stats = jarvis_surface.Stats()
 
     # ---- camera loop ----
     def start(self):
@@ -257,6 +301,9 @@ class Desk:
                 self.surface.inject.release()
             except Exception:
                 pass
+        if getattr(self, "overlay", None):
+            self.overlay.close()
+            self.overlay = None
 
     def calibrate(self, done=None):
         self.calibrating, self.cal_done = True, done
@@ -273,15 +320,20 @@ class Desk:
             scr = projector_screen(or_main=True) or (0, 0, 1920, 1080, True)
             inj = jarvis_surface.Injector(scr[:4])
             self.surface = jarvis_surface.LaserTouch(inj) if DESK_TOUCH == "laser" else jarvis_surface.CameraTouch(inj)
+            self.screen_rect = scr[:4]
             _log(f"touchscreen on the screen at {scr[:2]} ({scr[2]}x{scr[3]}), " +
                  ("real Windows touch" if inj.ok else "mouse input") + f", sensing: {DESK_TOUCH}")
+        if DESK_OVERLAY and not getattr(self, "overlay", None):
+            import jarvis_surface
+            self.overlay = jarvis_surface.Overlay(self.screen_rect, lambda: self.live.get("touch"))
         return self.surface
 
     def _run(self):
         try:
             import cv2
             import jarvis_vision
-            det = jarvis_vision.Detectors(hands=True, faces=False)
+            # the plain hand model (no gesture classifier on top): faster, and the desk reads shapes itself
+            det = jarvis_vision.Detectors(hands=True, faces=False, gestures=False, confidence=0.5)
         except Exception as e:
             _log(f"desk camera off: {e}")
             self.running = False
@@ -289,10 +341,13 @@ class Desk:
         import jarvis_vision
         mon = getattr(getattr(self, "vision", None), "camera_index", jarvis_vision.CAMERA_INDEX)
         cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX, avoid=mon)
+        grab = None
         if cap:
             _log(f"desk camera is camera {idx}")
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, DESK_CAMERA_SIZE[0])
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DESK_CAMERA_SIZE[1])
+            fast_camera(cap)
+            grab = jarvis_vision.LatestFrame(cap)   # always the newest frame, never a queued old one
+            if DESK_LOCK_CAMERA:
+                threading.Thread(target=lock_camera, args=(cap,), daemon=True).start()
         shared = None
         if not cap:
             v = getattr(self, "vision", None)
@@ -316,16 +371,21 @@ class Desk:
                     continue
                 last_t, good, frame = t, True, cv2.flip(f, 1)   # Atlas mirrors its picture, the desk needs it straight
             else:
-                good, frame = cap.read()
+                frame = grab.next(timeout=1.0)
+                good = frame is not None
             if not good:
-                time.sleep(0.1)
+                time.sleep(0.05)
                 continue
             n += 1
+            self.stats.tick(grab.t if grab else last_t)
             try:
                 self.step(frame, det, n)
             except Exception as e:
                 _log(f"frame: {e}")
                 time.sleep(0.3)
+        if grab:
+            grab.close()
+            time.sleep(0.1)
         if cap:
             cap.release()
 
@@ -363,11 +423,17 @@ class Desk:
                 c["value"] = timer_minutes(self.timer_turn) if c["name"] == "timer" else None
             self.live["cards"] = shown
         # fingertips
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        small = frame if w <= 1280 else cv2.resize(frame, (1280, int(h * 1280 / w)), interpolation=cv2.INTER_AREA)
+        rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)   # the hand model runs on a smaller copy (fast); tips are refined at full size
         hands = det.hands_all(rgb, now_ms if now_ms is not None else time.time() * 1000)
         if self.mode == "screen":   # the whole projected desktop is the touchscreen
+            import jarvis_surface
             to_mat = lambda p: self.cal.to_desk((p[0] * w, p[1] * h))
+            hands = [jarvis_surface.refine_tips(frame, lm) for lm in hands]   # pixel exact fingertips
             self.live["touch"] = self._surface().feed([(lm, to_mat) for lm in hands])
+            self.live["fps"], self.live["lag_ms"] = round(self.stats.fps), round(self.stats.lag * 1000)
+            if n % 600 == 0:
+                _log(f"hand tracking at {self.stats.fps:.0f} fps, {self.stats.lag * 1000:.0f} ms behind")
             return
         import jarvis_touch
         fingers, outlines = [], []

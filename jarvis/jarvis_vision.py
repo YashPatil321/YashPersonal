@@ -490,13 +490,13 @@ def model_path(name):
 
 class Detectors:
     """MediaPipe Tasks (mediapipe 0.10.14 and newer). Each call takes an RGB numpy frame and a timestamp in ms."""
-    def __init__(self, hands=True, faces=True):
+    def __init__(self, hands=True, faces=True, gestures=True, confidence=0.6):
         import mediapipe as mp
         from mediapipe.tasks.python import BaseOptions, vision
         self.mp, self.vision, self.Base = mp, vision, BaseOptions
         V = vision.RunningMode.VIDEO
         self.hands, self.recognizer, self.last_label, self._cache, self.last_all = None, None, None, (None, None), []
-        if hands and GESTURE_MODEL:
+        if hands and GESTURE_MODEL and gestures:
             try:
                 self.recognizer = vision.GestureRecognizer.create_from_options(vision.GestureRecognizerOptions(
                     base_options=BaseOptions(model_asset_path=model_path("gesture")), running_mode=V, num_hands=2,
@@ -508,7 +508,7 @@ class Detectors:
         if hands and not self.recognizer:
             self.hands = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
                 base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=V, num_hands=2,
-                min_hand_detection_confidence=0.6, min_hand_presence_confidence=0.6, min_tracking_confidence=0.6))
+                min_hand_detection_confidence=confidence, min_hand_presence_confidence=confidence, min_tracking_confidence=confidence))
         self.hand_ts = 0
         self.faces = vision.FaceDetector.create_from_options(vision.FaceDetectorOptions(
             base_options=BaseOptions(model_asset_path=model_path("face")), running_mode=V, min_detection_confidence=0.5)) if faces else None
@@ -1164,12 +1164,17 @@ class LatestFrame:
     behind what you're doing (cameras otherwise queue frames and the lag piles up)."""
     def __init__(self, cap):
         self.cap, self.frame, self.seq, self.taken = cap, None, 0, 0
+        self.t = 0.0            # when the newest frame arrived
+        self.alive = True
         self.cond = threading.Condition()
         threading.Thread(target=self._pump, daemon=True).start()
 
+    def close(self):
+        self.alive = False
+
     def _pump(self):
         fails = 0
-        while True:
+        while self.alive:
             ok, f = self.cap.read()
             if not ok:
                 fails += 1
@@ -1177,7 +1182,7 @@ class LatestFrame:
                 continue
             fails = 0
             with self.cond:
-                self.frame, self.seq = f, self.seq + 1
+                self.frame, self.seq, self.t = f, self.seq + 1, time.time()
                 self.cond.notify_all()
 
     def next(self, timeout=1.0):

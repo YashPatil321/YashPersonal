@@ -34,6 +34,9 @@ DWELL_TAP = 0.42          # seconds a pointing fingertip holds still to tap
 STILL = 0.012             # how far (share of the mat) a fingertip can wobble and still count as still
 LASER_LEVEL = 200         # 0..255 brightness a laser dot has to reach in the IR picture
 LASER_MIN_AREA = 12       # pixels: smaller is noise
+LEAD_SECONDS = 0.035      # look ahead this far along the finger's motion, to cancel camera and processing lag
+GRACE = 0.15              # a hand that drops out of tracking this long (motion blur) keeps its touch
+PINCH_IN, PINCH_OUT = 0.36, 0.52   # pinch closes under the first gap (share of palm width) and opens over the second
 
 
 # ================= smoothing: the One Euro filter (steady when slow, quick when fast) =================
@@ -61,11 +64,17 @@ class OneEuro:
 
 
 class Point2:
-    def __init__(self):
+    """Smoothed point, nudged ahead by its own speed so it lands where your finger is now, not a frame ago."""
+    def __init__(self, lead=None):
         self.fx, self.fy = OneEuro(), OneEuro()
+        self.lead = LEAD_SECONDS if lead is None else lead
 
     def __call__(self, x, y, t):
-        return self.fx(x, t), self.fy(y, t)
+        sx, sy = self.fx(x, t), self.fy(y, t)
+        if self.lead and self.fx.dx is not None:
+            sx += max(-0.03, min(0.03, self.fx.dx * self.lead))
+            sy += max(-0.03, min(0.03, self.fy.dx * self.lead))
+        return sx, sy
 
 
 # ================= hand shapes from the 21 hand points =================
@@ -78,10 +87,12 @@ def extended(lm, tip, pip):
     return _d(lm[tip], lm[0]) > _d(lm[pip], lm[0]) * 1.12
 
 
-def shape(lm):
-    """'pinch', 'two', 'point', 'open' or 'other' for one hand (camera coordinates 0..1)."""
+def shape(lm, was=None):
+    """'pinch', 'two', 'point', 'open' or 'other' for one hand (camera coordinates 0..1). `was` is the last shape, so a
+    pinch needs a clear opening to end (no dropped drags) and a clear closing to start (no accidental grabs)."""
     palm = _d(lm[5], lm[17]) or 1e-6
-    if _d(lm[4], lm[8]) < palm * 0.38:
+    gap = _d(lm[4], lm[8]) / palm
+    if gap < (PINCH_OUT if was == "pinch" else PINCH_IN):
         return "pinch"
     idx, mid, ring, pinky = extended(lm, 8, 6), extended(lm, 12, 10), extended(lm, 16, 14), extended(lm, 20, 18)
     if idx and mid and not ring and not pinky:
@@ -193,37 +204,70 @@ class Injector:
 
 
 # ================= camera only: gestures -> touches =================
+class Hand:
+    """One hand followed from frame to frame: its own smoothing, a shape that has to hold before it counts, and a
+    short grace period when tracking blinks."""
+    def __init__(self, wrist, t):
+        self.wrist, self.seen = wrist, t
+        self.f = Point2()
+        self.shape, self.pending, self.pending_n = "other", None, 0
+        self.x = self.y = None
+
+    def update_shape(self, raw):
+        if raw == self.shape:
+            self.pending, self.pending_n = None, 0
+            return self.shape
+        need = 3 if self.shape == "pinch" else 2   # leaving a pinch has to be really meant
+        if raw == self.pending:
+            self.pending_n += 1
+        else:
+            self.pending, self.pending_n = raw, 1
+        if self.pending_n >= need:
+            self.shape, self.pending, self.pending_n = raw, None, 0
+        return self.shape
+
+
 class CameraTouch:
     """Hands seen from above -> touch contacts. feed() once per camera frame."""
     def __init__(self, inject, clock=time.time):
         self.inject, self.clock = inject, clock
-        self.filters = {}
-        self.dwell = None              # (x, y, since) for the pointing finger
-        self.tapped_at = None
-        self.mode = None
-        self.zoom0 = None
+        self.hands = []
+        self.dwell = None              # (x, y, since, fired) for the pointing finger
 
-    def _smooth(self, key, x, y, t):
-        f = self.filters.setdefault(key, Point2())
-        return f(x, y, t)
+    def _match(self, wrists, t):
+        """Pairs this frame's hands with the ones already followed (closest wrist), so each keeps its own filter."""
+        out, free = [], list(self.hands)
+        for w in wrists:
+            best = min(free, key=lambda h: _d(h.wrist, w), default=None)
+            if best and _d(best.wrist, w) < 0.25:
+                free.remove(best)
+            else:
+                best = Hand(w, t)
+            best.wrist, best.seen = w, t
+            out.append(best)
+        kept = [h for h in free if t - h.seen < GRACE and h.x is not None]   # blinked out: hold on a moment
+        self.hands = out + kept
+        return out, kept
 
     def feed(self, hands):
         """hands: [(landmarks in camera 0..1, to_mat(point) -> (x, y) or None)]. Returns what it's doing, for the overlay."""
         t = self.clock()
+        tracked, kept = self._match([lm[0] for lm, _ in hands], t)
         seen = []
-        for k, (lm, to_mat) in enumerate(hands):
-            s = shape(lm)
+        for hand, (lm, to_mat) in zip(tracked, hands):
+            s = hand.update_shape(shape(lm, hand.shape))
             tip = to_mat(lm[8])
             if not tip:
                 continue
             if s == "pinch":   # the point between thumb and index is where the "finger" touches
-                m = to_mat(((lm[4][0] + lm[8][0]) / 2, (lm[4][1] + lm[8][1]) / 2)) or tip
-                tip = m
+                tip = to_mat(((lm[4][0] + lm[8][0]) / 2, (lm[4][1] + lm[8][1]) / 2)) or tip
             if s == "two":
                 mid = to_mat(lm[12]) or tip
                 tip = ((tip[0] + mid[0]) / 2, (tip[1] + mid[1]) / 2)
-            x, y = self._smooth(k, tip[0], tip[1], t)
-            seen.append((s, x, y))
+            hand.x, hand.y = hand.f(tip[0], tip[1], t)
+            seen.append((s, hand.x, hand.y))
+        for hand in kept:
+            seen.append((hand.shape, hand.x, hand.y))
         pinches = [(x, y) for s, x, y in seen if s == "pinch"]
         contacts, state = {}, "idle"
         if len(pinches) >= 2:                      # both hands pinching: zoom
@@ -340,3 +384,126 @@ class TouchCalibration:
         elif not dots:
             self.hold, self.wait_lift = None, False
         return self.got if self.i >= len(self.TARGETS) else None
+
+
+# ================= sharper fingertips =================
+def refine_tips(frame, lm, tips=((7, 8), (11, 12)), max_reach=0.7, step=1.5, jump=38.0):
+    """The hand model puts the fingertip roughly at the tip; the real edge of your finger can be a few pixels off,
+    which on a projected mat is the difference between hitting a button and missing it. This walks out from the
+    model's tip along the finger, in the full resolution picture, until the color stops looking like your finger,
+    and puts the tip there. Returns new landmarks (camera 0..1)."""
+    import numpy as np
+    h, w = frame.shape[:2]
+    out = list(lm)
+    for a, b in tips:
+        ax, ay, bx, by = lm[a][0] * w, lm[a][1] * h, lm[b][0] * w, lm[b][1] * h
+        seg = math.hypot(bx - ax, by - ay)
+        if seg < 4:
+            continue
+        ux, uy = (bx - ax) / seg, (by - ay) / seg
+        # what this finger looks like: a few pixels between the last joint and the tip
+        samples = []
+        for k in (0.35, 0.5, 0.65):
+            px, py = int(ax + (bx - ax) * k), int(ay + (by - ay) * k)
+            if 0 <= px < w and 0 <= py < h:
+                samples.append(frame[py, px].astype(np.float32))
+        if not samples:
+            continue
+        skin = np.mean(samples, axis=0)
+        # start a bit inside the tip, walk outward
+        x, y = bx - ux * seg * 0.25, by - uy * seg * 0.25
+        last = (bx, by)
+        travelled, reach = 0.0, seg * (0.25 + max_reach)
+        while travelled < reach:
+            px, py = int(round(x)), int(round(y))
+            if not (0 <= px < w and 0 <= py < h):
+                break
+            if float(np.linalg.norm(frame[py, px].astype(np.float32) - skin)) > jump:
+                break
+            last = (x, y)
+            x, y, travelled = x + ux * step, y + uy * step, travelled + step
+        out[b] = (last[0] / w, last[1] / h)
+    return out
+
+
+class Stats:
+    """Frames per second and how far behind real time the picture is, for the overlay and the log."""
+    def __init__(self):
+        self.n, self.t0, self.fps, self.lag = 0, time.time(), 0.0, 0.0
+
+    def tick(self, captured_at=None):
+        self.n += 1
+        now = time.time()
+        if captured_at:
+            self.lag = self.lag * 0.9 + (now - captured_at) * 0.1
+        if now - self.t0 >= 2:
+            self.fps, self.n, self.t0 = self.n / (now - self.t0), 0, now
+        return self.fps
+
+
+# ================= what you see on the mat: a see-through layer over every app =================
+class Overlay:
+    """A click-through, always-on-top layer on the projector: a ring under each fingertip that fills as a tap
+    charges, a solid dot while you're touching (pinch or laser), two dots for scroll. get() -> desk.live["touch"]."""
+    def __init__(self, screen, get):
+        self.screen, self.get = screen, get
+        self.alive = True
+        import threading
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def close(self):
+        self.alive = False
+
+    def _run(self):
+        try:
+            import tkinter as tk
+        except Exception:
+            return
+        x, y, w, h = self.screen
+        root = tk.Tk()
+        root.overrideredirect(True)
+        root.geometry(f"{w}x{h}+{x}+{y}")
+        root.attributes("-topmost", True)
+        key = "#010101"
+        root.configure(bg=key)
+        try:
+            root.attributes("-transparentcolor", key)
+        except Exception:
+            pass
+        cv = tk.Canvas(root, width=w, height=h, bg=key, highlightthickness=0)
+        cv.pack()
+        if IS_WIN:   # clicks and touches pass straight through to the app underneath
+            try:
+                import ctypes
+                root.update_idletasks()
+                hwnd = ctypes.windll.user32.GetParent(root.winfo_id())
+                ex = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
+                ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x08000000)   # layered, transparent, no activate
+            except Exception:
+                pass
+        ICE = "#9cd3ff"
+
+        def draw():
+            if not self.alive:
+                root.destroy()
+                return
+            cv.delete("all")
+            d = self.get() or {}
+            state = d.get("state", "idle")
+            for f in d.get("fingers", []):
+                px, py = f["x"] * w, f["y"] * h
+                if f.get("shape") in ("pinch", "touch") or state in ("drag", "zoom", "touch"):
+                    cv.create_oval(px - 9, py - 9, px + 9, py + 9, fill=ICE, outline="")
+                elif state == "scroll":
+                    for dx in (-14, 14):
+                        cv.create_oval(px + dx - 6, py - 6, px + dx + 6, py + 6, fill=ICE, outline="")
+                else:
+                    r = 16
+                    cv.create_oval(px - r, py - r, px + r, py + r, outline=ICE, width=2)
+                    prog = d.get("dwell", 0)
+                    if prog > 0.05:
+                        cv.create_arc(px - r - 5, py - r - 5, px + r + 5, py + r + 5, start=90, extent=-359.9 * prog,
+                                      style="arc", outline=ICE, width=4)
+            root.after(16, draw)
+        root.after(16, draw)
+        root.mainloop()
