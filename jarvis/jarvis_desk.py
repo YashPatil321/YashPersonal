@@ -269,15 +269,30 @@ class Desk:
             _log(f"desk camera is camera {idx}")
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, DESK_CAMERA_SIZE[0])
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DESK_CAMERA_SIZE[1])
+        shared = None
         if not cap:
-            _log(f"no desk camera at index {DESK_CAMERA_INDEX}")
-            self.say("I can't find the desk camera. Plug it in, or set DESK CAMERA INDEX.")
-            self.running = False
-            return
+            v = getattr(self, "vision", None)
+            if v is not None and getattr(v, "ok", False):
+                # only one camera on this PC and Atlas's camera already has it: share its pictures instead of fighting over it
+                shared = v
+                _log(f"one camera only: the desk shares camera {getattr(v, 'camera_index', '?')} with Atlas")
+            else:
+                _log(f"no desk camera at index {DESK_CAMERA_INDEX}")
+                self.say("I can't find the desk camera. Plug it in, or set DESK CAMERA INDEX.")
+                self.running = False
+                return
         _log("desk camera on")
-        n = 0
+        n, last_t = 0, 0.0
         while self.running:
-            good, frame = cap.read()
+            if shared is not None:
+                t = getattr(shared, "last_frame_t", 0)
+                f = getattr(shared, "last_frame", None)
+                if f is None or t == last_t:
+                    time.sleep(0.02)
+                    continue
+                last_t, good, frame = t, True, cv2.flip(f, 1)   # Atlas mirrors its picture, the desk needs it straight
+            else:
+                good, frame = cap.read()
             if not good:
                 time.sleep(0.1)
                 continue
@@ -287,7 +302,8 @@ class Desk:
             except Exception as e:
                 _log(f"frame: {e}")
                 time.sleep(0.3)
-        cap.release()
+        if cap:
+            cap.release()
 
     def step(self, frame, det, n=0, now_ms=None):
         import cv2
@@ -462,12 +478,16 @@ def monitors():
     return out
 
 
-def projector_screen(mons=None):
+def projector_screen(mons=None, or_main=False):
+    """The projector: DESK_DISPLAY if set, else the smallest screen that isn't the main one. With or_main, the main
+    screen when the projector is the only display (or Windows is mirroring)."""
     mons = monitors() if mons is None else mons
     if DESK_DISPLAY is not None and DESK_DISPLAY < len(mons):
         return mons[DESK_DISPLAY]
     others = [m for m in mons if not m[4]]
-    return min(others, key=lambda m: m[2] * m[3]) if others else None
+    if others:
+        return min(others, key=lambda m: m[2] * m[3])
+    return next((m for m in mons if m[4]), None) if or_main else None
 
 
 def route_desk(t):
@@ -499,7 +519,7 @@ def open_on_projector(url):
     """Opens a page full screen on the projector (or the main screen if there's only one)."""
     import subprocess
     import webbrowser
-    scr = projector_screen() or next((m for m in monitors() if m[4]), None)
+    scr = projector_screen(or_main=True)
     exe = _browser()
     if exe and scr:
         x, y, w, h, _ = scr

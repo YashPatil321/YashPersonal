@@ -2078,9 +2078,11 @@ class Jarvis:
 
     def open_desk_page(self, path):
         """Opens the desk full screen on the projector."""
-        scr = jarvis_desk.projector_screen()
+        scr = jarvis_desk.projector_screen(or_main=True)
         url = self.local_url(path)
         exe, prof = browser_exe(), browser_profile()
+        if not exe:
+            exe, prof = jarvis_desk._browser(), None   # no Chrome here: Edge is on every Windows PC
         if IS_WIN and exe and scr:
             x, y, w, h, _ = scr
             args = [exe] + (["--profile-directory=" + prof] if prof else []) + ["--app=" + url, f"--window-position={x},{y}", f"--window-size={w},{h}"]
@@ -3483,6 +3485,7 @@ def main():
             if jarvis_desk.DESK:
                 jarvis.desk = jarvis_desk.Desk(lambda phrase: jarvis.remote_ask(phrase, speak=True), jarvis.pc.key,
                                                state=jarvis.desk_state, say=speaker.say)
+                jarvis.desk.vision = jarvis.vision   # so a PC with one camera can share it with the desk
                 jarvis.desk.register(bridge)
         except Exception as e:
             log(f"phone bridge off: {e}")
