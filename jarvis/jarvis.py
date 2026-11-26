@@ -160,6 +160,33 @@ for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
+
+
+def total_ram_gb():
+    if sys.platform != "win32":
+        return 64.0
+    try:
+        import ctypes
+
+        class MS(ctypes.Structure):
+            _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong), ("total", ctypes.c_ulonglong), ("avail", ctypes.c_ulonglong),
+                        ("tp", ctypes.c_ulonglong), ("ap", ctypes.c_ulonglong), ("tv", ctypes.c_ulonglong), ("av", ctypes.c_ulonglong),
+                        ("ax", ctypes.c_ulonglong)]
+        m = MS()
+        m.len = ctypes.sizeof(MS)
+        ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+        return m.total / 2 ** 30
+    except Exception:
+        return 64.0
+
+
+# Lite mode, for a laptop or a small PC: no always-on camera (the desk still opens it when you say desk mode),
+# no face ID, and the Windows voice instead of the AI one. On by itself with under 12 GB of RAM. LITE = False forces it off.
+LITE = _mine.get("LITE", total_ram_gb() < 12)
+if LITE:
+    for _mod, _k in ((jarvis_vision, "VISION"), (jarvis_faces, "FACES"), (jarvis_vision, "FACE_GESTURES")):
+        if _k not in _mine:
+            setattr(_mod, _k, False)
 WAKE_PUSH = _mine.get("WAKE_PUSH", False)   # also ping your phone on every clap
 if not NTFY_TOPIC:   # make a private phone topic once, so phone features are on out of the box
     _tf = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".ntfy_topic")
@@ -441,6 +468,8 @@ class Speaker:
     def __init__(self):
         self.kokoro = None
         try:
+            if LITE and not ELEVENLABS_KEY:
+                raise RuntimeError("lite mode")
             from kokoro import KPipeline
             self.kokoro = KPipeline(lang_code="a" if VOICE[0] == "a" else "b")
             log(f"kokoro voice {VOICE}")
