@@ -994,7 +994,8 @@ def _route(text):
         return ("confirm", True)
     if re.fullmatch(r"(no|nope|cancel|never ?mind|don't)", t):
         return ("confirm", False)
-    if re.fullmatch(r"(update yourself|check for updates|update jarvis|install updates?|get the latest version)", t):
+    if re.fullmatch(r"(?:(?:can you |please |go )?(?:update|upgrade) (?:yourself|jarvis|atlas|your ?self|now|the code)|check for (?:an )?updates?|"
+                    r"install (?:the )?updates?|get (?:the )?latest(?: version)?|update)(?: please| now)?", t):
         return ("update", None)
     if re.search(r"\b(what are|how are|status of|check on) my (claude )?(cloud )?(sessions|agents)( doing)?\b|\bsession status\b", t):
         return ("sessions", None)
@@ -3402,6 +3403,16 @@ def main():
     jarvis.activity = ACTIVITY
     v = read_version()
     log("version: " + (f"{v['when']} ({v.get('commit', '')[:7]})" if v else "unknown, say update yourself"))
+    try:   # say so when this start is a new version, so you know the update really landed
+        lb = os.path.join(WORKDIR, ".last_boot_version")
+        prev = open(lb).read().strip() if os.path.exists(lb) else ""
+        cur = (v or {}).get("commit", "")
+        if cur and prev and cur != prev:
+            threading.Timer(4.0, lambda: speaker.say(f"Update installed. I'm on the version from {v['when']}.")).start()
+        if cur:
+            open(lb, "w").write(cur)
+    except Exception as e:
+        log(f"version note: {e}")
     jarvis.hqsync = jarvis_hqsync.HQSync(jarvis).start()   # what Jarvis is doing, on HQ on the iPad
     if jarvis_vision.VISION:
         jarvis.vision = jarvis_vision.Vision(on_gesture=jarvis.gesture, say=speaker.say, on_people=jarvis.people)

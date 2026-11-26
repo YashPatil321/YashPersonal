@@ -114,8 +114,7 @@ def waiting():
     src = sync_source()
     if not src:
         return False
-    keep = local_changes()
-    return any(os.path.basename(f) not in keep for f in changed_files(src))
+    return bool(changed_files(src))   # Atlas's own edits never hide an update any more
 
 
 def base_dir():
@@ -168,6 +167,26 @@ def local_changes():
         return set()
 
 
+def save_local_changes(names):
+    import json
+    try:
+        json.dump(sorted(names), open(os.path.join(HERE, ".local_changes.json"), "w"))
+    except OSError:
+        pass
+
+
+def park_own_edit(name, path):
+    """Keeps a copy of Atlas's own version of a file before an update replaces it."""
+    import time
+    d = os.path.join(HERE, ".cache", "own-edits", time.strftime("%Y%m%d-%H%M%S"))
+    try:
+        os.makedirs(d, exist_ok=True)
+        shutil.copy2(path, os.path.join(d, name))
+    except OSError:
+        pass
+    return d
+
+
 def changed_files(src=None):
     src = src or os.path.join(REPO, "jarvis")
     out = []
@@ -206,14 +225,18 @@ def update():
             # Atlas edited this one itself: fold the new version in around its edits when they don't touch the same lines
             if merge_own_edits(name, dst, f):
                 print(f"update: merged the new {name} with Atlas's own edits")
-            else:
-                print(f"update: kept Atlas's own edits to {name} (the new version changes the same lines)")
-            continue
+                continue
+            # they touch the same lines: the new version wins (an update has to actually update). Atlas's version is
+            # saved, so nothing is lost, and its lessons still apply.
+            saved = park_own_edit(name, dst)
+            keep.discard(name)
+            print(f"update: new {name} (Atlas's own edits clashed with it, saved to {saved})")
         shutil.copy2(f, dst)
         save_base(name, f)
         installed[name] = file_hash(dst)
         print("update: new", name)
     save_installed(installed)
+    save_local_changes(keep)
     # first time only: give the person a settings file that updates will never overwrite
     if not os.path.exists(os.path.join(HERE, "local_settings.py")) and os.path.exists(os.path.join(src, "local_settings.example.py")):
         shutil.copy2(os.path.join(src, "local_settings.example.py"), os.path.join(HERE, "local_settings.py"))
