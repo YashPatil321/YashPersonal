@@ -351,24 +351,10 @@ def frame_stats(frame):
 
 
 def record_until_silence(noise_floor, silence=None, max_secs=None, wait_for_voice=5):
-    """Record after the wake word until the speaker goes quiet."""
-    threshold = max(noise_floor * 3.0, 300)
-    chunks, silent_for, heard_voice = [], 0.0, False
-    start = time.time()
-    silence, max_secs = silence or SILENCE_SECONDS, max_secs or MAX_RECORD_SECONDS
-    while time.time() - start < max_secs:
-        chunk = audio_q.get()
-        chunks.append(chunk)
-        loud = np.sqrt(np.mean(chunk.astype(np.float32) ** 2)) > threshold
-        if loud:
-            heard_voice, silent_for = True, 0.0
-        else:
-            silent_for += FRAME / RATE
-        if heard_voice and silent_for >= silence:
-            break
-        if not heard_voice and time.time() - start > wait_for_voice:
-            return None   # woke up but nobody said anything
-    return np.concatenate(chunks).astype(np.float32) / 32768.0
+    """Record until you stop talking: a real voice detector and smart pauses (see jarvis_listen)."""
+    import jarvis_listen
+    return jarvis_listen.record(audio_q.get, noise_floor, silence=silence, max_secs=max_secs or MAX_RECORD_SECONDS,
+                                wait_for_voice=wait_for_voice)
 
 
 # ================= speech to text =================
@@ -429,9 +415,14 @@ def transcribe(model, audio):
     learned = learned_vocab()
     prompt = (f"Yash talking to {ASSISTANT_NAME}, his AI. Names and words: " + VOCAB + (", " + VOCAB_EXTRA if VOCAB_EXTRA else "")
               + (", " + learned if learned else "") + ".")
-    segments, _ = model.transcribe(audio, language="en", beam_size=5, vad_filter=True, initial_prompt=prompt,
-                                   condition_on_previous_text=False, no_speech_threshold=0.6,
-                                   vad_parameters={"min_silence_duration_ms": 300})
+    import jarvis_listen
+    kw = dict(language="en", beam_size=5, vad_filter=True, initial_prompt=prompt, condition_on_previous_text=False,
+              no_speech_threshold=0.6, vad_parameters={"min_silence_duration_ms": 300, "speech_pad_ms": 200})
+    hot = jarvis_listen.hotwords(ASSISTANT_NAME, VOCAB, VOCAB_EXTRA, learned)
+    try:
+        segments, _ = model.transcribe(audio, hotwords=hot or None, **kw)   # leans toward your names and words
+    except TypeError:
+        segments, _ = model.transcribe(audio, **kw)   # older faster-whisper
     segs = [s for s in segments if getattr(s, "no_speech_prob", 0) < 0.7]
     text = " ".join(s.text.strip() for s in segs).strip()
     return "" if text.lower().strip(" .!?") in {h.strip(" .!?") for h in HALLUCINATIONS} else text
@@ -565,6 +556,21 @@ class Speaker:
         tone = 0.2 * np.sin(2 * np.pi * freq * t) * np.hanning(t.size)
         sd.play(tone.astype(np.float32), 24000, device=SPEAKER_DEVICE)
         sd.wait()
+
+    def cue(self, kind, wait=True):
+        """listen, heard, nothing, long, done, error: see jarvis_listen."""
+        import jarvis_listen
+        def play():
+            try:
+                sd = _sd()
+                sd.play(jarvis_listen.cue(kind), jarvis_listen.SR, device=SPEAKER_DEVICE)
+                sd.wait()
+            except Exception as e:
+                log(f"cue: {e}")
+        if wait:
+            play()
+        else:
+            threading.Thread(target=play, daemon=True).start()
 
 
 # ================= double clap =================
@@ -3498,13 +3504,16 @@ def main():
     speaker.watch = barge
 
     with Mic(mic):
-        noise = np.median([np.sqrt(np.mean(audio_q.get().astype(np.float32) ** 2)) for _ in range(25)])
+        import jarvis_listen
+        noise = jarvis_listen.NoiseFloor(np.median([np.sqrt(np.mean(audio_q.get().astype(np.float32) ** 2)) for _ in range(25)]))
 
         def record_long():
             drain_mic()
             jarvis_orb.send("listening")
-            speaker.chime(660)
+            speaker.cue("long")
+            drain_mic()
             a = record_until_silence(noise, silence=4.0, max_secs=180, wait_for_voice=10)
+            speaker.cue("heard" if a is not None else "nothing", wait=False)
             jarvis_orb.send("thinking")
             return transcribe(whisper, a) if a is not None else ""
         jarvis.record_long = record_long
@@ -3529,6 +3538,8 @@ def main():
                 hard_exit(3, "restarting into the update")   # start.bat pulls the new code and starts again
             if time.time() < jarvis.quiet_until:
                 continue
+            if not speaker.speaking and not jarvis.recording:
+                noise.feed(frame)   # keeps learning how loud the room is
             named = None
             if spotter and not speaker.speaking:   # don't wake on its own voice
                 spotter.feed(frame)
@@ -3605,9 +3616,10 @@ def main():
                     speaker.stop()
                 drain_mic()
                 jarvis_orb.send("listening")
-                speaker.chime()
-                drain_mic()
+                speaker.cue("listen")
+                drain_mic()   # just the cue's own echo (it's 0.13 s), not you
                 audio = record_until_silence(noise)
+                speaker.cue("heard" if audio is not None else "nothing", wait=False)
                 if audio is None:
                     jarvis.recording = False
                     jarvis_orb.send("idle")
@@ -3628,6 +3640,7 @@ def main():
             except Exception as e:
                 log(f"error: {e}")
                 jarvis_orb.send("error")
+                speaker.cue("error")
                 speaker.say("Something broke. Check the Atlas window.")
             jarvis_orb.send("idle")
             if speaker.interrupted:           # you cut it off: it stops talking and listens to you right away
