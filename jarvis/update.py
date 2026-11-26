@@ -306,7 +306,7 @@ def install_extras(pip_run=None, force=False):
     if not os.path.exists(path):
         return []
     import importlib.util
-    mods = {"pillow": "PIL", "opencv-python": "cv2", "mediapipe": "mediapipe", "uiautomation": "uiautomation", "winocr": "winocr", "pycaw": "pycaw", "webrtcvad-wheels": "webrtcvad"}
+    mods = {"pillow": "PIL", "opencv-python": "cv2", "mediapipe": "mediapipe", "uiautomation": "uiautomation", "winocr": "winocr", "pycaw": "pycaw", "webrtcvad-wheels": "webrtcvad", "pygrabber": "pygrabber"}
     failed_file = os.path.join(HERE, ".extras_failed.json")
     try:
         failed = json.load(open(failed_file))

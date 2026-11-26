@@ -1099,7 +1099,7 @@ class Vision:
 def desk_camera_index():
     try:
         import jarvis_desk
-        return jarvis_desk.DESK_CAMERA_INDEX
+        return jarvis_desk.desk_index()
     except Exception:
         return None
 

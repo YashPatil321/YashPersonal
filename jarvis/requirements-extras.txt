@@ -6,3 +6,4 @@ mediapipe
 winocr
 pycaw
 webrtcvad-wheels
+pygrabber

@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------- settings (override in local_settings.py) ----------------
 DESK = True                  # the desk only runs when you say "desk mode", this just allows it
+DESK_CAMERA_NAME = ""        # part of the desk camera's name, e.g. "Brio". Beats the number, which Windows can shuffle
 DESK_CAMERA_INDEX = 1        # the downward camera. The monitor webcam is usually 0
 DESK_CAMERA_SIZE = (1280, 720)
 DESK_DISPLAY = None          # which screen is the projector (0, 1, 2 ...). None = the smallest screen that isn't the main one
@@ -269,6 +270,57 @@ def lock_camera(cap, settle=3.0):
         _log(f"camera lock: {e}")
 
 
+def camera_names():
+    """Every camera's name, in the order Windows (DirectShow) numbers them. Empty if it can't tell."""
+    if not IS_WIN:
+        return []
+    try:
+        from pygrabber.dshow_graph import FilterGraph
+    except ImportError:
+        import subprocess
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pygrabber"], timeout=300)
+        try:
+            from pygrabber.dshow_graph import FilterGraph
+        except ImportError:
+            return []
+    try:
+        return list(FilterGraph().get_input_devices())
+    except Exception as e:
+        _log(f"camera names: {e}")
+        return []
+
+
+_NAME_CACHE = {}
+
+
+def desk_index():
+    """The desk camera's number right now: found by DESK_CAMERA_NAME when that's set, else DESK_CAMERA_INDEX."""
+    if DESK_CAMERA_NAME:
+        if DESK_CAMERA_NAME not in _NAME_CACHE or time.time() - _NAME_CACHE[DESK_CAMERA_NAME][1] > 30:
+            names = camera_names()
+            hit = next((i for i, n in enumerate(names) if DESK_CAMERA_NAME.lower() in n.lower()), None)
+            _NAME_CACHE[DESK_CAMERA_NAME] = (hit, time.time())
+            if hit is None:
+                _log(f"no camera named like '{DESK_CAMERA_NAME}' (have: {', '.join(names) or 'none'})")
+        hit = _NAME_CACHE[DESK_CAMERA_NAME][0]
+        if hit is not None:
+            return hit
+    return DESK_CAMERA_INDEX
+
+
+def save_setting(name, value):
+    path = os.path.join(HERE, "local_settings.py")
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except OSError:
+        lines = []
+    import re
+    lines = [l for l in lines if not re.match(rf"\s*{name}\s*=", l)] + [f"{name} = {value!r}"]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    globals()[name] = value
+
+
 def camera_auto(cap, be):
     """Back to automatic exposure, focus and white balance. Cameras remember settings between uses, so one that was
     left on a bad manual exposure stays black until something turns auto back on."""
@@ -286,8 +338,10 @@ def open_desk_camera(index=None, log=_log):
     high resolution camera fits through USB at a high frame rate, then the camera's own format. Returns (cap, text)."""
     import cv2
     import jarvis_vision
-    index = DESK_CAMERA_INDEX if index is None else index
-    backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF] if IS_WIN else [cv2.CAP_ANY]
+    by_name = index is None and bool(DESK_CAMERA_NAME)
+    index = desk_index() if index is None else index
+    # numbers from names follow DirectShow's order, and the other driver can number cameras differently
+    backends = ([cv2.CAP_DSHOW] if by_name else [cv2.CAP_DSHOW, cv2.CAP_MSMF]) if IS_WIN else [cv2.CAP_ANY]
     modes = [("MJPG", 1280, 720, 60), ("MJPG", 1920, 1080, 60), ("MJPG", 1280, 720, 30), (None, 1280, 720, 30),
              (None, 640, 480, 30), (None, 0, 0, 0)]
     for be in backends:
@@ -398,7 +452,7 @@ class Desk:
         import jarvis_vision
         mon = getattr(getattr(self, "vision", None), "camera_index", jarvis_vision.CAMERA_INDEX)
         cap, why = open_desk_camera()
-        if not cap and mon != DESK_CAMERA_INDEX:   # not where it should be: any other camera that isn't Atlas's own
+        if not cap and mon != desk_index():   # not where it should be: any other camera that isn't Atlas's own
             cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX, avoid=mon)
             if cap:
                 _log(f"{why} Using camera {idx} instead. Set DESK_CAMERA_INDEX = {idx} if that's right.")
@@ -722,22 +776,24 @@ def preview(index=None):
     import cv2
     import jarvis_vision
     _settings()
-    idx = DESK_CAMERA_INDEX if index is None else index
-    cap, why = open_desk_camera(idx, log=print)
+    idx = desk_index() if index is None else index
+    cap, why = open_desk_camera(None if index is None else index, log=print)
     if not cap:
-        print(why + "\nTry: python jarvis_desk.py --cameras")
+        print(why + "\nRun: python jarvis_desk.py --cameras  (and press the desk camera's number)")
         return
     det = jarvis_vision.Detectors(hands=True, faces=False, gestures=False, confidence=0.5)
-    scr = projector_screen(or_main=True)
-    show = bool(scr) and scr != next((m for m in monitors() if m[4]), None)   # only fill a separate projector screen
-    if show:
-        board = marker_board(scr[2], scr[3])
-        cv2.namedWindow("atlas-markers", cv2.WINDOW_NORMAL)
-        cv2.moveWindow("atlas-markers", scr[0], scr[1])
-        cv2.setWindowProperty("atlas-markers", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-        cv2.imshow("atlas-markers", board)
-    print(f"Camera {idx}. The projector shows the 9 calibration squares. Aim the camera so it sees all of them.\n"
-          "  C = save the calibration once it says 9/9     M = squares on/off     Q = close")
+    scr = projector_screen(or_main=True) or (0, 0, 1280, 720, True)
+    board_win = "Atlas calibration squares"
+    cv2.namedWindow(board_win, cv2.WINDOW_NORMAL)
+    cv2.moveWindow(board_win, scr[0] + 20, scr[1] + 20)
+    cv2.imshow(board_win, marker_board(scr[2], scr[3]))
+    cv2.waitKey(50)
+    cv2.setWindowProperty(board_win, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    cv2.waitKey(50)
+    print(f"Camera {idx}. The squares are on the screen at {scr[:2]} ({scr[2]}x{scr[3]}).\n"
+          "  If they're on the wrong screen, press Win+P and pick Extend, or set DESK_DISPLAY.\n"
+          "  It saves the calibration by itself once the camera holds 9/9 for a second. Q = close")
+    seen_since, saved = None, False
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -751,24 +807,21 @@ def preview(index=None):
         for lm in det.hands_all(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), time.time() * 1000):
             cv2.circle(frame, (int(lm[8][0] * w), int(lm[8][1] * h)), 9, (80, 255, 80), -1)
         cal = sum(i in ms for i in CAL_IDS)
-        msg = f"camera {idx}   calibration markers seen: {cal}/9" + ("   press C to save" if cal == 9 else "")
+        if cal == 9 and not saved:
+            seen_since = seen_since or time.time()
+            if time.time() - seen_since > 1.0:
+                Calibration().fit([ms[i][0] for i in CAL_IDS], list(CAL_POS))
+                saved = True
+                print("Calibrated and saved. Close this (Q), start Atlas, and type touchscreen mode.")
+        elif cal < 9:
+            seen_since = None
+        msg = f"camera {idx}   squares seen: {cal}/9" + ("   SAVED" if saved else "")
         cv2.putText(frame, msg, (14, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 255, 80) if cal == 9 else (255, 255, 255), 2)
-        cv2.imshow("Atlas desk camera (Q to close)", frame)
+        small = cv2.resize(frame, (960, int(frame.shape[0] * 960 / frame.shape[1])))
+        cv2.imshow("Atlas desk camera (Q to close)", small)
         k = cv2.waitKey(1) & 0xFF
         if k in (ord("q"), 27):
             break
-        if k == ord("c") and cal == 9:
-            Calibration().fit([ms[i][0] for i in CAL_IDS], list(CAL_POS))
-            print("Calibrated and saved. Atlas uses it the next time you type touchscreen mode.")
-        if k == ord("m") and scr:
-            show = not show
-            if show:
-                cv2.namedWindow("atlas-markers", cv2.WINDOW_NORMAL)
-                cv2.moveWindow("atlas-markers", scr[0], scr[1])
-                cv2.setWindowProperty("atlas-markers", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-                cv2.imshow("atlas-markers", marker_board(scr[2], scr[3]))
-            else:
-                cv2.destroyWindow("atlas-markers")
     cap.release()
     cv2.destroyAllWindows()
 
@@ -849,46 +902,56 @@ def test():
 
 
 def cameras():
-    """One picture from every camera, side by side with its number, so you can see which one looks at the desk."""
+    """Every camera's picture with its name. Press the number of the one looking at the desk and it's saved by
+    name, so Windows renumbering cameras can't break it again."""
     import cv2
     import numpy as np
-    tiles = []
-    backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF] if IS_WIN else [0]
-    for i in range(6):
+    names = camera_names()
+    tiles, nums = [], []
+    for i in range(max(len(names), 6) if not names else len(names)):
         img, how = None, ""
-        for be in backends:
+        for be in ([cv2.CAP_DSHOW] if IS_WIN else [0]):
             cap = cv2.VideoCapture(i, be)
             if cap.isOpened():
                 camera_auto(cap, be)
                 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
                 for _ in range(40):
                     ok, f = cap.read()
-                    if ok and f.mean() > 4:
-                        img, how = f, "ok"
-                        break
                     if ok:
-                        img, how = f, "BLACK"
-                    time.sleep(0.05)
+                        img, how = f, ("ok" if f.mean() > 4 else "black")
+                        if how == "ok":
+                            break
             cap.release()
-            if how == "ok":
-                break
+        name = names[i] if i < len(names) else ""
         if img is None:
-            print(f"camera {i}: nothing")
-            continue
-        print(f"camera {i}: {img.shape[1]}x{img.shape[0]} " + ("picture" if how == "ok" else "only black (busy, covered, or an IR or virtual camera)"))
+            print(f"  {i}  {name or '(nothing)'}   no picture (busy or unplugged)")
+            img = np.zeros((270, 480, 3), np.uint8)
+            how = "busy"
+        print(f"  {i}  {name}   " + {"ok": "picture", "black": "only black (IR sensor, virtual camera, or shutter closed)",
+                                    "busy": ""}[how])
         t = cv2.resize(img, (480, 270))
-        cv2.putText(t, f"camera {i}" + ("" if how == "ok" else "  (black)"), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 220, 255), 2)
+        cv2.rectangle(t, (0, 0), (480, 40), (0, 0, 0), -1)
+        cv2.putText(t, f"{i}  {name[:28]}", (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 220, 255), 2)
         tiles.append(t)
+        nums.append(i)
     if not tiles:
-        print("No cameras found. Is Atlas using it? Type desk off first, or close the Atlas window.")
+        print("No cameras found.")
         return
     while len(tiles) % 2:
         tiles.append(np.zeros_like(tiles[0]))
     sheet = np.vstack([np.hstack(tiles[k:k + 2]) for k in range(0, len(tiles), 2)])
-    print("\nPut the desk camera's number in local_settings.py as DESK_CAMERA_INDEX = <number>. Any key closes the window.")
-    cv2.imshow("Atlas cameras", sheet)
-    cv2.waitKey(0)
+    print("\nClick the camera window, then press the NUMBER of the camera looking down at the desk (any other key: cancel).")
+    cv2.imshow("Atlas cameras: press the desk camera's number", sheet)
+    k = cv2.waitKey(0) & 0xFF
     cv2.destroyAllWindows()
+    if ord("0") <= k <= ord("9") and k - ord("0") in nums:
+        i = k - ord("0")
+        if i < len(names):
+            save_setting("DESK_CAMERA_NAME", names[i])
+            print(f"Saved: the desk camera is '{names[i]}'. Atlas finds it by name from now on.")
+        else:
+            save_setting("DESK_CAMERA_INDEX", i)
+            print(f"Saved: the desk camera is camera {i}.")
 
 
 if __name__ == "__main__":
