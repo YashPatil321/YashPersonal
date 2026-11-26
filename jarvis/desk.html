@@ -3,235 +3,293 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jarvis Desk</title>
+<title>Jarvis Desk · Atlas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Doto:wght,ROND@500..900,100&family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* Projected onto a mat: black projects no light, so the mat stays the mat and only the UI glows. */
   :root {
-    --bg: #000;            /* black projects no light, so the desk stays the desk */
-    --red: #ff5a43; --ember: #ff8a6e; --amber: #ffb84d; --soft: #ffd2c4; --dim: #7a4a3e; --line: rgba(255, 110, 85, .28);
+    --bg: #000; --tile: rgba(156, 211, 255, .06); --tile-hi: rgba(156, 211, 255, .16); --line: rgba(156, 211, 255, .22);
+    --ice: #9cd3ff; --text: #eaf4ff; --dim: #7f93ab; --warm: #ffc677; --good: #6fe3a6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; background: var(--bg); color: var(--soft); overflow: hidden; cursor: none;
-    font-family: "Geist", system-ui, sans-serif; user-select: none; -webkit-user-select: none; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); overflow: hidden; cursor: none;
+    font: 1.9vh/1.35 Inter, "Segoe UI", system-ui, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
   body.mouse { cursor: default; }
-  .dz { font-family: "Doto", "Geist Mono", monospace; font-variation-settings: "ROND" 100; }
-  body .dz { font-variation-settings: "ROND" 100; }
+  .mono { font-family: "JetBrains Mono", Consolas, monospace; }
   #fx { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
-  .panel { position: absolute; min-width: 15vw; max-width: 27vw; padding: 1.1vw 1.3vw 1.2vw; border: 1px solid var(--line); border-radius: 1.2vw;
-    background: radial-gradient(120% 140% at 0% 0%, rgba(255, 90, 67, .10), rgba(255, 90, 67, .02) 60%, transparent);
-    box-shadow: 0 0 2.2vw rgba(255, 90, 67, .10) inset; transition: box-shadow .25s, border-color .25s; }
-  .panel.grab { border-color: var(--amber); box-shadow: 0 0 3vw rgba(255, 184, 77, .35); }
-  .panel h3 { font: 500 .78vw/1 "Geist Mono", monospace; letter-spacing: .22em; text-transform: uppercase; color: var(--ember);
-    display: flex; align-items: center; gap: .6vw; margin-bottom: .9vw; padding-bottom: .55vw; border-bottom: 1px dashed var(--line); }
-  .panel h3::before { content: ""; width: .45vw; height: .45vw; border-radius: 50%; background: var(--red); box-shadow: 0 0 .7vw var(--red); }
-  .big { font-size: 2.1vw; font-weight: 600; color: #fff1ea; line-height: 1.1; }
-  .sub { font-size: .95vw; color: var(--soft); opacity: .8; margin-top: .35vw; }
-  .mono { font-family: "Geist Mono", monospace; }
-  .btns { display: flex; gap: .6vw; margin-top: .9vw; flex-wrap: wrap; }
-  .btn { min-width: 3.4vw; padding: .75vw .9vw; border-radius: .8vw; border: 1px solid var(--line); text-align: center;
-    font: 600 .95vw/1 "Geist", sans-serif; color: #fff1ea; background: rgba(255, 90, 67, .08); transition: transform .12s, background .2s; }
-  .btn.hot { background: rgba(255, 90, 67, .35); transform: scale(.94); }
-  .btn.wide { flex: 1; }
-  #core { width: 24vw; height: 24vw; padding: 0; border: none; background: none; box-shadow: none; display: grid; place-items: center; }
+
+  main { position: fixed; inset: 3vh 2.5vw; display: grid; gap: 1.6vh 1.2vw;
+    grid-template-columns: 1fr 1.25fr 1fr; grid-template-rows: auto 1fr auto; }
+  .tile { border: 1px solid var(--line); border-radius: 2vh; background: var(--tile); padding: 2vh 1.4vw; position: relative; min-height: 0; overflow: hidden; }
+  .tile h3 { font: 600 1.25vh/1 "JetBrains Mono", monospace; letter-spacing: .24em; text-transform: uppercase; color: var(--ice);
+    margin-bottom: 1.4vh; display: flex; align-items: center; gap: .6vw; }
+  .tile h3::before { content: ""; width: .8vh; height: .8vh; border-radius: 50%; background: var(--ice); box-shadow: 0 0 1vh var(--ice); }
+  .big { font-size: 3.4vh; font-weight: 600; line-height: 1.15; }
+  .sub { color: var(--dim); margin-top: .6vh; }
+
+  /* buttons: finger sized */
+  .row { display: flex; gap: .8vw; flex-wrap: wrap; margin-top: 1.4vh; }
+  .grid { display: grid; gap: .8vw; margin-top: 1.4vh; }
+  .btn { min-height: 7vh; min-width: 7vh; padding: 0 1.1vw; border-radius: 1.6vh; border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; gap: .5vw; text-align: center;
+    font-weight: 600; font-size: 2vh; color: var(--text); background: rgba(156, 211, 255, .07);
+    transition: transform .12s ease-out, background .2s, border-color .2s; }
+  .btn.hot { background: var(--tile-hi); border-color: var(--ice); transform: scale(.94); }
+  .btn.on { background: rgba(156, 211, 255, .2); border-color: var(--ice); }
+  .btn svg { width: 2.6vh; height: 2.6vh; }
+  .btn.ice { background: var(--ice); color: #04121f; border-color: var(--ice); }
+
+  /* center: Atlas */
+  #atlas { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  #core { width: 34vh; height: 34vh; position: relative; margin: 1vh 0 1.5vh; }
   #core canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #core .mid { position: relative; text-align: center; }
-  #clock { font-size: 5vw; font-weight: 800; color: #fff1ea; letter-spacing: .02em; text-shadow: 0 0 1.4vw rgba(255, 90, 67, .55); }
-  #date { font: 500 .85vw/1 "Geist Mono", monospace; letter-spacing: .3em; text-transform: uppercase; color: var(--ember); margin-top: .5vw; }
-  #state { font: 500 .75vw/1 "Geist Mono", monospace; letter-spacing: .35em; color: var(--amber); margin-top: .9vw; }
-  #leave { font-size: 2.3vw; white-space: nowrap; font-weight: 800; color: var(--amber); margin-top: .6vw; }
-  .log div { font-size: .9vw; padding: .28vw 0; border-bottom: 1px solid rgba(255, 110, 85, .12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 22vw; }
-  .log span { font-family: "Geist Mono", monospace; color: var(--ember); margin-right: .6vw; }
-  .ring { width: 6vw; height: 6vw; }
+  #core .mid { position: absolute; inset: 0; display: grid; place-content: center; }
+  #clock { font-size: 7.5vh; font-weight: 700; letter-spacing: -.02em; text-shadow: 0 0 2vh rgba(156, 211, 255, .45); }
+  #date { font: 500 1.4vh/1 "JetBrains Mono", monospace; letter-spacing: .28em; text-transform: uppercase; color: var(--ice); margin-top: .4vh; }
+  #state { font: 500 1.2vh/1 "JetBrains Mono", monospace; letter-spacing: .3em; color: var(--dim); margin-top: 1.2vh; }
+  #reply { min-height: 9vh; max-height: 17vh; overflow: hidden; font-size: 2.3vh; line-height: 1.4; color: var(--text); padding: 0 1vw; }
+  #reply .you { color: var(--dim); font-size: 1.8vh; margin-bottom: .6vh; }
+  #asks { grid-template-columns: repeat(3, 1fr); width: 100%; margin-top: auto; }
+
+  /* music */
+  #song { font-size: 2.6vh; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #artist { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* timer */
+  #timerWrap { display: flex; align-items: center; gap: 1.4vw; }
+  #ring { width: 13vh; height: 13vh; flex: none; }
+  #tleft { font: 600 3.6vh/1 "JetBrains Mono", monospace; }
+
+  /* apps */
+  #apps { grid-template-columns: repeat(4, 1fr); }
+  #apps .btn { flex-direction: column; gap: .5vh; font-size: 1.6vh; min-height: 9vh; }
+  #apps .btn b { font-size: 2.8vh; }
+
+  .log div { padding: .7vh 0; border-bottom: 1px solid rgba(156, 211, 255, .1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log span { color: var(--ice); margin-right: .8vw; font-family: "JetBrains Mono", monospace; font-size: 1.6vh; }
+
+  #toast { position: fixed; left: 50%; bottom: 2vh; transform: translate(-50%, 6vh); padding: 1.2vh 1.6vw; border-radius: 1.4vh;
+    background: rgba(156, 211, 255, .14); border: 1px solid var(--line); font-size: 1.9vh; transition: transform .25s; z-index: 6; }
+  #toast.show { transform: translate(-50%, 0); }
+
+  /* calibration (Atlas shows these while it lines the camera up) */
   #calib { position: fixed; inset: 0; background: #fff; display: none; z-index: 9; }
   #calib img { position: absolute; width: 19vh; height: 19vh; transform: translate(-50%, -50%); image-rendering: pixelated; }
-  #calib p { position: absolute; left: 50%; top: 31%; transform: translate(-50%, -50%); color: #000; font: 600 2vw "Geist", sans-serif; text-align: center; }
-  #hint { position: fixed; left: 50%; bottom: 1.2vw; transform: translateX(-50%); font: .8vw "Geist Mono", monospace; color: var(--dim); letter-spacing: .15em; }
+  #calib p { position: absolute; left: 50%; top: 31%; transform: translate(-50%, -50%); color: #000; font: 600 2.6vh Inter, sans-serif; text-align: center; }
+  #touchcal { position: fixed; width: 6vh; height: 6vh; margin: -3vh 0 0 -3vh; border-radius: 50%; border: .4vh solid var(--ice);
+    box-shadow: 0 0 3vh var(--ice); z-index: 10; display: none; }
 </style>
 </head>
 <body>
 <canvas id="fx"></canvas>
 
-<div class="panel" id="core" data-k="core"><canvas id="coreFx"></canvas>
-  <div class="mid"><div id="clock" class="dz">--:--</div><div id="date"></div><div id="state">STANDBY</div></div>
-</div>
+<main>
+  <!-- left -->
+  <section class="tile" style="grid-column:1;grid-row:1">
+    <h3>Next up</h3>
+    <div class="big" id="nextTitle">Nothing else today</div>
+    <div class="sub mono" id="nextWhen"></div>
+    <div class="sub" id="leave" style="color:var(--warm);font-weight:600"></div>
+  </section>
 
-<div class="panel" data-k="next" style="width:24vw"><h3>Next up</h3>
-  <div class="big" id="nextTitle">Nothing else today</div>
-  <div class="sub mono" id="nextWhen"></div>
-  <div id="leave" class="dz"></div>
-</div>
+  <section class="tile" style="grid-column:1;grid-row:2;display:flex;flex-direction:column">
+    <h3>Timer</h3>
+    <div id="timerWrap">
+      <svg id="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(156,211,255,.15)" stroke-width="6"/>
+        <circle id="arc" cx="50" cy="50" r="44" fill="none" stroke="#9cd3ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 277" transform="rotate(-90 50 50)"/></svg>
+      <div><div id="tleft">--:--</div><div class="sub" id="tlabel">Tap a time to start</div></div>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="btn" data-timer="5">5m</div><div class="btn" data-timer="15">15m</div>
+      <div class="btn" data-timer="25" data-focus="1">25 focus</div><div class="btn" data-timer="50" data-focus="1">50 focus</div>
+    </div>
+    <div class="row"><div class="btn" style="flex:1" data-timer="0">Stop</div></div>
+    <div class="sub" id="streak" style="margin-top:auto"></div>
+  </section>
 
-<div class="panel" data-k="music" style="width:24vw"><h3>Music</h3>
-  <div class="big" id="song" style="font-size:1.5vw">Nothing playing</div>
-  <div class="btns">
-    <div class="btn" data-say="prev">&#9664;&#9664;</div><div class="btn" data-say="play_pause">&#9654; &#10073;&#10073;</div>
-    <div class="btn" data-say="next">&#9654;&#9654;</div><div class="btn" data-say="vol_down">&minus;</div><div class="btn" data-say="vol_up">+</div>
-  </div>
-</div>
+  <!-- center -->
+  <section class="tile" id="atlas">
+    <div id="core"><canvas id="coreFx"></canvas>
+      <div class="mid"><div id="clock">--:--</div><div id="date"></div><div id="state">READY</div></div></div>
+    <div id="reply"><div class="you"></div><div class="text">Tap anything. Atlas does it.</div></div>
+    <div class="grid" id="asks">
+      <div class="btn" data-say="what's my day look like">My day</div>
+      <div class="btn" data-say="what's due">What's due</div>
+      <div class="btn" data-say="what's the weather">Weather</div>
+      <div class="btn" data-say="anything at the shop">Shop</div>
+      <div class="btn" data-say="study mode">Study mode</div>
+      <div class="btn" data-say="hype me up">Hype me</div>
+    </div>
+  </section>
 
-<div class="panel" data-k="focus"><h3>Focus</h3>
-  <div style="display:flex;align-items:center;gap:1.2vw">
-    <svg class="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,110,85,.2)" stroke-width="6"/>
-      <circle id="focusArc" cx="50" cy="50" r="42" fill="none" stroke="#ff5a43" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 264" transform="rotate(-90 50 50)"/>
-      <text id="focusLeft" x="50" y="58" text-anchor="middle" fill="#fff1ea" font-size="24" font-family="Geist Mono">--</text></svg>
-    <div><div class="big" id="focusTitle" style="font-size:1.4vw">Not locked in</div><div class="sub" id="streak"></div></div>
-  </div>
-  <div class="btns"><div class="btn" data-say="lock in for 25 minutes">25</div><div class="btn" data-say="lock in for 50 minutes">50</div>
-    <div class="btn" data-say="stop focus">Stop</div></div>
-</div>
+  <!-- right -->
+  <section class="tile" style="grid-column:3;grid-row:1">
+    <h3>Music</h3>
+    <div id="song">Nothing playing</div><div id="artist"></div>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="btn" data-key="prev"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></div>
+      <div class="btn ice" data-key="play_pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5v14l11-7z"/></svg></div>
+      <div class="btn" data-key="next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></div>
+      <div class="btn" data-key="vol_down">Vol &minus;</div>
+      <div class="btn" data-key="mute">Mute</div>
+      <div class="btn" data-key="vol_up">Vol +</div>
+    </div>
+  </section>
 
-<div class="panel" data-k="weather"><h3>Outside</h3><div class="big" id="temp" style="font-size:1.4vw">&nbsp;</div></div>
+  <section class="tile log" style="grid-column:3;grid-row:2">
+    <h3>Today</h3>
+    <div class="big" id="temp" style="font-size:2.4vh;margin-bottom:1vh"></div>
+    <div id="log"></div>
+    <div class="sub" id="people" style="margin-top:1vh"></div>
+  </section>
 
-<div class="panel log" data-k="today"><h3>Today</h3><div id="log"></div></div>
+  <!-- bottom -->
+  <section class="tile" style="grid-column:1 / span 3;grid-row:3;padding:1.6vh 1.4vw">
+    <div class="grid" id="apps" style="grid-template-columns:repeat(8,1fr);margin:0">
+      <div class="btn" data-say="open spotify"><b>&#9835;</b>Spotify</div>
+      <div class="btn" data-say="open chrome"><b>&#9711;</b>Chrome</div>
+      <div class="btn" data-say="open youtube"><b>&#9654;</b>YouTube</div>
+      <div class="btn" data-say="open obsidian"><b>&#9670;</b>Notes</div>
+      <div class="btn" data-say="open vs code"><b>&lt;/&gt;</b>Code</div>
+      <div class="btn" data-say="open gmail"><b>&#9993;</b>Mail</div>
+      <div class="btn" data-say="open my calendar"><b>&#9638;</b>Calendar</div>
+      <div class="btn" data-say="desk off"><b>&#10005;</b>Desk off</div>
+    </div>
+  </section>
+</main>
 
-<div class="panel" data-k="season"><h3>Season</h3><div class="big" id="season" style="font-size:1.3vw">&nbsp;</div><div class="sub" id="people"></div></div>
-
-<div class="panel" data-k="quick"><h3>Protocols</h3>
-  <div class="btns" style="display:grid;grid-template-columns:repeat(3,1fr);width:22vw">
-    <div class="btn wide" data-say="what's my day look like">My day</div><div class="btn wide" data-say="study mode">Study</div>
-    <div class="btn wide" data-say="hype me up">Hype</div><div class="btn wide" data-say="what's due">Due</div>
-    <div class="btn wide" data-say="anything at the shop">Shop</div><div class="btn wide" data-say="goodnight">Goodnight</div>
-  </div>
-</div>
-
-<div id="calib"><p>Calibrating the desk.<br>Keep your hands off for a second.</p></div>
-<div id="hint">HOLD A FINGER STILL TO PRESS &middot; PINCH A TITLE TO MOVE A PANEL &middot; JARVIS DESK</div>
+<div id="toast"></div>
+<div id="calib"><p>Lining up the camera.<br>Keep your hands off the mat for a second.</p></div>
+<div id="touchcal"></div>
 
 <script>
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
-// a dark room: pure black gives the down camera nothing to see your hand with, so the desk glows a little.
-// ?glow=0 is pure black, 30 is brighter. Default 12 is barely visible on a tan mat but enough for the camera.
-const GLOW = Math.max(0, Math.min(60, +(new URLSearchParams(location.search).get("glow") ?? 12)));
-document.documentElement.style.setProperty("--bg", `rgb(${GLOW}, ${Math.round(GLOW * .62)}, ${Math.round(GLOW * .5)})`);
 const q = (p) => p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN);
 const $ = (id) => document.getElementById(id);
-const DEFAULT = { core: [38, 30], next: [4, 6], music: [4, 40], focus: [4, 68], weather: [71, 6], today: [71, 24], season: [71, 56], quick: [71, 76] };
-let pos = {};
-try { pos = JSON.parse(localStorage.getItem("deskLayout") || "{}"); } catch (e) {}
-const panels = [...document.querySelectorAll(".panel")];
-function place() {
-  for (const p of panels) {
-    const [x, y] = pos[p.dataset.k] || DEFAULT[p.dataset.k];
-    p.style.left = x + "vw"; p.style.top = y + "vh";
-  }
-}
-place();
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 
-// calibration: four markers at fixed spots, the camera finds them
+// ---------- doing things ----------
+function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove("show"), 2200); }
+function act(say) { return fetch(q("/desk/act?say=" + encodeURIComponent(say)), { method: "POST" }).catch(() => toast("Atlas isn't reachable")); }
+
+let lastPress = { el: null, t: 0 };
+function pressEl(b) {
+  const now = performance.now();
+  if (lastPress.el === b && now - lastPress.t < 600) return;   // a camera tap and a real touch on the same button = one press
+  lastPress = { el: b, t: now };
+  b.classList.add("hot"); setTimeout(() => b.classList.remove("hot"), 220);
+  if (b.dataset.key) { act(b.dataset.key); toast(b.textContent.trim() || b.dataset.key.replace("_", " ")); return; }
+  if (b.dataset.timer !== undefined) return startTimer(+b.dataset.timer, b.dataset.focus === "1");
+  if (b.dataset.say) { act(b.dataset.say); showYou(b.dataset.say); setState("thinking"); }
+}
+function press(x, y) {   // a tap from the down camera, in 0..1 of the mat
+  ripples.push({ x, y, t: performance.now() });
+  const el = document.elementFromPoint(x * innerWidth, y * innerHeight);
+  const b = el && el.closest(".btn");
+  if (b) pressEl(b);
+}
+// real touches (touchscreen mode) and the mouse
+addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse") document.body.classList.add("mouse");
+  const b = e.target.closest(".btn");
+  if (b) pressEl(b);
+});
+
+// ---------- timer (counts down here, Atlas also sets a real one so you hear it end) ----------
+let timer = null;
+try { timer = JSON.parse(localStorage.getItem("deskTimer") || "null"); } catch (e) {}
+function startTimer(min, focus) {
+  if (!min) {
+    timer = null; act(focus ? "stop focus" : "cancel the timer"); if (document.querySelector("[data-focus].on")) act("stop focus");
+    toast("Timer stopped");
+  } else {
+    timer = { end: Date.now() + min * 60000, total: min * 60000, label: focus ? "Focus" : min + " minute timer", focus };
+    act(focus ? `lock in for ${min} minutes` : `set a timer for ${min} minutes`);
+    toast(focus ? `Locked in for ${min}` : `${min} minute timer`);
+  }
+  document.querySelectorAll("[data-timer]").forEach((b) => b.classList.toggle("on", !!timer && +b.dataset.timer === min));
+  try { localStorage.setItem("deskTimer", JSON.stringify(timer)); } catch (e) {}
+  tickTimer();
+}
+function tickTimer() {
+  if (!timer) { $("tleft").textContent = "--:--"; $("tlabel").textContent = "Tap a time to start"; $("arc").setAttribute("stroke-dasharray", "0 277"); return; }
+  const left = Math.max(0, timer.end - Date.now()), s = Math.ceil(left / 1000);
+  $("tleft").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  $("tlabel").textContent = left ? timer.label : "Done";
+  $("arc").setAttribute("stroke-dasharray", `${277 * (1 - left / timer.total)} 277`);
+  if (!left && !timer.doneShown) { timer.doneShown = true; toast(timer.label + " done"); }
+}
+setInterval(tickTimer, 250); tickTimer();
+
+// ---------- what Atlas says (the same feed as the chat window) ----------
+function showYou(t) { $("reply").querySelector(".you").textContent = "you: " + t; $("reply").querySelector(".text").textContent = "…"; }
+function chat() {
+  const es = new EventSource(q("/chat/stream"));
+  es.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    for (const m of d.msgs || []) {
+      if (m.who === "you") $("reply").querySelector(".you").textContent = "you: " + m.text;
+      else $("reply").querySelector(".text").textContent = m.text;
+    }
+    if (d.state) setState(d.state);
+  };
+  es.onerror = () => { es.close(); setTimeout(chat, 3000); };
+}
+
+// ---------- the camera: calibration, fingertips, hands ----------
 [12, 50, 88].flatMap((y, r) => [10, 50, 90].map((x, c) => [40 + r * 3 + c, x, y])).forEach(([id, x, y]) => {
   const im = document.createElement("img");
   im.src = q("/desk/marker.png?id=" + id + "&size=240"); im.style.left = x + "vw"; im.style.top = y + "vh";
   $("calib").appendChild(im);
 });
-
-// ---- live: fingers, taps, cards, orb state ----
 const fx = $("fx"), cx = fx.getContext("2d");
-let live = { fingers: [], cards: [], orb: "idle" }, ripples = [], grab = null;
+let live = { fingers: [], hands: [], cards: [], orb: "idle" }, ripples = [];
 function size() { fx.width = innerWidth * devicePixelRatio; fx.height = innerHeight * devicePixelRatio; }
 addEventListener("resize", size); size();
-
-function press(x, y) {
-  const el = document.elementFromPoint(x * innerWidth, y * innerHeight);
-  ripples.push({ x, y, t: performance.now() });
-  const b = el && el.closest("[data-say]");
-  if (!b) return;
-  b.classList.add("hot"); setTimeout(() => b.classList.remove("hot"), 220);
-  fetch(q("/desk/act?say=" + encodeURIComponent(b.dataset.say)), { method: "POST" }).catch(() => {});
-}
-
 function onLive(d) {
   live = d;
   $("calib").style.display = d.calibrating && !d.touchcal ? "block" : "none";
-  let tc = $("touchcal");
-  if (!tc) { tc = document.createElement("div"); tc.id = "touchcal"; document.body.appendChild(tc);
-    tc.style.cssText = "position:fixed;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #9cf;box-shadow:0 0 24px #9cf;z-index:99;display:none"; }
-  tc.style.display = d.touchcal ? "block" : "none";
-  if (d.touchcal) { tc.style.left = d.touchcal[0] * 100 + "vw"; tc.style.top = d.touchcal[1] * 100 + "vh"; }
+  $("touchcal").style.display = d.touchcal ? "block" : "none";
+  if (d.touchcal) { $("touchcal").style.left = d.touchcal[0] * 100 + "vw"; $("touchcal").style.top = d.touchcal[1] * 100 + "vh"; }
   for (const t of d.taps || []) press(t.x, t.y);
-  // pinch on a panel title moves the panel
-  const f = (d.fingers || []).find((f) => f.pinch);
-  if (f) {
-    const el = document.elementFromPoint(f.x * innerWidth, f.y * innerHeight);
-    if (!grab && el && el.closest(".panel h3, #core")) {
-      const p = el.closest(".panel");
-      const r = p.getBoundingClientRect();
-      grab = { p, dx: f.x * innerWidth - r.left, dy: f.y * innerHeight - r.top };
-      p.classList.add("grab");
-    }
-    if (grab) {
-      const x = (f.x * innerWidth - grab.dx) / innerWidth * 100, y = (f.y * innerHeight - grab.dy) / innerHeight * 100;
-      pos[grab.p.dataset.k] = [Math.max(0, Math.min(90, x)), Math.max(0, Math.min(90, y))];
-      place();
-    }
-  } else if (grab) {
-    grab.p.classList.remove("grab"); grab = null;
-    try { localStorage.setItem("deskLayout", JSON.stringify(pos)); } catch (e) {}
-  }
-  $("state").textContent = ({ idle: "STANDBY", listening: "LISTENING", thinking: "THINKING", speaking: "SPEAKING", error: "CHECK JARVIS" })[d.orb] || "STANDBY";
+  if (d.orb && d.orb !== "idle") setState(d.orb);
 }
 function connect() {
   const es = new EventSource(q("/desk/stream"));
   es.onmessage = (e) => { try { onLive(JSON.parse(e.data)); } catch (err) {} };
   es.onerror = () => { es.close(); setTimeout(connect, 2000); };
 }
-if (TOKEN) connect();
-
-// mouse works too, for testing without the camera
-addEventListener("mousemove", () => document.body.classList.add("mouse"), { once: true });
-addEventListener("click", (e) => press(e.clientX / innerWidth, e.clientY / innerHeight));
+function setState(s) {
+  live.orb = s;
+  $("state").textContent = ({ thinking: "THINKING", speaking: "ANSWERING", listening: "LISTENING", error: "CHECK ATLAS" })[s] || "READY";
+}
 
 function draw(now) {
   const W = fx.width, H = fx.height, k = devicePixelRatio;
   cx.clearRect(0, 0, W, H);
-  // your hand: black it out so nothing projects on your skin, with a glowing outline instead
-  for (const hand of live.hands || []) {
-    const P = hand.map(([x, y]) => [x * W, y * H]);
-    const hull = convexHull(P);
+  for (const hand of live.hands || []) {   // nothing projected onto your hand: black it out, outline it
+    const P = hand.map(([x, y]) => [x * W, y * H]), hull = convexHull(P);
     if (hull.length < 3) continue;
-    const cxm = hull.reduce((a, p) => a + p[0], 0) / hull.length, cym = hull.reduce((a, p) => a + p[1], 0) / hull.length;
-    const grow = (p) => [cxm + (p[0] - cxm) * 1.18, cym + (p[1] - cym) * 1.18];   // a bit bigger than the hand
-    cx.beginPath(); hull.map(grow).forEach((p, i) => i ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1])); cx.closePath();
-    cx.fillStyle = "#000"; cx.fill();
-    cx.shadowColor = "rgba(255,90,67,.9)"; cx.shadowBlur = 18 * k;
-    cx.strokeStyle = "rgba(255,120,90,.85)"; cx.lineWidth = 2 * k; cx.stroke();
-    cx.shadowBlur = 0;
-    for (const [a, b] of [[0, 5], [5, 8], [0, 9], [9, 12], [0, 13], [13, 16], [0, 17], [17, 20], [0, 1], [1, 4]]) {   // bones, faint
-      if (!P[a] || !P[b]) continue;
-      cx.strokeStyle = "rgba(255,138,110,.35)"; cx.lineWidth = 1.5 * k;
-      cx.beginPath(); cx.moveTo(P[a][0], P[a][1]); cx.lineTo(P[b][0], P[b][1]); cx.stroke();
-    }
+    const mx = hull.reduce((a, p) => a + p[0], 0) / hull.length, my = hull.reduce((a, p) => a + p[1], 0) / hull.length;
+    cx.beginPath(); hull.map((p) => [mx + (p[0] - mx) * 1.18, my + (p[1] - my) * 1.18]).forEach((p, i) => i ? cx.lineTo(...p) : cx.moveTo(...p)); cx.closePath();
+    cx.fillStyle = "#000"; cx.fill(); cx.strokeStyle = "rgba(156,211,255,.7)"; cx.lineWidth = 2 * k; cx.stroke();
   }
-  for (const f of live.fingers || []) {      // fingertip rings with the press timer
+  for (const f of live.fingers || []) {     // where you'll press, filling as the press charges
     const x = f.x * W, y = f.y * H, r = 22 * k;
-    cx.strokeStyle = "rgba(255,210,196,.55)"; cx.lineWidth = 1.5 * k;
-    cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.stroke();
-    cx.strokeStyle = f.pinch ? "#ffb84d" : "#ff5a43"; cx.lineWidth = 4 * k;
-    cx.beginPath(); cx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (f.pinch ? 1 : f.dwell)); cx.stroke();
-    cx.fillStyle = "#fff1ea"; cx.beginPath(); cx.arc(x, y, 3 * k, 0, 7); cx.fill();
-  }
-  for (const c of live.cards || []) {        // halos around the physical cards
-    const x = c.x * W, y = c.y * H, r = 70 * k, spin = now / 900;
-    cx.strokeStyle = "rgba(255,90,67,.8)"; cx.lineWidth = 2 * k; cx.setLineDash([6 * k, 10 * k]);
-    cx.beginPath(); cx.arc(x, y, r, spin, spin + Math.PI * 2); cx.stroke(); cx.setLineDash([]);
-    cx.fillStyle = "#ffb84d"; cx.font = `600 ${15 * k}px "Geist Mono", monospace`; cx.textAlign = "center";
-    cx.fillText(c.name.toUpperCase() + (c.value ? "  " + c.value + " MIN" : ""), x, y + r + 24 * k);
-    if (c.name === "volume" || c.name === "timer") {
-      const a = (c.angle || 0) * Math.PI / 180;
-      cx.strokeStyle = "#ff5a43"; cx.lineWidth = 6 * k;
-      cx.beginPath(); cx.arc(x, y, r + 12 * k, a - 0.25, a + 0.25); cx.stroke();
-    }
+    cx.strokeStyle = "rgba(156,211,255,.45)"; cx.lineWidth = 1.5 * k; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.stroke();
+    cx.strokeStyle = f.pinch ? "#ffc677" : "#9cd3ff"; cx.lineWidth = 4 * k;
+    cx.beginPath(); cx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (f.pinch ? 1 : f.dwell || 0)); cx.stroke();
   }
   ripples = ripples.filter((p) => now - p.t < 600);
   for (const p of ripples) {
     const t = (now - p.t) / 600;
-    cx.strokeStyle = `rgba(255,184,77,${1 - t})`; cx.lineWidth = 3 * k;
+    cx.strokeStyle = `rgba(156,211,255,${1 - t})`; cx.lineWidth = 3 * k;
     cx.beginPath(); cx.arc(p.x * W, p.y * H, (20 + 70 * t) * k, 0, 7); cx.stroke();
   }
   drawCore(now);
   requestAnimationFrame(draw);
 }
-
 function convexHull(pts) {
   const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -241,82 +299,55 @@ function convexHull(pts) {
   return lo.slice(0, -1).concat(up.slice(0, -1));
 }
 
-// the core: rotating rings that react to Jarvis
+// the core: thin rings that spin up while Atlas works
 const cc = $("coreFx"), cg = cc.getContext("2d");
 function drawCore(now) {
   const box = cc.getBoundingClientRect(), k = devicePixelRatio;
   if (cc.width !== Math.round(box.width * k)) { cc.width = box.width * k; cc.height = box.height * k; }
   const W = cc.width, R = W / 2, st = live.orb || "idle";
-  const speed = { idle: 1, listening: 2.4, thinking: 4, speaking: 2.8, error: 1 }[st] || 1;
-  const glow = { idle: .35, listening: 1, thinking: .8, speaking: .9, error: .7 }[st] || .4;
-  cg.clearRect(0, 0, W, W);
-  cg.save(); cg.translate(R, R);
+  const speed = { thinking: 4, speaking: 2.6, listening: 2.2 }[st] || 1, glow = st === "idle" ? .45 : 1;
+  cg.clearRect(0, 0, W, W); cg.save(); cg.translate(R, R);
   const t = now / 1000 * speed;
-  const rings = [[.96, 72, 1.2, .7], [.86, 3, 6, .9], [.76, 48, 2, .5], [.66, 1, 3, .8]];
-  rings.forEach(([rr, segs, wd, alpha], i) => {
+  [[.97, 90, 1.2, .5], [.88, 3, 5, .9], [.79, 60, 2, .45], [.70, 1, 2.5, .7]].forEach(([rr, segs, wd, a], i) => {
     const r = R * rr, dir = i % 2 ? -1 : 1;
-    cg.strokeStyle = `rgba(255,${90 + i * 25},67,${alpha * glow})`; cg.lineWidth = wd * k;
-    if (segs > 4) {
-      for (let s = 0; s < segs; s++) {
-        const a = s / segs * Math.PI * 2 + t * 0.2 * dir;
-        cg.beginPath(); cg.arc(0, 0, r, a, a + Math.PI * 2 / segs * 0.45); cg.stroke();
-      }
-    } else {
-      for (let s = 0; s < segs; s++) {
-        const a = s / segs * Math.PI * 2 + t * 0.6 * dir;
-        cg.beginPath(); cg.arc(0, 0, r, a, a + Math.PI * 2 / segs * 0.7); cg.stroke();
-      }
+    cg.strokeStyle = `rgba(156,211,255,${a * glow})`; cg.lineWidth = wd * k;
+    if (segs > 4) for (let s = 0; s < segs; s += 2) {
+      const a0 = s / segs * Math.PI * 2 + t * .15 * dir; cg.beginPath(); cg.arc(0, 0, r, a0, a0 + Math.PI / segs); cg.stroke();
+    } else for (let s = 0; s < segs; s++) {
+      const a0 = s / segs * Math.PI * 2 + t * .5 * dir; cg.beginPath(); cg.arc(0, 0, r, a0, a0 + Math.PI * 2 / segs * .62); cg.stroke();
     }
   });
-  if (st === "speaking" || st === "listening") {
-    const n = 64;
-    cg.strokeStyle = `rgba(255,184,77,${0.6 * glow})`; cg.lineWidth = 2 * k; cg.beginPath();
-    for (let i = 0; i <= n; i++) {
-      const a = i / n * Math.PI * 2, w = 1 + 0.06 * Math.sin(a * 6 + t * 5) * Math.sin(t * 3 + i);
-      const r = R * 0.56 * w; i ? cg.lineTo(Math.cos(a) * r, Math.sin(a) * r) : cg.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-    }
-    cg.stroke();
-  }
   cg.restore();
 }
 requestAnimationFrame(draw);
 
-// ---- panels: data from Jarvis every few seconds ----
+// ---------- the panels: data from Atlas ----------
 function tick() {
   const d = new Date();
   $("clock").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/ ?[AP]M/, "");
   $("date").textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
 }
 setInterval(tick, 1000); tick();
-const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 async function refresh() {
-  let s;
-  try { s = await (await fetch(q("/desk/state"))).json(); } catch (e) { return; }
-  render(s);
+  try { render(await (await fetch(q("/desk/state"))).json()); } catch (e) {}
 }
 function render(s) {
   const nx = s.next;
-  if (nx) {
-    $("nextTitle").textContent = nx.title; $("nextWhen").textContent = nx.when || "";
-    $("leave").textContent = nx.leave_in != null ? (nx.leave_in <= 0 ? "LEAVE NOW" : "LEAVE IN " + nx.leave_in + " MIN") : "";
-  }
-  $("song").textContent = s.music || "Nothing playing";
+  $("nextTitle").textContent = nx ? nx.title : "Nothing else today";
+  $("nextWhen").textContent = nx ? nx.when || "" : "";
+  $("leave").textContent = nx && nx.leave_in != null ? (nx.leave_in <= 0 ? "Leave now" : "Leave in " + nx.leave_in + " min") : "";
+  const m = (s.music || "").split(" - ");
+  $("song").textContent = m.length > 1 ? m.slice(1).join(" - ") : (s.music || "Nothing playing");
+  $("artist").textContent = m.length > 1 ? m[0] : "";
   $("temp").textContent = s.weather || "";
-  $("log").innerHTML = (s.log || []).slice(-6).map((l) => `<div><span>${esc(l.t)}</span>${esc(l.text)}</div>`).join("") || "<div>Nothing logged yet</div>";
-  $("season").textContent = s.season || "";
-  $("streak").textContent = s.streaks || "";
+  $("log").innerHTML = (s.log || []).slice(-5).map((l) => `<div><span>${esc(l.t)}</span>${esc(l.text)}</div>`).join("") || "<div style='color:var(--dim)'>Nothing logged yet</div>";
+  $("streak").textContent = [s.focus_today ? s.focus_today + " min focused today" : "", s.streaks || ""].filter(Boolean).join(" · ");
   $("people").textContent = s.people ? "In the room: " + s.people : "";
-  const f = s.focus;
-  if (f && f.total) {
-    const left = Math.max(0, f.total - f.done), frac = Math.min(1, f.done / f.total);
-    $("focusArc").setAttribute("stroke-dasharray", `${264 * frac} 264`);
-    $("focusLeft").textContent = left; $("focusTitle").textContent = "Locked in, " + left + " min left";
-  } else {
-    $("focusArc").setAttribute("stroke-dasharray", "0 264"); $("focusLeft").textContent = "--";
-    $("focusTitle").textContent = (s.focus_today ? s.focus_today + " min today" : "Not locked in");
+  if (s.focus && s.focus.total && !timer) {   // a focus session started some other way (voice, phone)
+    timer = { end: Date.now() + (s.focus.total - s.focus.done) * 60000, total: s.focus.total * 60000, label: "Focus", focus: true };
   }
 }
-if (TOKEN) { refresh(); setInterval(refresh, 5000); }
+if (TOKEN) { connect(); chat(); refresh(); setInterval(refresh, 4000); }
 window.__render = render; window.__live = onLive;   // for previews
 </script>
 </body>

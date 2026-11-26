@@ -686,7 +686,7 @@ APPS = {   # spoken name -> what to launch. Nothing here can delete or change fi
     "spotify": "spotify:", "chrome": "chrome", "edge": "msedge", "discord": "discord:",
     "vs code": "code", "vscode": "code", "visual studio code": "code", "notepad": "notepad",
     "calculator": "calc", "file explorer": "explorer", "explorer": "explorer", "files": "explorer",
-    "settings": "ms-settings:", "steam": "steam://open/main", "terminal": "wt", "task manager": "taskmgr",
+    "settings": "ms-settings:", "steam": "steam://open/main", "obsidian": "obsidian:", "notes": "obsidian:", "terminal": "wt", "task manager": "taskmgr",
 }
 SITES = {
     "hq": HQ_URL, "youtube": "https://www.youtube.com", "gmail": "https://mail.google.com",
@@ -1111,6 +1111,8 @@ def _route(text):
         return cc
     if re.fullmatch(r"what time is it|what's the time|time", t):
         return ("time", None)
+    if re.fullmatch(r"(?:cancel|stop|clear|kill) (?:the |my |all )?(?:my )?timers?", t):
+        return ("timer_cancel", None)
     m = re.search(r"\b(?:set )?(?:a )?timer (?:for )?(.+?) (seconds?|minutes?|hours?)\b", t) or re.fullmatch(r"(.+?) (seconds?|minutes?|hours?) timer", t)
     if m and _num(m.group(1)) is not None:
         return ("timer", _num(m.group(1)) * {"s": 1, "m": 60, "h": 3600}[m.group(2)[0]])
@@ -2019,6 +2021,7 @@ class Jarvis:
         t = threading.Timer(secs, fire)
         t.daemon = True
         t.start()
+        self.timers = [x for x in getattr(self, "timers", []) if x.is_alive()] + [t]
 
     # ---- standby: screens off, Jarvis awake. A PC that's really asleep can't hear or see anything, so Jarvis keeps
     # Windows from sleeping and does this instead. Clap, say the wake word, or just sit down and it wakes up. ----
@@ -2886,6 +2889,12 @@ class Jarvis:
             return True
         elif action == "time":
             say("It's " + time.strftime("%I:%M %p").lstrip("0") + ".")
+        elif action == "timer_cancel":
+            live = [x for x in getattr(self, "timers", []) if x.is_alive()]
+            for x in live:
+                x.cancel()
+            self.timers = []
+            say("Timer cancelled." if live else "No timer running.")
         elif action == "timer":
             self.later(arg, "Timer done.")
             say("Timer set for " + _dur(arg) + ".")
@@ -3015,12 +3024,16 @@ class Jarvis:
                 mode = arg if arg in ("screen", "panels") else (jarvis_desk.DESK_MODE if arg else None)
                 if mode == "screen":
                     d.mode = "screen"
-                    self.close_desk_page()
                     d.start()
-                    if d.cal.ready:
-                        say("The mat's a touchscreen. Point to aim, hold still to tap, pinch to drag, two fingers to scroll.")
-                    else:
+                    if not d.cal.ready:
                         self.desk_calibrate(d, say)
+                    elif arg is True:   # "desk mode": the desk app on the mat, touchable
+                        self.close_desk_page()
+                        self.open_desk_page("/desk")
+                        say("Desk's up. Point to aim, hold still to tap, pinch to drag.")
+                    else:              # "touchscreen mode": just your screen, touchable
+                        self.close_desk_page()
+                        say("The mat's a touchscreen. Point to aim, hold still to tap, pinch to drag, two fingers to scroll.")
                 elif mode == "panels":
                     d.mode = "panels"
                     d.start()
