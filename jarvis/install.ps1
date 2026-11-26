@@ -35,15 +35,33 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 }
 
 # 2. Latest code
-Step "Getting the latest Jarvis"
+Step "Getting the latest Jarvis (shows progress; if it sits still, press Enter once)"
+$env:GIT_TERMINAL_PROMPT = "0"; $env:GCM_INTERACTIVE = "never"   # never wait on a hidden login window: the repo is public
 git config --global --add safe.directory "*" 2>$null   # admin vs you owning the folder must never block updates
-if (Test-Path "$Repo\.git") {
-    git -c safe.directory=* -C $Repo fetch -q origin $Branch
-    git -c safe.directory=* -C $Repo checkout -q $Branch
-    git -c safe.directory=* -C $Repo reset -q --hard "origin/$Branch"
-} else {
+$gitOk = $false
+$ErrorActionPreference = "Continue"   # git prints progress on stderr, which must not count as a failure
+if (Get-Command git -ErrorAction SilentlyContinue) {
+    if (Test-Path "$Repo\.git") {
+        git -c safe.directory=* -C $Repo fetch --progress origin $Branch
+        if ($LASTEXITCODE -eq 0) { git -c safe.directory=* -C $Repo checkout -q -f $Branch 2>$null; git -c safe.directory=* -C $Repo reset -q --hard "origin/$Branch" }
+    } else {
+        if (Test-Path $Repo) { Remove-Item $Repo -Recurse -Force }
+        git -c safe.directory=* clone --progress --depth 50 -b $Branch https://github.com/YashPatil321/YashPersonal.git $Repo
+    }
+    $gitOk = ($LASTEXITCODE -eq 0) -and (Test-Path "$Repo\jarvis\jarvis.py")
+}
+$ErrorActionPreference = "Stop"
+if (-not $gitOk) {
+    # Git failed or hung up: download the code as a zip instead
+    Write-Host "   Git didn't work, downloading the code directly instead" -ForegroundColor Yellow
+    $zip = "$env:TEMP\atlas-src.zip"; $tmp = "$env:TEMP\atlas-src"
+    $ProgressPreference = "SilentlyContinue"
+    Invoke-WebRequest "https://codeload.github.com/YashPatil321/YashPersonal/zip/refs/heads/$Branch" -OutFile $zip -UseBasicParsing
+    if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+    Expand-Archive $zip $tmp -Force
+    $top = Get-ChildItem $tmp -Directory | Select-Object -First 1
     if (Test-Path $Repo) { Remove-Item $Repo -Recurse -Force }
-    git -c safe.directory=* clone -q -b $Branch https://github.com/YashPatil321/YashPersonal.git $Repo
+    Move-Item $top.FullName $Repo
 }
 if (-not (Test-Path "$Repo\jarvis\jarvis.py")) { throw "Couldn't download Jarvis. Check the internet connection and run this again." }
 
