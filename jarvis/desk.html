@@ -142,7 +142,12 @@ function press(x, y) {
 
 function onLive(d) {
   live = d;
-  $("calib").style.display = d.calibrating ? "block" : "none";
+  $("calib").style.display = d.calibrating && !d.touchcal ? "block" : "none";
+  let tc = $("touchcal");
+  if (!tc) { tc = document.createElement("div"); tc.id = "touchcal"; document.body.appendChild(tc);
+    tc.style.cssText = "position:fixed;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:3px solid #9cf;box-shadow:0 0 24px #9cf;z-index:99;display:none"; }
+  tc.style.display = d.touchcal ? "block" : "none";
+  if (d.touchcal) { tc.style.left = d.touchcal[0] * 100 + "vw"; tc.style.top = d.touchcal[1] * 100 + "vh"; }
   for (const t of d.taps || []) press(t.x, t.y);
   // pinch on a panel title moves the panel
   const f = (d.fingers || []).find((f) => f.pinch);

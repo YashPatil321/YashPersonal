@@ -34,6 +34,8 @@ DESK_CAMERA_INDEX = 1        # the downward camera. The monitor webcam is usuall
 DESK_CAMERA_SIZE = (1280, 720)
 DESK_DISPLAY = None          # which screen is the projector (0, 1, 2 ...). None = the smallest screen that isn't the main one
 DWELL_SECONDS = 0.6
+DESK_MODE = "screen"         # "screen": the projector is a Windows touchscreen (touch any app). "panels": Atlas's desk page
+DESK_TOUCH = "camera"        # "camera": hand tracking from the down camera. "laser": an IR line laser + IR camera, real touch
 DESK_GLOW = 12               # 0 = pure black desk. A little glow lets the down camera see your hand in a dark room
 CALIB_FILE = os.path.join(HERE, ".cache", "desk_calib.json")
 # ArUco 4x4 marker ids printed on the cards
@@ -238,6 +240,9 @@ class Desk:
         self.timer_turn = 0.0
         self.vol_turn = 0.0
         self.pending_taps = []
+        self.surface = None          # touch -> Windows, built once calibrated (see jarvis_surface)
+        self.touchcal = None
+        self.mode = DESK_MODE
 
     # ---- camera loop ----
     def start(self):
@@ -247,11 +252,30 @@ class Desk:
 
     def stop(self):
         self.running = False
+        if self.surface is not None:
+            try:
+                self.surface.inject.release()
+            except Exception:
+                pass
 
     def calibrate(self, done=None):
         self.calibrating, self.cal_done = True, done
         self.live["calibrating"] = True
+        if DESK_TOUCH == "laser":
+            import jarvis_surface
+            self.touchcal = jarvis_surface.TouchCalibration()
+            self.live["touchcal"] = list(self.touchcal.target())
         self.start()
+
+    def _surface(self):
+        if self.surface is None:
+            import jarvis_surface
+            scr = projector_screen(or_main=True) or (0, 0, 1920, 1080, True)
+            inj = jarvis_surface.Injector(scr[:4])
+            self.surface = jarvis_surface.LaserTouch(inj) if DESK_TOUCH == "laser" else jarvis_surface.CameraTouch(inj)
+            _log(f"touchscreen on the screen at {scr[:2]} ({scr[2]}x{scr[3]}), " +
+                 ("real Windows touch" if inj.ok else "mouse input") + f", sensing: {DESK_TOUCH}")
+        return self.surface
 
     def _run(self):
         try:
@@ -309,6 +333,8 @@ class Desk:
         import cv2
         h, w = frame.shape[:2]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if DESK_TOUCH == "laser":
+            return self._laser_step(gray)
         if self.calibrating:
             ms = find_markers(gray)
             if all(i in ms for i in CAL_IDS):
@@ -339,6 +365,10 @@ class Desk:
         # fingertips
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         hands = det.hands_all(rgb, now_ms if now_ms is not None else time.time() * 1000)
+        if self.mode == "screen":   # the whole projected desktop is the touchscreen
+            to_mat = lambda p: self.cal.to_desk((p[0] * w, p[1] * h))
+            self.live["touch"] = self._surface().feed([(lm, to_mat) for lm in hands])
+            return
         import jarvis_touch
         fingers, outlines = [], []
         for lm in hands:
@@ -354,6 +384,33 @@ class Desk:
         if taps:
             self.live["seq"] += 1
             self.live["taps"] = [{"x": x, "y": y, "how": how, "seq": self.live["seq"]} for x, y, how in taps]
+
+    def _laser_step(self, gray):
+        import jarvis_surface
+        dots = jarvis_surface.laser_dots(gray)
+        if self.calibrating and self.touchcal:
+            got = self.touchcal.feed(dots)
+            tgt = self.touchcal.target()
+            self.live["touchcal"] = list(tgt) if tgt else None
+            if got:
+                self.cal.fit(got, list(jarvis_surface.TouchCalibration.TARGETS))
+                self.calibrating, self.touchcal = False, None
+                self.live.update(calibrating=False, calibrated=True, touchcal=None)
+                _log("calibrated by touch")
+                if self.cal_done:
+                    self.cal_done(True)
+            return
+        if not self.cal.ready:
+            return
+        pts = [p for p in (self.cal.to_desk((x, y)) for x, y, _ in dots) if p and -0.05 <= p[0] <= 1.05 and -0.05 <= p[1] <= 1.05]
+        if self.mode == "screen":
+            self.live["touch"] = self._surface().feed(pts)
+        else:
+            prog, taps = self.taps.feed([(x, y, False) for x, y in pts])
+            self.live["fingers"] = prog
+            if taps:
+                self.live["seq"] += 1
+                self.live["taps"] = [{"x": x, "y": y, "how": how, "seq": self.live["seq"]} for x, y, how in taps]
 
     def card_event(self, e):
         kind, name = e[0], e[1]
@@ -492,6 +549,10 @@ def projector_screen(mons=None, or_main=False):
 
 def route_desk(t):
     import re
+    if re.fullmatch(r"(?:turn on |start |activate )?(?:the )?(?:touch ?screen|touch) (?:mode|desk|mat)|(?:make )?(?:the )?(?:mat|desk|projector) (?:a )?touch ?screen", t):
+        return ("desk", "screen")
+    if re.fullmatch(r"(?:turn on |start |open )?(?:the )?desk (?:panels|page|dashboard)|panels mode", t):
+        return ("desk", "panels")
     if re.fullmatch(r"(?:turn on |start |wake (?:up )?|activate )?(?:the )?desk(?: mode| ui| display)?(?: on)?|projector (?:on|mode)", t):
         return ("desk", True)
     if re.fullmatch(r"(?:turn off |stop |close )(?:the )?desk(?: mode| ui)?|desk (?:mode )?off|projector off", t):

@@ -20,6 +20,9 @@ Modes:
   python jarvis.py --spotify-login   connect Spotify (optional, see README)
 """
 
+import os as _os
+_os.environ.setdefault("GLOG_minloglevel", "3")          # mediapipe's C++ chatter
+_os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 import base64
 import glob
 import hashlib
@@ -99,6 +102,7 @@ STREAM = True                # start talking at the first sentence instead of wa
 TELEGRAM_TOKEN = ""          # your own Telegram bot (from @BotFather) to talk to Atlas from your phone. See jarvis_trust.py
 TELEGRAM_CHAT_ID = 0         # filled in automatically when you pair
 PUSH_TO_TALK = True          # Ctrl+Alt+Space anywhere in Windows = talk to Atlas (no wake word, works with loud music)
+VOICE_INPUT = True           # False = no mic at all: you type to Atlas in its window (say or type "voice off" / "voice on")
 TYPE_TO_ATLAS = True         # type commands into the Atlas window too (handy with no mic or no GPU)
 FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
 KEEP_LISTENING = True        # while Claude thinks, Atlas still hears you, so you can give it more commands
@@ -160,6 +164,30 @@ for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
+
+
+def typing_console():
+    """Typing mode: a clean window with only your conversation. Logs still go to jarvis.log, and the noise native
+    libraries print (camera, mediapipe) goes to jarvis-errors.log."""
+    global CONSOLE_LOGS
+    CONSOLE_LOGS = False
+    if sys.platform == "win32":
+        os.system("")   # turns on colors in the Windows console
+        try:
+            import ctypes
+            ctypes.windll.kernel32.SetConsoleTitleW("Atlas")
+        except Exception:
+            pass
+    try:
+        sys.stdout.flush()
+        err = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "jarvis-errors.log"), "a", encoding="utf-8")
+        os.dup2(err.fileno(), 2)
+        sys.stderr = err
+    except Exception:
+        pass
+    os.system("cls" if sys.platform == "win32" else "clear")
+    print("\n\033[38;5;117m  ATLAS\033[0m   \033[38;5;245mtyping mode. Ask anything or give a command. "
+          "Try: desk mode, calibrate the desk, what's on today. Type voice on to use the mic.\033[0m\n", flush=True)
 
 
 def total_ram_gb():
@@ -231,10 +259,15 @@ SPOKEN_STYLE = (
 LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jarvis.log")
 
 
+PROMPT = "\033[38;5;245m  you   \033[0m "
+CONSOLE_LOGS = True   # off in typing mode: the window shows only your conversation (everything still goes to jarvis.log)
+
+
 def log(msg):
     """Prints, and keeps a copy in jarvis.log so problems are findable even when the window is hidden."""
     line = time.strftime("%Y-%m-%d %H:%M:%S ") + str(msg)
-    print(line[11:], flush=True)
+    if CONSOLE_LOGS:
+        print(line[11:], flush=True)
     try:
         if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > 2_000_000:
             os.replace(LOG_FILE, LOG_FILE + ".old")
@@ -522,6 +555,8 @@ class Speaker:
             except Exception:
                 pass
         Speaker.last_line = text[:240]
+        if not CONSOLE_LOGS and text.strip():
+            print(f"\r\033[K\033[38;5;117m  Atlas \033[0m {text.strip()}\n{PROMPT}", end="", flush=True)
         cap = getattr(Speaker.capture, "lines", None)
         if cap is not None:
             cap.append(re.sub(r"[*#`_>\[\]]", "", text))
@@ -1031,6 +1066,8 @@ def _route(text):
         return ("confirm", True)
     if re.fullmatch(r"(no|nope|cancel|never ?mind|don't)", t):
         return ("confirm", False)
+    if re.fullmatch(r"(?:turn (?:off|on) (?:the )?(?:voice|mic|microphone)(?: input)?|(?:voice|mic|microphone) (?:off|on)|(?:typing|type) (?:mode|only))", t):
+        return ("voice_input", not re.search(r"\boff\b|typ", t))
     if re.fullmatch(r"(?:(?:can you |please |go )?(?:update|upgrade) (?:yourself|jarvis|atlas|your ?self|now|the code)|check for (?:an )?updates?|"
                     r"install (?:the )?updates?|get (?:the )?latest(?: version)?|update)(?: please| now)?", t):
         return ("update", None)
@@ -2141,6 +2178,34 @@ class Jarvis:
         else:
             self.pc.open_url(url, app_window=True)
 
+    def desk_calibrate(self, d, say):
+        """Projects the markers (or, with the laser, 4 dots to touch), lines the camera up, then gets out of the way."""
+        self.open_desk_page("/desk")
+        if jarvis_desk.DESK_TOUCH == "laser":
+            say("Calibrating. Touch each dot as it shows up, and hold it for a second.")
+        else:
+            say("Calibrating. Keep your hands off the mat for a second.")
+
+        def done(ok):
+            if d.mode == "screen":
+                time.sleep(0.8)
+                self.close_desk_page()
+                say("Calibrated. The mat's a touchscreen now. Point to aim, hold still to tap, pinch to drag, two fingers to scroll.")
+            else:
+                say("Desk calibrated. Touch anything.")
+        d.calibrate(done)
+
+    def close_desk_page(self):
+        if not IS_WIN:
+            return
+        try:
+            import ctypes
+            for hwnd, _, title in jarvis_screen.Screen().windows():
+                if title.startswith("Jarvis Desk"):
+                    ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)   # WM_CLOSE
+        except Exception as e:
+            log(f"close desk page: {e}")
+
     def command_state(self):
         """Everything the command center shows, in one go."""
         out = dict(self.desk_state())
@@ -2757,6 +2822,11 @@ class Jarvis:
             else:
                 say(f"{len(bad)} problem{'s' if len(bad) > 1 else ''}. First one: {bad[0][0]}. {bad[0][1]} The full list is in the Atlas window.")
             return True
+        if action == "voice_input":
+            set_local_setting("VOICE_INPUT", bool(arg))
+            say("Mic on. Restarting to load it." if arg else "Typing only from now on. Restarting.")
+            self.restart_for_update = True
+            return True
         if action == "update":
             if update_waiting():
                 say("Updating. Give me a minute.")
@@ -2919,17 +2989,26 @@ class Jarvis:
             if not d:
                 say("The desk needs the phone bridge on. Set PHONE SERVER to True.")
             elif action == "desk":
-                if arg:
+                mode = arg if arg in ("screen", "panels") else (jarvis_desk.DESK_MODE if arg else None)
+                if mode == "screen":
+                    d.mode = "screen"
+                    self.close_desk_page()
+                    d.start()
+                    if d.cal.ready:
+                        say("The mat's a touchscreen. Point to aim, hold still to tap, pinch to drag, two fingers to scroll.")
+                    else:
+                        self.desk_calibrate(d, say)
+                elif mode == "panels":
+                    d.mode = "panels"
                     d.start()
                     self.open_desk_page("/desk")
                     say("Desk online." + ("" if d.cal.ready else " First time: say calibrate the desk."))
                 else:
                     d.stop()
+                    self.close_desk_page()
                     say("Desk off.")
             elif action == "desk_cal":
-                self.open_desk_page("/desk")
-                say("Calibrating. Keep your hands off the desk for a second.")
-                d.calibrate(lambda ok: say("Desk calibrated. Touch anything."))
+                self.desk_calibrate(d, say)
             elif action == "desk_cards":
                 pc.open_url(self.local_url("/desk/cards"))
                 say("Your desk cards are open. Print them, cut them out, and put them on the desk.")
@@ -3329,18 +3408,22 @@ def main():
         print(ask_claude(sys.argv[sys.argv.index("--ask") + 1], None, claude)[0])
         return
 
-    from openwakeword.model import Model
-    from openwakeword.utils import download_models
-    if not WAKE_WORD.endswith(".onnx"):
-        download_models([WAKE_WORD])
-    wake = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
+    wake = None
+    if VOICE_INPUT:
+        from openwakeword.model import Model
+        from openwakeword.utils import download_models
+        if not WAKE_WORD.endswith(".onnx"):
+            download_models([WAKE_WORD])
+        wake = Model(wakeword_models=[WAKE_WORD], inference_framework="onnx")
+    else:
+        typing_console()
 
     jarvis_room.keep_awake()
     if ORB:
         pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
         subprocess.Popen([pyw if os.path.exists(pyw) else sys.executable, os.path.join(WORKDIR, "jarvis_orb.py")], cwd=WORKDIR)
         jarvis_orb.send("thinking")   # loading models
-    whisper, _ = load_whisper()
+    whisper = load_whisper()[0] if VOICE_INPUT else None
     WHISPER_HOLDER["model"] = whisper   # for Telegram voice notes
     speaker = Speaker()
     jarvis = Jarvis(speaker, claude=claude)
@@ -3552,12 +3635,15 @@ def main():
         if CLAP_WAKE and not ambient.playing and claps.feed(frame):   # songs are full of claps
             return True
         return wake.predict(frame).get(WAKE_KEY, 0) >= max(WAKE_THRESHOLD, BARGE_THRESHOLD)
-    speaker.watch = barge
+    speaker.watch = barge if VOICE_INPUT else None
 
     def typed():
         """Type to Atlas in its window: anything you'd say, without the name. Works alongside the mic."""
-        time.sleep(3)
-        print("\n  Type to Atlas here any time (e.g. desk mode). Press Enter to send.\n", flush=True)
+        time.sleep(1 if not VOICE_INPUT else 3)
+        if VOICE_INPUT:
+            print("\n  Type to Atlas here any time (e.g. desk mode). Press Enter to send.\n", flush=True)
+        else:
+            print(PROMPT, end="", flush=True)
         while True:
             try:
                 line = input().strip()
@@ -3567,6 +3653,8 @@ def main():
                 time.sleep(1)
                 continue
             if not line:
+                if not VOICE_INPUT:
+                    print(PROMPT, end="", flush=True)
                 continue
             log(f"you (typed): {line}")
             jarvis.last_heard = time.time()
@@ -3578,7 +3666,23 @@ def main():
                     hard_exit(0, "going offline")
             except Exception as e:
                 log(f"error: {e}")
+                if not VOICE_INPUT:
+                    speaker.say(f"That broke: {str(e)[:120]}")
             jarvis_orb.send("idle")
+            if not VOICE_INPUT:
+                print(f"\r\033[K{PROMPT}", end="", flush=True)
+    if not VOICE_INPUT:
+        jarvis.record_long = jarvis.extras.record_long = lambda: input("\033[38;5;245m  dictate\033[0m ").strip()
+        threading.Thread(target=nightly_update_watch, args=(jarvis,), daemon=True).start()
+        threading.Thread(target=reactive_watch, args=(jarvis,), daemon=True).start()
+        threading.Thread(target=jarvis.standby_watch, daemon=True).start()
+        threading.Thread(target=typed, daemon=True).start()
+        jarvis_orb.send("idle")
+        log("typing mode: no microphone")
+        while True:
+            time.sleep(0.5)
+            if jarvis.restart_for_update:
+                hard_exit(3, "restarting into the update")
     if TYPE_TO_ATLAS and sys.stdin and sys.stdin.isatty():
         threading.Thread(target=typed, daemon=True).start()
 
