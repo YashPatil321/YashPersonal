@@ -134,21 +134,51 @@ def detector():
     if _DET is None:
         import cv2
         d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        _DET = cv2.aruco.ArucoDetector(d, cv2.aruco.DetectorParameters())
+        p = cv2.aruco.DetectorParameters()
+        # projected markers are small, soft and washed out: look harder than the defaults do
+        p.adaptiveThreshWinSizeMin, p.adaptiveThreshWinSizeMax, p.adaptiveThreshWinSizeStep = 3, 53, 6
+        p.minMarkerPerimeterRate = 0.015
+        p.polygonalApproxAccuracyRate = 0.06
+        p.errorCorrectionRate = 0.8
+        p.minOtsuStdDev = 2.0
+        p.perspectiveRemoveIgnoredMarginPerCell = 0.2
+        p.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+        _DET = cv2.aruco.ArucoDetector(d, p)
     return _DET
 
 
-def find_markers(gray):
-    """{id: (center_xy, angle_degrees)} in camera pixels."""
+def _detect(gray, scale=1.0):
     corners, ids, _ = detector().detectMarkers(gray)
     out = {}
     if ids is None:
         return out
     for c, i in zip(corners, ids.ravel()):
-        pts = c.reshape(4, 2)
+        pts = c.reshape(4, 2) / scale
         cx, cy = float(pts[:, 0].mean()), float(pts[:, 1].mean())
         ang = math.degrees(math.atan2(pts[1][1] - pts[0][1], pts[1][0] - pts[0][0]))
         out[int(i)] = ((cx, cy), ang)
+    return out
+
+
+def find_markers(gray, thorough=False):
+    """{id: (center_xy, angle_degrees)} in camera pixels. thorough: also try a contrast boosted, a darkened (for a
+    bright, washed out projection) and a 2x enlarged copy, and keep everything any of them finds."""
+    out = _detect(gray)
+    if not thorough:
+        return out
+    import cv2
+    import numpy as np
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(gray)
+    lut = np.array([((i / 255.0) ** 2.2) * 255 for i in range(256)], np.uint8)   # pull washed out whites apart
+    dark = cv2.LUT(gray, lut)
+    sharp = cv2.addWeighted(gray, 1.8, cv2.GaussianBlur(gray, (0, 0), 3), -0.8, 0)
+    for img in (clahe, dark, sharp):
+        for k, v in _detect(img).items():
+            out.setdefault(k, v)
+    if len(out) < 9:
+        big = cv2.resize(clahe, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        for k, v in _detect(big, 2.0).items():
+            out.setdefault(k, v)
     return out
 
 
@@ -510,7 +540,7 @@ class Desk:
         if DESK_TOUCH == "laser":
             return self._laser_step(gray)
         if self.calibrating:
-            ms = find_markers(gray)
+            ms = find_markers(gray, thorough=True)
             if all(i in ms for i in CAL_IDS):
                 self.cal.fit([ms[i][0] for i in CAL_IDS], list(CAL_POS))
                 self.calibrating = False
@@ -786,7 +816,10 @@ def preview(index=None):
     board_win = "Atlas calibration squares"
     cv2.namedWindow(board_win, cv2.WINDOW_NORMAL)
     cv2.moveWindow(board_win, scr[0] + 20, scr[1] + 20)
-    cv2.imshow(board_win, marker_board(scr[2], scr[3]))
+    board = marker_board(scr[2], scr[3])
+    main = next((m for m in monitors() if m[4]), None)
+    separate = bool(main) and tuple(scr[:4]) != tuple(main[:4])
+    cv2.imshow(board_win, board)
     cv2.waitKey(50)
     cv2.setWindowProperty(board_win, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     cv2.waitKey(50)
@@ -800,7 +833,7 @@ def preview(index=None):
             continue
         h, w = frame.shape[:2]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        ms = find_markers(gray)
+        ms = find_markers(gray, thorough=True)
         for mid, (c, _ang) in ms.items():
             cv2.circle(frame, (int(c[0]), int(c[1])), 10, (0, 220, 255), 2)
             cv2.putText(frame, CARDS.get(mid, str(mid)), (int(c[0]) + 12, int(c[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 255), 2)
@@ -817,8 +850,14 @@ def preview(index=None):
             seen_since = None
         msg = f"camera {idx}   squares seen: {cal}/9" + ("   SAVED" if saved else "")
         cv2.putText(frame, msg, (14, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 255, 80) if cal == 9 else (255, 255, 255), 2)
-        small = cv2.resize(frame, (960, int(frame.shape[0] * 960 / frame.shape[1])))
-        cv2.imshow("Atlas desk camera (Q to close)", small)
+        if separate:   # the camera view goes on your monitor, the squares on the projector
+            small = cv2.resize(frame, (960, int(frame.shape[0] * 960 / frame.shape[1])))
+            cv2.imshow("Atlas desk camera (Q to close)", small)
+        else:          # one screen (mirrored to the projector): nothing may cover the squares, so progress goes on the board
+            b = board.copy()
+            cv2.putText(b, f"squares seen {cal}/9" + ("  SAVED, press Q" if saved else "  (Q closes)"),
+                        (int(scr[2] * 0.30), int(scr[3] * 0.32)), cv2.FONT_HERSHEY_SIMPLEX, scr[3] / 900, (0, 150, 0) if saved else (60, 60, 60), 2)
+            cv2.imshow(board_win, b)
         k = cv2.waitKey(1) & 0xFF
         if k in (ord("q"), 27):
             break
@@ -831,7 +870,7 @@ def marker_board(w, h):
     import cv2
     import numpy as np
     board = np.full((h, w, 3), 255, np.uint8)
-    size = int(min(w, h) * 0.15)
+    size = int(min(w, h) * 0.17)
     d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
     for mid, (x, y) in zip(CAL_IDS, CAL_POS):
         m = cv2.aruco.generateImageMarker(d, int(mid), size)
