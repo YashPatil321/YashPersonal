@@ -1114,6 +1114,7 @@ def _near_duplicate(f, feats, limit=0.95):
     return float(sims.max()) > limit
 
 
+SKIP_BLACK = True             # a camera that only gives black frames is skipped
 CAMERA_FPS = 60              # ask for this; most webcams do 60 at 720p and 30 at 1080p
 CAMERA_MODES = [(1920, 1080), (1280, 720)]   # tried in order; it keeps whichever actually runs fastest
 
@@ -1211,10 +1212,11 @@ def open_camera(first=0, avoid=None, tries=6):
             cap = cv2.VideoCapture(i, be)
             if cap.isOpened():
                 ok = False
-                for _ in range(5):   # opened isn't enough: it has to deliver a frame
+                for _ in range(15):   # opened isn't enough: it has to deliver a real picture
                     ok, _f = cap.read()
-                    if ok:
+                    if ok and (not SKIP_BLACK or _f.mean() > 4):   # all black = a virtual camera, an IR sensor or a closed shutter
                         break
+                    ok = False
                     time.sleep(0.1)
                 if ok:
                     return cap, i

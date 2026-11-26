@@ -663,7 +663,7 @@ def preview(index=None):
     import jarvis_vision
     cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX if index is None else index)
     if not cap:
-        print("No camera found. Plug it in, or try: python jarvis_desk.py --preview 0")
+        print("No camera found. Plug it in, or try: python jarvis_desk.py --cameras")
         return
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, DESK_CAMERA_SIZE[0])
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DESK_CAMERA_SIZE[1])
@@ -741,8 +741,51 @@ def test():
     desk.stop()
 
 
+def cameras():
+    """One picture from every camera, side by side with its number, so you can see which one looks at the desk."""
+    import cv2
+    import numpy as np
+    tiles = []
+    backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF] if IS_WIN else [0]
+    for i in range(6):
+        img, how = None, ""
+        for be in backends:
+            cap = cv2.VideoCapture(i, be)
+            if cap.isOpened():
+                for _ in range(20):
+                    ok, f = cap.read()
+                    if ok and f.mean() > 4:
+                        img, how = f, "ok"
+                        break
+                    if ok:
+                        img, how = f, "BLACK"
+                    time.sleep(0.05)
+            cap.release()
+            if how == "ok":
+                break
+        if img is None:
+            print(f"camera {i}: nothing")
+            continue
+        print(f"camera {i}: {img.shape[1]}x{img.shape[0]} " + ("picture" if how == "ok" else "only black (busy, covered, or an IR or virtual camera)"))
+        t = cv2.resize(img, (480, 270))
+        cv2.putText(t, f"camera {i}" + ("" if how == "ok" else "  (black)"), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 220, 255), 2)
+        tiles.append(t)
+    if not tiles:
+        print("No cameras found. Is Atlas using it? Type desk off first, or close the Atlas window.")
+        return
+    while len(tiles) % 2:
+        tiles.append(np.zeros_like(tiles[0]))
+    sheet = np.vstack([np.hstack(tiles[k:k + 2]) for k in range(0, len(tiles), 2)])
+    print("\nPut the desk camera's number in local_settings.py as DESK_CAMERA_INDEX = <number>. Any key closes the window.")
+    cv2.imshow("Atlas cameras", sheet)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
 if __name__ == "__main__":
-    if "--preview" in sys.argv:
+    if "--cameras" in sys.argv:
+        cameras()
+    elif "--preview" in sys.argv:
         rest = sys.argv[sys.argv.index("--preview") + 1:]
         preview(int(rest[0]) if rest and rest[0].isdigit() else None)
     else:
