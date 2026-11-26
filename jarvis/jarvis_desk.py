@@ -576,7 +576,7 @@ class Desk:
             import jarvis_surface
             to_mat = lambda p: self.cal.to_desk((p[0] * w, p[1] * h))
             hands = [jarvis_surface.refine_tips(frame, lm) for lm in hands]   # pixel exact fingertips
-            self.live["touch"] = self._surface().feed([(lm, to_mat) for lm in hands])
+            self.live["touch"] = self._surface().feed([(lm, to_mat) for lm in hands], frame)
             self.live["fps"], self.live["lag_ms"] = round(self.stats.fps), round(self.stats.lag * 1000)
             if n % 600 == 0:
                 _log(f"hand tracking at {self.stats.fps:.0f} fps, {self.stats.lag * 1000:.0f} ms behind")
@@ -919,7 +919,7 @@ def touch_test(index=None):
         hands = det.hands_all(cv2.cvtColor(small, cv2.COLOR_BGR2RGB), time.time() * 1000)
         hands = [jarvis_surface.refine_tips(frame, lm) for lm in hands]
         to_mat = lambda p: cal.to_desk((p[0] * w, p[1] * h))
-        r = touch.feed([(lm, to_mat) for lm in hands])
+        r = touch.feed([(lm, to_mat) for lm in hands], frame)
         for lm in hands:
             for a, b in ((0, 5), (5, 8), (0, 9), (9, 12), (0, 13), (13, 16), (0, 17), (17, 20), (0, 1), (1, 4)):
                 cv2.line(frame, (int(lm[a][0] * w), int(lm[a][1] * h)), (int(lm[b][0] * w), int(lm[b][1] * h)), (255, 200, 120), 2)
@@ -927,6 +927,11 @@ def touch_test(index=None):
             m = to_mat(lm[8])
             cv2.putText(frame, f"{jarvis_surface.shape(lm)}  mat {m[0]:.2f},{m[1]:.2f}" if m else jarvis_surface.shape(lm),
                         (int(lm[8][0] * w) + 12, int(lm[8][1] * h)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (80, 255, 80), 2)
+        for k, (area, hover, on) in enumerate(getattr(touch, "debug", [])):
+            txt = ("shadow: no light here" if area is None else
+                   f"shadow {area:.2f} / hover {hover or 0:.2f}  " + ("TOUCHING" if on else "hovering") +
+                   ("" if (hover or 0) >= 0.6 else "  (shadow too small to read, using hold still)"))
+            cv2.putText(frame, txt, (14, 74 + 34 * k), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 200, 255) if on else (255, 255, 255), 2)
         cv2.putText(frame, f"hands {len(hands)}   {r['state']}" + (f"   tap {int(r['dwell'] * 100)}%" if r.get("dwell") else ""),
                     (14, 34), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
         cv2.imshow("Atlas touch test", frame)

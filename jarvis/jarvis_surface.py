@@ -36,7 +36,11 @@ LASER_LEVEL = 200         # 0..255 brightness a laser dot has to reach in the IR
 LASER_MIN_AREA = 12       # pixels: smaller is noise
 LEAD_SECONDS = 0.035      # look ahead this far along the finger's motion, to cancel camera and processing lag
 GRACE = 0.15              # a hand that drops out of tracking this long (motion blur) keeps its touch
-PINCH_IN, PINCH_OUT = 0.36, 0.52   # pinch closes under the first gap (share of palm width) and opens over the second
+PINCH_IN, PINCH_OUT = 0.36, 0.52
+SHADOW_TOUCH = True       # real touch from the finger's shadow (see ShadowSense); falls back to hold still when it can't tell
+SHADOW_DARK = 0.62        # a pixel this much darker than the lit mat around it counts as shadow
+SHADOW_MIN_LIGHT = 35     # the mat has to be at least this bright (0..255) under your finger to have a shadow at all
+SHADOW_IN, SHADOW_OUT = 0.24, 0.45   # touching when the shadow shrinks under this share of its hovering size, lifted over that   # pinch closes under the first gap (share of palm width) and opens over the second
 
 
 # ================= smoothing: the One Euro filter (steady when slow, quick when fast) =================
@@ -208,6 +212,43 @@ class Injector:
 
 
 # ================= camera only: gestures -> touches =================
+# ================= real touch from one camera: the finger's shadow =================
+class ShadowSense:
+    """How PlayAnywhere (Microsoft Research, Wilson 2005) and later shadow touch systems tell touching from hovering
+    with one ordinary camera: the projector is a light off to the side, so a hovering finger throws a shadow next to
+    itself, and the shadow shrinks to almost nothing the instant the fingertip meets the surface. This measures how
+    much shadow sits around the fingertip, in units of the finger's own width, so it works at any distance."""
+    def measure(self, frame, lm):
+        import cv2
+        import numpy as np
+        h, w = frame.shape[:2]
+        pts = np.array([(x * w, y * h) for x, y in lm], np.float32)
+        tip, dip = pts[8], pts[7]
+        fw = max(5.0, float(np.hypot(*(tip - dip))) * 0.6)          # finger width in pixels
+        r = int(max(14, fw * 2.4))
+        cx, cy = int(tip[0]), int(tip[1])
+        x0, y0, x1, y1 = max(0, cx - r), max(0, cy - r), min(w, cx + r), min(h, cy + r)
+        if x1 - x0 < 8 or y1 - y0 < 8:
+            return None
+        roi = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+        hand = np.zeros(roi.shape, np.uint8)
+        off = pts - (x0, y0)
+        cv2.fillConvexPoly(hand, cv2.convexHull(off.astype(np.int32)), 255)
+        for a, b in ((5, 6), (6, 7), (7, 8), (9, 10), (10, 11), (11, 12)):   # the fingers themselves, thick
+            cv2.line(hand, tuple(map(int, off[a])), tuple(map(int, off[b])), 255, int(fw * 1.1))
+        hand = cv2.dilate(hand, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (int(fw * 0.7) | 1, int(fw * 0.7) | 1)))
+        yy, xx = np.ogrid[y0:y1, x0:x1]
+        near = (xx - tip[0]) ** 2 + (yy - tip[1]) ** 2 <= r * r
+        outside = (hand == 0) & near
+        if outside.sum() < 30:
+            return None
+        lit = float(np.percentile(roi[outside], 80))
+        if lit < SHADOW_MIN_LIGHT:
+            return None   # nothing projected here (black), so there's no shadow to read
+        shadow = outside & (roi < lit * SHADOW_DARK)
+        return float(shadow.sum()) / (fw * fw)
+
+
 class Hand:
     """One hand followed from frame to frame: its own smoothing, a shape that has to hold before it counts, and a
     short grace period when tracking blinks."""
@@ -216,6 +257,30 @@ class Hand:
         self.f = Point2()
         self.shape, self.pending, self.pending_n = "other", None, 0
         self.x = self.y = None
+        self.hover = None            # how big this finger's shadow is while it hovers (learned as you use it)
+        self.area = None
+        self.touching, self.touch_n = False, 0
+
+    def shadow(self, area):
+        """Feed this frame's shadow size. Returns True/False for touching, or None when it can't tell."""
+        self.area = area
+        if area is None:
+            self.touch_n = 0
+            return None
+        if self.hover is None:
+            self.hover = area
+        if area > (self.hover or 0) * 0.7:      # clearly hovering: keep learning the hover size
+            self.hover = self.hover * 0.9 + area * 0.1 if area < self.hover * 3 else self.hover * 0.7 + area * 0.3
+        if self.hover < 0.6:
+            return None                         # the shadow hides under the finger even when hovering: can't use it
+        want = area < self.hover * SHADOW_IN if not self.touching else area < self.hover * SHADOW_OUT
+        if want != self.touching:
+            self.touch_n += 1
+            if self.touch_n >= 2:               # two frames in a row, so one noisy frame never taps
+                self.touching, self.touch_n = want, 0
+        else:
+            self.touch_n = 0
+        return self.touching
 
     def update_shape(self, raw):
         if raw == self.shape:
@@ -237,6 +302,7 @@ class CameraTouch:
         self.inject, self.clock = inject, clock
         self.hands = []
         self.dwell = None              # (x, y, since, fired) for the pointing finger
+        self.sense = ShadowSense() if SHADOW_TOUCH else None
 
     def _match(self, wrists, t):
         """Pairs this frame's hands with the ones already followed (closest wrist), so each keeps its own filter."""
@@ -253,13 +319,22 @@ class CameraTouch:
         self.hands = out + kept
         return out, kept
 
-    def feed(self, hands):
-        """hands: [(landmarks in camera 0..1, to_mat(point) -> (x, y) or None)]. Returns what it's doing, for the overlay."""
+    def feed(self, hands, frame=None):
+        """hands: [(landmarks in camera 0..1, to_mat(point) -> (x, y) or None)]. frame: the camera picture, for real
+        touch from shadows. Returns what it's doing, for the overlay."""
         t = self.clock()
         tracked, kept = self._match([lm[0] for lm, _ in hands], t)
         seen = []
+        real = {}   # hand -> True/False touching, for hands whose shadow can be read
         for hand, (lm, to_mat) in zip(tracked, hands):
             s = hand.update_shape(shape(lm, hand.shape))
+            if self.sense is not None and frame is not None and s == "point":
+                try:
+                    v = hand.shadow(self.sense.measure(frame, lm))
+                except Exception:
+                    v = None
+                if v is not None:
+                    real[id(hand)] = v
             tip = to_mat(lm[8])
             if not tip:
                 continue
@@ -269,9 +344,12 @@ class CameraTouch:
                 mid = to_mat(lm[12]) or tip
                 tip = ((tip[0] + mid[0]) / 2, (tip[1] + mid[1]) / 2)
             hand.x, hand.y = hand.f(tip[0], tip[1], t)
+            if id(hand) in real:
+                s = "touch" if real[id(hand)] else "hover"
             seen.append((s, hand.x, hand.y))
         for hand in kept:
-            seen.append((hand.shape, hand.x, hand.y))
+            seen.append(("touch" if hand.touching and id(hand) in real else hand.shape, hand.x, hand.y))
+        self.debug = [(h.area, h.hover, h.touching) for h in tracked]
         pinches = [(x, y) for s, x, y in seen if s == "pinch"]
         contacts, state = {}, "idle"
         if len(pinches) >= 2:                      # both hands pinching: zoom
@@ -280,6 +358,14 @@ class CameraTouch:
             self.dwell = None
         elif pinches:                              # pinch = finger down, move = drag
             contacts, state = {1: pinches[0]}, "drag"
+            self.dwell = None
+        elif any(s in ("touch", "hover") for s, _, _ in seen):   # shadows readable: a real touchscreen, any finger
+            touches = [(x, y) for s, x, y in seen if s == "touch"]
+            contacts = {i + 1: p for i, p in enumerate(touches[:2])}
+            state = "touch" if touches else "hover"
+            if not touches:
+                hx, hy = next((x, y) for s, x, y in seen if s == "hover")
+                self.inject.hover(hx, hy)
             self.dwell = None
         else:
             two = [(x, y) for s, x, y in seen if s == "two"]
@@ -303,7 +389,7 @@ class CameraTouch:
                         self.dwell = (x, y, t, False)
                 else:
                     self.dwell = None
-        if state not in ("tap", "point"):
+        if state not in ("tap", "point", "hover"):
             self.inject.frame(contacts)
         elif self.inject.down:
             self.inject.release()
@@ -488,7 +574,7 @@ class Overlay:
                 ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex | 0x80000 | 0x20 | 0x08000000)   # layered, transparent, no activate
             except Exception:
                 pass
-        ICE = "#9cd3ff"
+        ICE = "#ff6a4d"
 
         def draw():
             if not self.alive:

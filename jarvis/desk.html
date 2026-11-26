@@ -9,11 +9,12 @@
 <style>
   /* Projected onto a mat: black projects no light, so the mat stays the mat and only the UI glows. */
   :root {
-    --bg: #000; --tile: rgba(156, 211, 255, .06); --tile-hi: rgba(156, 211, 255, .16); --line: rgba(156, 211, 255, .22);
-    --ice: #9cd3ff; --text: #eaf4ff; --dim: #7f93ab; --warm: #ffc677; --good: #6fe3a6;
+    --bg: #000; --tile: rgba(255, 106, 77, .06); --tile-hi: rgba(255, 106, 77, .16); --line: rgba(255, 106, 77, .22);
+    --ice: #ff6a4d; --text: #fff1ea; --dim: #b5806f; --warm: #ffb84d; --good: #6fe3a6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; background: var(--bg); color: var(--text); overflow: hidden; cursor: none;
+  html { background: var(--bg); }
+  html, body { height: 100%; color: var(--text); overflow: hidden; cursor: none;
     font: 1.9vh/1.35 Inter, "Segoe UI", system-ui, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
   body.mouse { cursor: default; }
   .mono { font-family: "JetBrains Mono", Consolas, monospace; }
@@ -21,7 +22,18 @@
 
   main { position: fixed; inset: 3vh 2.5vw; display: grid; gap: 1.6vh 1.2vw;
     grid-template-columns: 1fr 1.25fr 1fr; grid-template-rows: auto 1fr auto; }
-  .tile { border: 1px solid var(--line); border-radius: 2vh; background: var(--tile); padding: 2vh 1.4vw; position: relative; min-height: 0; overflow: hidden; }
+  /* glass: frosted panes lit from the top edge, floating over a faint ember glow */
+  body::before { content: ""; position: fixed; inset: -10%; z-index: -1; pointer-events: none;
+    background: radial-gradient(40% 45% at 22% 30%, rgba(255, 106, 77, .22), transparent 70%),
+                radial-gradient(38% 40% at 80% 72%, rgba(255, 150, 80, .16), transparent 70%),
+                radial-gradient(30% 35% at 55% 10%, rgba(255, 80, 60, .10), transparent 70%); }
+  .tile { border-radius: 2.4vh; position: relative; min-height: 0; overflow: hidden; padding: 2vh 1.4vw;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, .025) 45%, rgba(255, 106, 77, .05));
+    border: 1px solid rgba(255, 255, 255, .12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 106, 77, .06), 0 2vh 5vh rgba(0, 0, 0, .55);
+    backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); }
+  .tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(115deg, rgba(255, 255, 255, .09) 0%, transparent 28%); }
   .tile h3 { font: 600 1.25vh/1 "JetBrains Mono", monospace; letter-spacing: .24em; text-transform: uppercase; color: var(--ice);
     margin-bottom: 1.4vh; display: flex; align-items: center; gap: .6vw; }
   .tile h3::before { content: ""; width: .8vh; height: .8vh; border-radius: 50%; background: var(--ice); box-shadow: 0 0 1vh var(--ice); }
@@ -31,21 +43,26 @@
   /* buttons: finger sized */
   .row { display: flex; gap: .8vw; flex-wrap: wrap; margin-top: 1.4vh; }
   .grid { display: grid; gap: .8vw; margin-top: 1.4vh; }
-  .btn { min-height: 7vh; min-width: 7vh; padding: 0 1.1vw; border-radius: 1.6vh; border: 1px solid var(--line);
+  .btn { min-height: 7vh; min-width: 7vh; padding: 0 1.1vw; border-radius: 1.8vh; position: relative; overflow: hidden;
     display: flex; align-items: center; justify-content: center; gap: .5vw; text-align: center;
-    font-weight: 600; font-size: 2vh; color: var(--text); background: rgba(156, 211, 255, .07);
-    transition: transform .12s ease-out, background .2s, border-color .2s; }
-  .btn.hot { background: var(--tile-hi); border-color: var(--ice); transform: scale(.94); }
-  .btn.on { background: rgba(156, 211, 255, .2); border-color: var(--ice); }
+    font-weight: 600; font-size: 2vh; color: var(--text);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .03));
+    border: 1px solid rgba(255, 255, 255, .14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 .6vh 1.6vh rgba(0, 0, 0, .4);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    transition: transform .12s ease-out, background .2s, border-color .2s, box-shadow .2s; }
+  .btn.hot { transform: scale(.94); border-color: rgba(255, 106, 77, .8);
+    background: linear-gradient(180deg, rgba(255, 106, 77, .45), rgba(255, 106, 77, .18)); box-shadow: 0 0 3vh rgba(255, 106, 77, .55), inset 0 1px 0 rgba(255, 255, 255, .3); }
+  .btn.on { border-color: rgba(255, 106, 77, .7); background: linear-gradient(180deg, rgba(255, 106, 77, .32), rgba(255, 106, 77, .1)); }
   .btn svg { width: 2.6vh; height: 2.6vh; }
-  .btn.ice { background: var(--ice); color: #04121f; border-color: var(--ice); }
+  .btn.ice { background: var(--ice); color: #1c0803; border-color: var(--ice); }
 
   /* center: Atlas */
   #atlas { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: center; text-align: center; }
   #core { width: 34vh; height: 34vh; position: relative; margin: 1vh 0 1.5vh; }
   #core canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   #core .mid { position: absolute; inset: 0; display: grid; place-content: center; }
-  #clock { font-size: 7.5vh; font-weight: 700; letter-spacing: -.02em; text-shadow: 0 0 2vh rgba(156, 211, 255, .45); }
+  #clock { font-size: 7.5vh; font-weight: 700; letter-spacing: -.02em; text-shadow: 0 0 2vh rgba(255, 106, 77, .45); }
   #date { font: 500 1.4vh/1 "JetBrains Mono", monospace; letter-spacing: .28em; text-transform: uppercase; color: var(--ice); margin-top: .4vh; }
   #state { font: 500 1.2vh/1 "JetBrains Mono", monospace; letter-spacing: .3em; color: var(--dim); margin-top: 1.2vh; }
   #reply { min-height: 9vh; max-height: 17vh; overflow: hidden; font-size: 2.3vh; line-height: 1.4; color: var(--text); padding: 0 1vw; }
@@ -66,11 +83,12 @@
   #apps .btn { flex-direction: column; gap: .5vh; font-size: 1.6vh; min-height: 9vh; }
   #apps .btn b { font-size: 2.8vh; }
 
-  .log div { padding: .7vh 0; border-bottom: 1px solid rgba(156, 211, 255, .1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log div { padding: .7vh 0; border-bottom: 1px solid rgba(255, 106, 77, .1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .log span { color: var(--ice); margin-right: .8vw; font-family: "JetBrains Mono", monospace; font-size: 1.6vh; }
 
-  #toast { position: fixed; left: 50%; bottom: 2vh; transform: translate(-50%, 6vh); padding: 1.2vh 1.6vw; border-radius: 1.4vh;
-    background: rgba(156, 211, 255, .14); border: 1px solid var(--line); font-size: 1.9vh; transition: transform .25s; z-index: 6; }
+  #toast { position: fixed; left: 50%; bottom: 2vh; transform: translate(-50%, 8vh); padding: 1.2vh 1.6vw; border-radius: 1.8vh;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .04)); border: 1px solid rgba(255, 255, 255, .16);
+    backdrop-filter: blur(18px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 1vh 3vh rgba(0, 0, 0, .5); font-size: 1.9vh; transition: transform .25s; z-index: 6; }
   #toast.show { transform: translate(-50%, 0); }
 
   /* calibration (Atlas shows these while it lines the camera up) */
@@ -96,8 +114,8 @@
   <section class="tile" style="grid-column:1;grid-row:2;display:flex;flex-direction:column">
     <h3>Timer</h3>
     <div id="timerWrap">
-      <svg id="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(156,211,255,.15)" stroke-width="6"/>
-        <circle id="arc" cx="50" cy="50" r="44" fill="none" stroke="#9cd3ff" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 277" transform="rotate(-90 50 50)"/></svg>
+      <svg id="ring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,106,77,.15)" stroke-width="6"/>
+        <circle id="arc" cx="50" cy="50" r="44" fill="none" stroke="#ff6a4d" stroke-width="6" stroke-linecap="round" stroke-dasharray="0 277" transform="rotate(-90 50 50)"/></svg>
       <div><div id="tleft">--:--</div><div class="sub" id="tlabel">Tap a time to start</div></div>
     </div>
     <div class="grid" style="grid-template-columns:repeat(4,1fr)">
@@ -273,18 +291,18 @@ function draw(now) {
     if (hull.length < 3) continue;
     const mx = hull.reduce((a, p) => a + p[0], 0) / hull.length, my = hull.reduce((a, p) => a + p[1], 0) / hull.length;
     cx.beginPath(); hull.map((p) => [mx + (p[0] - mx) * 1.18, my + (p[1] - my) * 1.18]).forEach((p, i) => i ? cx.lineTo(...p) : cx.moveTo(...p)); cx.closePath();
-    cx.fillStyle = "#000"; cx.fill(); cx.strokeStyle = "rgba(156,211,255,.7)"; cx.lineWidth = 2 * k; cx.stroke();
+    cx.fillStyle = "#000"; cx.fill(); cx.strokeStyle = "rgba(255,106,77,.7)"; cx.lineWidth = 2 * k; cx.stroke();
   }
   for (const f of live.fingers || []) {     // where you'll press, filling as the press charges
     const x = f.x * W, y = f.y * H, r = 22 * k;
-    cx.strokeStyle = "rgba(156,211,255,.45)"; cx.lineWidth = 1.5 * k; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.stroke();
-    cx.strokeStyle = f.pinch ? "#ffc677" : "#9cd3ff"; cx.lineWidth = 4 * k;
+    cx.strokeStyle = "rgba(255,106,77,.45)"; cx.lineWidth = 1.5 * k; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.stroke();
+    cx.strokeStyle = f.pinch ? "#ffb84d" : "#ff6a4d"; cx.lineWidth = 4 * k;
     cx.beginPath(); cx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (f.pinch ? 1 : f.dwell || 0)); cx.stroke();
   }
   ripples = ripples.filter((p) => now - p.t < 600);
   for (const p of ripples) {
     const t = (now - p.t) / 600;
-    cx.strokeStyle = `rgba(156,211,255,${1 - t})`; cx.lineWidth = 3 * k;
+    cx.strokeStyle = `rgba(255,106,77,${1 - t})`; cx.lineWidth = 3 * k;
     cx.beginPath(); cx.arc(p.x * W, p.y * H, (20 + 70 * t) * k, 0, 7); cx.stroke();
   }
   drawCore(now);
@@ -310,7 +328,7 @@ function drawCore(now) {
   const t = now / 1000 * speed;
   [[.97, 90, 1.2, .5], [.88, 3, 5, .9], [.79, 60, 2, .45], [.70, 1, 2.5, .7]].forEach(([rr, segs, wd, a], i) => {
     const r = R * rr, dir = i % 2 ? -1 : 1;
-    cg.strokeStyle = `rgba(156,211,255,${a * glow})`; cg.lineWidth = wd * k;
+    cg.strokeStyle = `rgba(255,106,77,${a * glow})`; cg.lineWidth = wd * k;
     if (segs > 4) for (let s = 0; s < segs; s += 2) {
       const a0 = s / segs * Math.PI * 2 + t * .15 * dir; cg.beginPath(); cg.arc(0, 0, r, a0, a0 + Math.PI / segs); cg.stroke();
     } else for (let s = 0; s < segs; s++) {

@@ -8,19 +8,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0a0f1a; --panel: #101827; --line: #1c2638; --text: #e6edf7; --dim: #8593a8; --faint: #4d5a70;
-    --ice: #9cd3ff; --ice-dim: rgba(156, 211, 255, .12); --you: #162135; --danger: #ff8a8a;
+    --bg: #0b0706; --panel: rgba(255,255,255,.05); --line: rgba(255,255,255,.12); --text: #fff1ea; --dim: #b5918a; --faint: #6e5550;
+    --ice: #ff6a4d; --ice-dim: rgba(255, 106, 77, .14); --you: rgba(255,106,77,.12); --danger: #ff8a8a;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    background: radial-gradient(1200px 600px at 50% -200px, #12203a 0%, var(--bg) 60%) fixed, var(--bg);
+    background: radial-gradient(900px 500px at 15% -10%, rgba(255,106,77,.22), transparent 60%) fixed, radial-gradient(800px 500px at 100% 100%, rgba(255,150,80,.14), transparent 60%) fixed, var(--bg);
     color: var(--text); font: 15px/1.6 Inter, "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column;
     -webkit-font-smoothing: antialiased;
   }
   header {
     display: flex; align-items: center; gap: 14px; padding: 14px 22px; border-bottom: 1px solid var(--line);
-    background: rgba(10, 15, 26, .72); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 2;
+    background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02)); backdrop-filter: blur(20px) saturate(160%); box-shadow: inset 0 -1px 0 rgba(255,255,255,.06); position: sticky; top: 0; z-index: 2;
   }
   .mark { width: 26px; height: 26px; position: relative; }
   .mark i { position: absolute; inset: 0; border: 1.5px solid var(--ice); border-radius: 50%; opacity: .9; }
@@ -32,7 +32,7 @@
   @keyframes spin { to { rotate: 360deg; } }
   h1 { font-size: 15px; font-weight: 600; letter-spacing: .14em; margin: 0; }
   #status { font-size: 12px; color: var(--dim); display: flex; align-items: center; gap: 7px; }
-  #status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #5fd49a; }
+  #status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #7be0a6; }
   body.thinking #status::before { background: var(--ice); animation: pulse 1s ease-in-out infinite; }
   body.offline #status::before { background: var(--danger); }
   @keyframes pulse { 50% { opacity: .3; } }
@@ -55,7 +55,7 @@
   .msg.you { justify-content: flex-end; }
   .msg.you .who { display: none; }
   .msg.you .col { max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; }
-  .msg.you .bubble { background: var(--you); border: 1px solid var(--line); padding: 9px 14px; border-radius: 14px 14px 4px 14px; }
+  .msg.you .bubble { background: linear-gradient(180deg, rgba(255,106,77,.2), rgba(255,106,77,.08)); border: 1px solid rgba(255,150,120,.25); box-shadow: inset 0 1px 0 rgba(255,255,255,.15); backdrop-filter: blur(12px); padding: 9px 14px; border-radius: 14px 14px 4px 14px; }
   .msg.you .time { text-align: right; }
   .body code { font: 13px "JetBrains Mono", Consolas, monospace; background: var(--panel); padding: 1px 5px; border-radius: 4px; }
   .typing { display: none; gap: 12px; align-items: center; color: var(--dim); font-size: 13px; }
@@ -69,12 +69,12 @@
   footer { padding: 10px 22px 22px; }
   .wrap { max-width: 760px; margin: 0 auto; }
   #chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-  #chips button { background: transparent; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
+  #chips button { background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); backdrop-filter: blur(12px); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
     font: 13px Inter, system-ui, sans-serif; cursor: pointer; transition: .15s; }
   #chips button:hover { color: var(--text); border-color: var(--ice); background: var(--ice-dim); }
-  .composer { display: flex; align-items: flex-end; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+  .composer { display: flex; align-items: flex-end; gap: 10px; background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.03)); border: 1px solid var(--line); border-radius: 18px; backdrop-filter: blur(20px); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 30px rgba(0,0,0,.45);
     padding: 10px 10px 10px 16px; transition: border-color .15s, box-shadow .15s; }
-  .composer:focus-within { border-color: rgba(156, 211, 255, .5); box-shadow: 0 0 0 4px rgba(156, 211, 255, .07); }
+  .composer:focus-within { border-color: rgba(255, 106, 77, .5); box-shadow: 0 0 0 4px rgba(255, 106, 77, .07); }
   textarea { flex: 1; resize: none; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; max-height: 180px; padding: 6px 0; }
   textarea::placeholder { color: var(--faint); }
   #send { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--ice); color: var(--bg); cursor: pointer;
