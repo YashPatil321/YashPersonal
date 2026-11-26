@@ -125,7 +125,13 @@ if (-not $hasTorch) {
 # a copy of Python named Jarvis.exe, so Task Manager shows "Jarvis" instead of "python"
 Copy-Item $py "$Dir\.venv\Scripts\Jarvis.exe" -Force
 Step "Checking packages"
-& $py -m pip install -q --retries 10 -r "$Dir\requirements.txt"
+$req = "$Dir\requirements.txt"
+if (-not $hasNvidia) {   # the NVIDIA libraries are about 2 GB and useless without an NVIDIA card
+    $req = "$env:TEMP\atlas-req-cpu.txt"
+    Get-Content "$Dir\requirements.txt" | Where-Object { $_ -notmatch "^nvidia-" } | Set-Content $req
+}
+& $py -m pip install -q --retries 10 --no-cache-dir -r $req
+& $py -m pip cache purge *> $null   # downloads pip kept around, often gigabytes
 Push-Location $Dir
 & $py update.py --extras   # camera, face ID, screenshots. A failure here only turns those off
 Pop-Location
@@ -134,8 +140,10 @@ if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
 }
 
 # 5b. Old Jarvis tasks in Task Scheduler start a second, hidden copy that can't control the screen. Remove them.
+Set-StrictMode -Off
 $old = Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object {
-    $_.TaskName -match "jarvis" -or ((($_.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" }) -join " ") -match "jarvis")
+    $acts = @($_.Actions | ForEach-Object { try { "$($_.Execute) $($_.Arguments)" } catch { "" } }) -join " "   # some tasks have actions with no program
+    $_.TaskName -match "jarvis" -or $acts -match "jarvis"
 }
 if ($old) {
     Step "Removing old Jarvis tasks from Task Scheduler: $(($old | ForEach-Object TaskName) -join ', ')"

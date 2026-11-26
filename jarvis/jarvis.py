@@ -381,6 +381,13 @@ def load_whisper():
     add_cuda_dlls()
     from faster_whisper import WhisperModel
     try:
+        import ctranslate2
+        if ctranslate2.get_cuda_device_count() == 0:   # no NVIDIA card: don't download the big model just to find out
+            log("no NVIDIA GPU, using CPU whisper small.en")
+            return WhisperModel("small.en", device="cpu", compute_type="int8"), "cpu"
+    except Exception:
+        pass
+    try:
         m = WhisperModel(WHISPER_MODEL, device="cuda", compute_type="float16")
         # RTX 50 cards can load fine and then fail on the first real decode, so test one now
         warm = (np.random.default_rng(0).standard_normal(RATE) * 0.01).astype(np.float32)

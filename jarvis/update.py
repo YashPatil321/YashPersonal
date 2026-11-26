@@ -245,7 +245,13 @@ def update():
         print("update: created local_settings.py, put your mic and speaker settings there")
     if open(os.path.join(HERE, "requirements.txt")).read() != old_req:
         print("update: installing new packages")
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", os.path.join(HERE, "requirements.txt")], creationflags=NO_WINDOW)
+        req = os.path.join(HERE, "requirements.txt")
+        if not shutil.which("nvidia-smi"):   # no NVIDIA card: skip the 2 GB of NVIDIA libraries
+            lines = [l for l in open(req) if not l.strip().startswith("nvidia-")]
+            req = os.path.join(HERE, ".cache", "requirements-cpu.txt")
+            os.makedirs(os.path.dirname(req), exist_ok=True)
+            open(req, "w").writelines(lines)
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-cache-dir", "-r", req], creationflags=NO_WINDOW)
     install_extras()
     write_version()
     return len(files)
