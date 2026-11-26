@@ -99,6 +99,7 @@ STREAM = True                # start talking at the first sentence instead of wa
 TELEGRAM_TOKEN = ""          # your own Telegram bot (from @BotFather) to talk to Atlas from your phone. See jarvis_trust.py
 TELEGRAM_CHAT_ID = 0         # filled in automatically when you pair
 PUSH_TO_TALK = True          # Ctrl+Alt+Space anywhere in Windows = talk to Atlas (no wake word, works with loud music)
+TYPE_TO_ATLAS = True         # type commands into the Atlas window too (handy with no mic or no GPU)
 FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
 KEEP_LISTENING = True        # while Claude thinks, Atlas still hears you, so you can give it more commands
 # words Whisper should expect, so names come out right. Add your own in local_settings.py as VOCAB_EXTRA
@@ -3516,6 +3517,34 @@ def main():
             return True
         return wake.predict(frame).get(WAKE_KEY, 0) >= max(WAKE_THRESHOLD, BARGE_THRESHOLD)
     speaker.watch = barge
+
+    def typed():
+        """Type to Atlas in its window: anything you'd say, without the name. Works alongside the mic."""
+        time.sleep(3)
+        print("\n  Type to Atlas here any time (e.g. desk mode). Press Enter to send.\n", flush=True)
+        while True:
+            try:
+                line = input().strip()
+            except EOFError:
+                return
+            except Exception:
+                time.sleep(1)
+                continue
+            if not line:
+                continue
+            log(f"you (typed): {line}")
+            jarvis.last_heard = time.time()
+            try:
+                jarvis_orb.send("thinking")
+                with jarvis.lock:
+                    keep = jarvis.handle(line)
+                if not keep:
+                    hard_exit(0, "going offline")
+            except Exception as e:
+                log(f"error: {e}")
+            jarvis_orb.send("idle")
+    if TYPE_TO_ATLAS and sys.stdin and sys.stdin.isatty():
+        threading.Thread(target=typed, daemon=True).start()
 
     with Mic(mic):
         import jarvis_listen

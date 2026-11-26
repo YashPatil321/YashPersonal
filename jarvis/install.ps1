@@ -106,12 +106,26 @@ if (-not (Test-Path $py)) {
     if (-not (Test-Path $py)) { py -3.11 -m venv .venv }
     Pop-Location
     & $py -m pip install --upgrade pip
-    & $py -m pip install torch --index-url https://download.pytorch.org/whl/cu128   # RTX 50 series build
+}
+$hasNvidia = [bool](Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "NVIDIA" })
+$ErrorActionPreference = "Continue"
+& $py -m pip install -q --upgrade pip
+& $py -c "import torch" *> $null
+$hasTorch = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = "Stop"
+if (-not $hasTorch) {
+    if ($hasNvidia) {
+        Step "Installing the GPU build of PyTorch (about 2.8 GB)"
+        & $py -m pip install --retries 10 --resume-retries 20 torch --index-url https://download.pytorch.org/whl/cu128   # RTX 50 series build
+    } else {
+        Step "No NVIDIA card here: installing the small CPU build of PyTorch"
+        & $py -m pip install --retries 10 --resume-retries 20 torch --index-url https://download.pytorch.org/whl/cpu
+    }
 }
 # a copy of Python named Jarvis.exe, so Task Manager shows "Jarvis" instead of "python"
 Copy-Item $py "$Dir\.venv\Scripts\Jarvis.exe" -Force
 Step "Checking packages"
-& $py -m pip install -q -r "$Dir\requirements.txt"
+& $py -m pip install -q --retries 10 -r "$Dir\requirements.txt"
 Push-Location $Dir
 & $py update.py --extras   # camera, face ID, screenshots. A failure here only turns those off
 Pop-Location
