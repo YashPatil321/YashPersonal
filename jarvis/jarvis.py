@@ -53,6 +53,7 @@ import jarvis_phone
 import jarvis_room
 import jarvis_wake
 import jarvis_chats
+import jarvis_chatui
 import jarvis_evolve
 import jarvis_multi
 import jarvis_persona
@@ -751,6 +752,18 @@ class PC:
         import webbrowser
         webbrowser.open(url)
 
+    def open_window(self, url, w=880, h=980):
+        """A page as its own app window (no tabs or address bar), sized like a normal window."""
+        exe, prof = browser_exe(), browser_profile()
+        if not exe:
+            exe, prof = jarvis_desk._browser(), None
+        if IS_WIN and exe:
+            args = [exe] + (["--profile-directory=" + prof] if prof else []) + ["--app=" + url, f"--window-size={w},{h}"]
+            launch_as_user(args)
+            return
+        import webbrowser
+        webbrowser.open(url)
+
     def lock(self):
         log("lock screen")
         if IS_WIN:
@@ -1085,6 +1098,8 @@ def _route(text):
         return ("voice_list", None)
     if re.fullmatch(r"(?:install|set up|turn on) (?:vision clicking|omni ?parser|better clicking|screen vision)", t):
         return ("install_vision", None)
+    if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |a |my )?(?:chat|chat window|atlas chat|typing window|text box)", t):
+        return ("chat_open", None)
     if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
         return ("command_center", None)
     cc = cc or jarvis_trust.route_trust(t) or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
@@ -2684,6 +2699,10 @@ class Jarvis:
             if getattr(self, "jobs", None):
                 self.jobs.start("install vision clicking", go)
             return True
+        if action == "chat_open":
+            pc.open_window(self.local_url("/chat"))
+            say("Chat's open.")
+            return True
         if action == "command_center":
             pc.open_url(self.local_url("/command"), app_window=True)
             say("Command center's up.")
@@ -3440,7 +3459,10 @@ def main():
     global ACTIVITY, MODS, CONVOS
     MODS = load_mods()
     CONVOS = jarvis_memory.Conversations(vault=BRAIN.vault)
-    Speaker.on_said = lambda text: CONVOS.add("jarvis", text)
+    def _said(text):
+        CONVOS.add("jarvis", text)
+        jarvis_chatui.add("atlas", text)   # the chat window shows everything Atlas says
+    Speaker.on_said = _said
     global EVOLVER
     EVOLVER = jarvis_evolve.Evolver(claude_cmd(jarvis.claude or find_claude() or "claude"), LOG_FILE, vault=BRAIN.vault,
                                     say=speaker.say, news=BRAIN.news, restart=lambda: setattr(jarvis, "restart_for_update", True),
@@ -3594,6 +3616,9 @@ def main():
                 h.wfile.write(body)
             bridge.routes["/command/memory"] = memory_json
             bridge.routes["/command"] = command_page
+            jarvis_chatui.register(bridge, jarvis, orb_state=lambda: jarvis_orb.LAST.get("state", "idle"))
+            if not VOICE_INPUT:   # typing mode: the chat window is the way in
+                threading.Timer(2.0, lambda: jarvis.pc.open_window(jarvis.local_url("/chat"))).start()
             bridge.routes["/command/state"] = command_json
             jarvis.cad = jarvis_cad.CadHub(say=speaker.say)
             jarvis_cad.SNAP_DIR = os.path.join(BRAIN.vault.root, "CAD")
@@ -3657,6 +3682,7 @@ def main():
                     print(PROMPT, end="", flush=True)
                 continue
             log(f"you (typed): {line}")
+            jarvis_chatui.add("you", line)
             jarvis.last_heard = time.time()
             try:
                 jarvis_orb.send("thinking")
@@ -3812,6 +3838,7 @@ def main():
             jarvis.recording = False
             jarvis.last_heard = time.time()
             log(f"you: {text}")
+            jarvis_chatui.add("you", text)
             if not text:
                 jarvis_orb.send("idle")
                 continue
