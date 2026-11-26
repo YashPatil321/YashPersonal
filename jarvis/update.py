@@ -23,6 +23,8 @@ REPO = os.environ.get("JARVIS_REPO", r"C:\yash-system")      # where you cloned 
 BRANCH = os.environ.get("JARVIS_BRANCH", "claude/hopeful-bohr-1ramsu")
 MANAGED = ["jarvis.py", "jarvis_*.py", "update.py", "requirements.txt", "requirements-extras.txt", "*.html", "README.md", "HANDOFF.md"]
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+os.environ.setdefault("GIT_TERMINAL_PROMPT", "0")   # the repo is public: never sit waiting on a hidden login prompt
+os.environ.setdefault("GCM_INTERACTIVE", "never")
 
 
 ZIP_URL = "https://codeload.github.com/YashPatil321/YashPersonal/zip/refs/heads/" + BRANCH
