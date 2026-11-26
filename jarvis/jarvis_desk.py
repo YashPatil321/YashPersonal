@@ -482,6 +482,7 @@ class Desk:
         import jarvis_vision
         mon = getattr(getattr(self, "vision", None), "camera_index", jarvis_vision.CAMERA_INDEX)
         cap, why = open_desk_camera()
+        self.camera_text = why if cap else f"no desk camera ({why})"
         if not cap and mon != desk_index():   # not where it should be: any other camera that isn't Atlas's own
             cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX, avoid=mon)
             if cap:
@@ -499,6 +500,7 @@ class Desk:
                 # only one camera on this PC and Atlas's camera already has it: share its pictures instead of fighting over it
                 shared = v
                 _log(f"one camera only: the desk shares camera {getattr(v, 'camera_index', '?')} with Atlas")
+                self.camera_text = f"sharing Atlas's camera {getattr(v, 'camera_index', '?')}"
             else:
                 _log(f"no desk camera at index {DESK_CAMERA_INDEX}")
                 self.say("I can't find the desk camera. Plug it in, or set DESK CAMERA INDEX.")
@@ -649,6 +651,24 @@ class Desk:
             if phrase:
                 go(phrase)
 
+    def status(self):
+        """Plain words: what the desk is doing and what's wrong, for 'desk status'."""
+        l, tch = self.live, self.live.get("touch") or {}
+        if not self.running:
+            return "The desk is off. Type touchscreen mode to start it."
+        bits = [getattr(self, "camera_text", "camera: unknown"),
+                f"{self.stats.fps:.0f} frames a second",
+                "calibrated" if self.cal.ready else "NOT calibrated, type calibrate the desk",
+                f"mode {self.mode}"]
+        if self.mode == "screen":
+            hands = len(tch.get("fingers", []))
+            bits.append(f"hands seen now: {hands}" + (f", doing: {tch.get('state')}" if hands else ""))
+            if self.surface is not None:
+                inj = self.surface.inject
+                bits.append("sending real touch" if inj.ok else "sending mouse clicks")
+                bits.append(f"touch area {inj.screen[2]}x{inj.screen[3]} at {inj.screen[0]},{inj.screen[1]}")
+        return ". ".join(bits) + "."
+
     # ---- web pages ----
     def register(self, bridge):
         import jarvis_orb
@@ -769,6 +789,8 @@ def route_desk(t):
         return ("desk", False)
     if re.fullmatch(r"(?:calibrate|recalibrate|line up|align) (?:the |my )?(?:desk|projector)", t):
         return ("desk_cal", None)
+    if re.fullmatch(r"(?:desk|touch|touchscreen|touch screen) (?:status|check|test)|(?:is|why is) (?:the )?(?:touch ?screen|desk) (?:working|not working)", t):
+        return ("desk_status", None)
     if re.fullmatch(r"(?:print|show|open) (?:my |the )?(?:desk )?cards", t):
         return ("desk_cards", None)
     if re.fullmatch(r"(?:hologram|holo)(?: mode)?|(?:open|show|start) (?:the )?hologram", t):
@@ -861,6 +883,56 @@ def preview(index=None):
         k = cv2.waitKey(1) & 0xFF
         if k in (ord("q"), 27):
             break
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+def touch_test(index=None):
+    """The touchscreen on its own, with everything visible: the camera picture with each hand's shape and where it
+    lands on the mat, and real touches sent to Windows. Every tap, drag and scroll prints here. Q closes."""
+    import cv2
+    import jarvis_surface
+    import jarvis_vision
+    _settings()
+    cal = Calibration()
+    if not cal.ready:
+        print("Not calibrated yet. Run: python jarvis_desk.py --preview  first.")
+        return
+    cap, why = open_desk_camera(index, log=print)
+    if not cap:
+        print(why)
+        return
+    det = jarvis_vision.Detectors(hands=True, faces=False, gestures=False, confidence=0.5)
+    scr = projector_screen(or_main=True) or (0, 0, 1920, 1080, True)
+    inj = jarvis_surface.Injector(scr[:4])
+    touch = jarvis_surface.CameraTouch(inj)
+    print(f"Touch area: {scr[2]}x{scr[3]} at {scr[0]},{scr[1]}. Sending " + ("real Windows touch." if inj.ok else "mouse clicks."))
+    print("Point with your index finger and hold still to tap. Pinch to drag. Two fingers to scroll. Q closes.")
+    cv2.namedWindow("Atlas touch test", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Atlas touch test", 640, 360)
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            continue
+        h, w = frame.shape[:2]
+        small = frame if w <= 1280 else cv2.resize(frame, (1280, int(h * 1280 / w)))
+        hands = det.hands_all(cv2.cvtColor(small, cv2.COLOR_BGR2RGB), time.time() * 1000)
+        hands = [jarvis_surface.refine_tips(frame, lm) for lm in hands]
+        to_mat = lambda p: cal.to_desk((p[0] * w, p[1] * h))
+        r = touch.feed([(lm, to_mat) for lm in hands])
+        for lm in hands:
+            for a, b in ((0, 5), (5, 8), (0, 9), (9, 12), (0, 13), (13, 16), (0, 17), (17, 20), (0, 1), (1, 4)):
+                cv2.line(frame, (int(lm[a][0] * w), int(lm[a][1] * h)), (int(lm[b][0] * w), int(lm[b][1] * h)), (255, 200, 120), 2)
+            cv2.circle(frame, (int(lm[8][0] * w), int(lm[8][1] * h)), 8, (80, 255, 80), -1)
+            m = to_mat(lm[8])
+            cv2.putText(frame, f"{jarvis_surface.shape(lm)}  mat {m[0]:.2f},{m[1]:.2f}" if m else jarvis_surface.shape(lm),
+                        (int(lm[8][0] * w) + 12, int(lm[8][1] * h)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (80, 255, 80), 2)
+        cv2.putText(frame, f"hands {len(hands)}   {r['state']}" + (f"   tap {int(r['dwell'] * 100)}%" if r.get("dwell") else ""),
+                    (14, 34), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+        cv2.imshow("Atlas touch test", frame)
+        if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
+            break
+    inj.release()
     cap.release()
     cv2.destroyAllWindows()
 
@@ -996,6 +1068,8 @@ def cameras():
 if __name__ == "__main__":
     if "--cameras" in sys.argv:
         cameras()
+    elif "--touch" in sys.argv:
+        touch_test()
     elif "--preview" in sys.argv:
         rest = sys.argv[sys.argv.index("--preview") + 1:]
         preview(int(rest[0]) if rest and rest[0].isdigit() else None)

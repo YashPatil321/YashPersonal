@@ -164,10 +164,14 @@ class Injector:
                 t.pointerInfo.ptPixelLocation.x, t.pointerInfo.ptPixelLocation.y = x, y
                 t.touchMask = 0x1 | 0x2 | 0x4
                 t.rcContact.left, t.rcContact.right, t.rcContact.top, t.rcContact.bottom = x - 4, x + 4, y - 4, y + 4
-                t.orientation, t.pressure = 90, 32000
+                t.orientation, t.pressure = 90, 512   # Windows takes 0 to 1024; anything over makes it refuse the touch
             if not self.u.InjectTouchInput(len(items), arr):
+                err = self.ct.GetLastError()
+                print(time.strftime("[%H:%M:%S] ") + f"surface: Windows refused touch input (error {err}), using the mouse instead", flush=True)
                 self.ok = False   # some setups refuse touch injection: use the mouse from now on
+                self.down = {}
                 return self._mouse(now)
+            self.sent = getattr(self, "sent", 0) + 1
         self.down = now
 
     def _mouse(self, now):
@@ -303,6 +307,9 @@ class CameraTouch:
             self.inject.frame(contacts)
         elif self.inject.down:
             self.inject.release()
+        if state != getattr(self, "last_state", None) and state != "idle":
+            print(time.strftime("[%H:%M:%S] ") + f"surface: {state}" + (f" at {seen[0][1]:.2f}, {seen[0][2]:.2f}" if seen else ""), flush=True)
+        self.last_state = state
         prog = 0.0
         if self.dwell and not self.dwell[3]:
             prog = min(1.0, (t - self.dwell[2]) / DWELL_TAP)

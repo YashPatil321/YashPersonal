@@ -3004,6 +3004,9 @@ class Jarvis:
                 hub.send("close")
                 say("Workshop closed.")
             return True
+        if action == "desk_status":
+            say(self.desk.status() if self.desk else "The desk isn't set up. It needs the phone bridge on.")
+            return True
         if action in ("desk", "desk_cal", "desk_cards", "holo"):
             d = self.desk
             if not d:
