@@ -483,3 +483,120 @@ def route_desk(t):
     if re.fullmatch(r"(?:hologram|holo)(?: mode)?|(?:open|show|start) (?:the )?hologram", t):
         return ("holo", None)
     return None
+
+
+# ================= test it on its own: python jarvis_desk.py =================
+def _browser():
+    import shutil
+    for p in (r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+              r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"):
+        if os.path.exists(p):
+            return p
+    return shutil.which("chrome") or shutil.which("msedge")
+
+
+def open_on_projector(url):
+    """Opens a page full screen on the projector (or the main screen if there's only one)."""
+    import subprocess
+    import webbrowser
+    scr = projector_screen() or next((m for m in monitors() if m[4]), None)
+    exe = _browser()
+    if exe and scr:
+        x, y, w, h, _ = scr
+        subprocess.Popen([exe, "--app=" + url, f"--window-position={x},{y}", f"--window-size={w},{h}", "--start-fullscreen",
+                          "--user-data-dir=" + os.path.join(HERE, ".cache", "desk-browser")])
+        return scr
+    webbrowser.open(url)
+    return None
+
+
+def preview(index=None):
+    """The down camera's picture with what it sees drawn on: calibration markers, cards, fingertips. Q to close."""
+    import cv2
+    import jarvis_vision
+    cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX if index is None else index)
+    if not cap:
+        print("No camera found. Plug it in, or try: python jarvis_desk.py --preview 0")
+        return
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DESK_CAMERA_SIZE[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DESK_CAMERA_SIZE[1])
+    det = jarvis_vision.Detectors(hands=True, faces=False)
+    print(f"Camera {idx}. Aim it so the whole projected area fits in the picture. Q closes this window.")
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            continue
+        h, w = frame.shape[:2]
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        ms = find_markers(gray)
+        for mid, (c, _ang) in ms.items():
+            cv2.circle(frame, (int(c[0]), int(c[1])), 10, (0, 220, 255), 2)
+            cv2.putText(frame, CARDS.get(mid, str(mid)), (int(c[0]) + 12, int(c[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 220, 255), 2)
+        for lm in det.hands_all(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), time.time() * 1000):
+            cv2.circle(frame, (int(lm[8][0] * w), int(lm[8][1] * h)), 9, (80, 255, 80), -1)
+        cal = sum(i in ms for i in CAL_IDS)
+        cv2.putText(frame, f"camera {idx}   calibration markers seen: {cal}/9", (14, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        cv2.imshow("Atlas desk camera (Q to close)", frame)
+        if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+def test():
+    """The whole desk with no voice, no Claude: projector page, down camera, touches and cards. Type c to calibrate."""
+    import jarvis_phone
+    try:
+        import local_settings
+        for k in ("DESK_CAMERA_INDEX", "DESK_DISPLAY", "DESK_GLOW", "DWELL_SECONDS"):
+            if hasattr(local_settings, k):
+                globals()[k] = getattr(local_settings, k)
+    except Exception:
+        pass
+
+    def ask(phrase):
+        print(f"  >> desk asked for: {phrase}", flush=True)
+        return "ok"
+    desk = Desk(ask, lambda name, times=1: print(f"  >> key: {name} x{times}", flush=True),
+                state=lambda: {"time": time.strftime("%I:%M %p").lstrip("0")}, say=lambda t: print("  atlas:", t, flush=True))
+    bridge = jarvis_phone.Bridge(lambda text, speak=False: ask(text) or "ok", lambda name: "ok")
+    desk.register(bridge)
+    bridge.start()
+    url = f"http://127.0.0.1:{jarvis_phone.PHONE_PORT}/desk?token={jarvis_phone.token()}"
+    scr = open_on_projector(url)
+    print("\nScreens:", monitors() or "(couldn't list them)")
+    print("Desk page on", f"the screen at {scr[:2]}, {scr[2]}x{scr[3]}" if scr else "your browser (move it to the projector, press F11)")
+    print("If it opened on the wrong screen, set DESK_DISPLAY = 0, 1 or 2 in local_settings.py and run this again.\n")
+    desk.start()
+    print("Commands:  c = calibrate   p = camera preview   s = status   q = quit")
+    if not desk.cal.ready:
+        print("Not calibrated yet. Keep your hands off the desk and type c.")
+    last = 0
+    while True:
+        try:
+            cmd = input("> ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if cmd == "c":
+            print("Calibrating: the projector shows 9 squares, the camera has to see all of them...")
+            desk.calibrate(lambda ok: print("  calibrated. Hold a fingertip still on a button for half a second.", flush=True))
+        elif cmd == "p":
+            desk.stop()
+            time.sleep(0.5)
+            preview()
+            desk.start()
+        elif cmd == "s":
+            l = desk.live
+            print(f"  camera running: {desk.running}   calibrated: {desk.cal.ready}   calibrating: {desk.calibrating}   "
+                  f"fingers on desk: {len(l['fingers'])}   cards: {[c['name'] for c in l['cards']]}")
+        elif cmd == "q":
+            break
+    desk.stop()
+
+
+if __name__ == "__main__":
+    if "--preview" in sys.argv:
+        rest = sys.argv[sys.argv.index("--preview") + 1:]
+        preview(int(rest[0]) if rest and rest[0].isdigit() else None)
+    else:
+        test()
