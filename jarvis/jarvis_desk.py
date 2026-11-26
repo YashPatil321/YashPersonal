@@ -254,19 +254,72 @@ def fast_camera(cap):
 
 
 def lock_camera(cap, settle=3.0):
-    """Once the camera has adjusted to the room, freeze focus, exposure and white balance. Otherwise it keeps
-    re-adjusting every time the projected picture changes, and the hand model sees a flickering hand."""
+    """Once the camera has adjusted to the room, freeze focus and white balance (and exposure only if you set
+    DESK_EXPOSURE), so it stops re-adjusting every time the projected picture changes."""
     import cv2
     time.sleep(settle)
     try:
         cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-        exp = cap.get(cv2.CAP_PROP_EXPOSURE)
-        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)      # manual (DirectShow's value for it)
-        cap.set(cv2.CAP_PROP_EXPOSURE, DESK_EXPOSURE if DESK_EXPOSURE is not None else exp)   # -7 or -8 = less motion blur, darker
         cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-        _log(f"desk camera locked (exposure {cap.get(cv2.CAP_PROP_EXPOSURE):.0f}, focus fixed)")
+        if DESK_EXPOSURE is not None:
+            cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
+            cap.set(cv2.CAP_PROP_EXPOSURE, DESK_EXPOSURE)
+        _log("desk camera focus and color locked")
     except Exception as e:
         _log(f"camera lock: {e}")
+
+
+def camera_auto(cap, be):
+    """Back to automatic exposure, focus and white balance. Cameras remember settings between uses, so one that was
+    left on a bad manual exposure stays black until something turns auto back on."""
+    import cv2
+    try:
+        cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75 if be == cv2.CAP_DSHOW else 1)
+        cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        cap.set(cv2.CAP_PROP_AUTO_WB, 1)
+    except Exception:
+        pass
+
+
+def open_desk_camera(index=None, log=_log):
+    """Opens exactly the desk camera and finds a mode that gives a real picture: compressed (MJPG) first, so a
+    high resolution camera fits through USB at a high frame rate, then the camera's own format. Returns (cap, text)."""
+    import cv2
+    import jarvis_vision
+    index = DESK_CAMERA_INDEX if index is None else index
+    backends = [cv2.CAP_DSHOW, cv2.CAP_MSMF] if IS_WIN else [cv2.CAP_ANY]
+    modes = [("MJPG", 1280, 720, 60), ("MJPG", 1920, 1080, 60), ("MJPG", 1280, 720, 30), (None, 1280, 720, 30),
+             (None, 640, 480, 30), (None, 0, 0, 0)]
+    for be in backends:
+        cap = cv2.VideoCapture(index, be)
+        if not cap.isOpened():
+            cap.release()
+            continue
+        camera_auto(cap, be)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        for fourcc, w, h, fps in modes:
+            if fourcc:
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*fourcc))
+            if w:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+                cap.set(cv2.CAP_PROP_FPS, fps)
+            bright, frame = 0.0, None
+            for _ in range(40):   # auto exposure needs a moment to open up
+                ok, f = cap.read()
+                if ok:
+                    frame, bright = f, float(f.mean())
+                    if bright > 4:
+                        break
+            if frame is not None and bright > 4:
+                got, size = jarvis_vision._measure(cap)
+                name = "DirectShow" if be == cv2.CAP_DSHOW else "Media Foundation" if IS_WIN else "default"
+                text = f"camera {index}: {size[0]}x{size[1]} at {got:.0f} fps ({fourcc or 'native'}, {name})"
+                log(text)
+                return cap, text
+        log(f"camera {index} opened but only gave black through " + ("DirectShow" if be == cv2.CAP_DSHOW else "the other driver"))
+        cap.release()
+    return None, f"camera {index} gives no picture. Is its shutter or lens cap open, and is nothing else using it?"
 
 
 class Desk:
@@ -290,6 +343,10 @@ class Desk:
 
     # ---- camera loop ----
     def start(self):
+        fresh = Calibration()   # pick up a calibration saved from the preview tool
+        if fresh.ready:
+            self.cal = fresh
+            self.live["calibrated"] = True
         if not self.running:
             self.running = True
             threading.Thread(target=self._run, daemon=True).start()
@@ -340,11 +397,14 @@ class Desk:
             return
         import jarvis_vision
         mon = getattr(getattr(self, "vision", None), "camera_index", jarvis_vision.CAMERA_INDEX)
-        cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX, avoid=mon)
+        cap, why = open_desk_camera()
+        if not cap and mon != DESK_CAMERA_INDEX:   # not where it should be: any other camera that isn't Atlas's own
+            cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX, avoid=mon)
+            if cap:
+                _log(f"{why} Using camera {idx} instead. Set DESK_CAMERA_INDEX = {idx} if that's right.")
+                fast_camera(cap)
         grab = None
         if cap:
-            _log(f"desk camera is camera {idx}")
-            fast_camera(cap)
             grab = jarvis_vision.LatestFrame(cap)   # always the newest frame, never a queued old one
             if DESK_LOCK_CAMERA:
                 threading.Thread(target=lock_camera, args=(cap,), daemon=True).start()
@@ -661,14 +721,23 @@ def preview(index=None):
     """The down camera's picture with what it sees drawn on: calibration markers, cards, fingertips. Q to close."""
     import cv2
     import jarvis_vision
-    cap, idx = jarvis_vision.open_camera(DESK_CAMERA_INDEX if index is None else index)
+    _settings()
+    idx = DESK_CAMERA_INDEX if index is None else index
+    cap, why = open_desk_camera(idx, log=print)
     if not cap:
-        print("No camera found. Plug it in, or try: python jarvis_desk.py --cameras")
+        print(why + "\nTry: python jarvis_desk.py --cameras")
         return
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, DESK_CAMERA_SIZE[0])
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, DESK_CAMERA_SIZE[1])
-    det = jarvis_vision.Detectors(hands=True, faces=False)
-    print(f"Camera {idx}. Aim it so the whole projected area fits in the picture. Q closes this window.")
+    det = jarvis_vision.Detectors(hands=True, faces=False, gestures=False, confidence=0.5)
+    scr = projector_screen(or_main=True)
+    show = bool(scr) and scr != next((m for m in monitors() if m[4]), None)   # only fill a separate projector screen
+    if show:
+        board = marker_board(scr[2], scr[3])
+        cv2.namedWindow("atlas-markers", cv2.WINDOW_NORMAL)
+        cv2.moveWindow("atlas-markers", scr[0], scr[1])
+        cv2.setWindowProperty("atlas-markers", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        cv2.imshow("atlas-markers", board)
+    print(f"Camera {idx}. The projector shows the 9 calibration squares. Aim the camera so it sees all of them.\n"
+          "  C = save the calibration once it says 9/9     M = squares on/off     Q = close")
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -682,24 +751,62 @@ def preview(index=None):
         for lm in det.hands_all(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), time.time() * 1000):
             cv2.circle(frame, (int(lm[8][0] * w), int(lm[8][1] * h)), 9, (80, 255, 80), -1)
         cal = sum(i in ms for i in CAL_IDS)
-        cv2.putText(frame, f"camera {idx}   calibration markers seen: {cal}/9", (14, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        msg = f"camera {idx}   calibration markers seen: {cal}/9" + ("   press C to save" if cal == 9 else "")
+        cv2.putText(frame, msg, (14, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80, 255, 80) if cal == 9 else (255, 255, 255), 2)
         cv2.imshow("Atlas desk camera (Q to close)", frame)
-        if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
+        k = cv2.waitKey(1) & 0xFF
+        if k in (ord("q"), 27):
             break
+        if k == ord("c") and cal == 9:
+            Calibration().fit([ms[i][0] for i in CAL_IDS], list(CAL_POS))
+            print("Calibrated and saved. Atlas uses it the next time you type touchscreen mode.")
+        if k == ord("m") and scr:
+            show = not show
+            if show:
+                cv2.namedWindow("atlas-markers", cv2.WINDOW_NORMAL)
+                cv2.moveWindow("atlas-markers", scr[0], scr[1])
+                cv2.setWindowProperty("atlas-markers", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                cv2.imshow("atlas-markers", marker_board(scr[2], scr[3]))
+            else:
+                cv2.destroyWindow("atlas-markers")
     cap.release()
     cv2.destroyAllWindows()
+
+
+def marker_board(w, h):
+    """The 9 calibration squares, where the desk page puts them, as one picture for the projector."""
+    import cv2
+    import numpy as np
+    board = np.full((h, w, 3), 255, np.uint8)
+    size = int(min(w, h) * 0.15)
+    d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    for mid, (x, y) in zip(CAL_IDS, CAL_POS):
+        m = cv2.aruco.generateImageMarker(d, int(mid), size)
+        pad = size // 6
+        m = cv2.cvtColor(np.pad(m, pad, constant_values=255), cv2.COLOR_GRAY2BGR)
+        s = m.shape[0]
+        x0, y0 = int(x * w - s / 2), int(y * h - s / 2)
+        x0, y0 = max(0, min(w - s, x0)), max(0, min(h - s, y0))
+        board[y0:y0 + s, x0:x0 + s] = m
+    return board
+
+
+def _settings():
+    """Run on its own (not inside Atlas): read the desk settings from local_settings.py."""
+    try:
+        sys.path.insert(0, HERE)
+        import local_settings
+        for k, v in vars(local_settings).items():
+            if k.startswith("DESK") or k == "DWELL_SECONDS":
+                globals()[k] = v
+    except Exception:
+        pass
 
 
 def test():
     """The whole desk with no voice, no Claude: projector page, down camera, touches and cards. Type c to calibrate."""
     import jarvis_phone
-    try:
-        import local_settings
-        for k in ("DESK_CAMERA_INDEX", "DESK_DISPLAY", "DESK_GLOW", "DWELL_SECONDS"):
-            if hasattr(local_settings, k):
-                globals()[k] = getattr(local_settings, k)
-    except Exception:
-        pass
+    _settings()
 
     def ask(phrase):
         print(f"  >> desk asked for: {phrase}", flush=True)
@@ -752,7 +859,9 @@ def cameras():
         for be in backends:
             cap = cv2.VideoCapture(i, be)
             if cap.isOpened():
-                for _ in range(20):
+                camera_auto(cap, be)
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                for _ in range(40):
                     ok, f = cap.read()
                     if ok and f.mean() > 4:
                         img, how = f, "ok"
