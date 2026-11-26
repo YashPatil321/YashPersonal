@@ -104,6 +104,7 @@ TELEGRAM_TOKEN = ""          # your own Telegram bot (from @BotFather) to talk t
 TELEGRAM_CHAT_ID = 0         # filled in automatically when you pair
 PUSH_TO_TALK = True          # Ctrl+Alt+Space anywhere in Windows = talk to Atlas (no wake word, works with loud music)
 VOICE_INPUT = True           # False = no mic at all: you type to Atlas in its window (say or type "voice off" / "voice on")
+CHAT_ON_START = True         # open the Atlas chat window every time Atlas starts
 TYPE_TO_ATLAS = True         # type commands into the Atlas window too (handy with no mic or no GPU)
 FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
 KEEP_LISTENING = True        # while Claude thinks, Atlas still hears you, so you can give it more commands
@@ -3617,7 +3618,7 @@ def main():
             bridge.routes["/command/memory"] = memory_json
             bridge.routes["/command"] = command_page
             jarvis_chatui.register(bridge, jarvis, orb_state=lambda: jarvis_orb.LAST.get("state", "idle"))
-            if not VOICE_INPUT:   # typing mode: the chat window is the way in
+            if CHAT_ON_START or not VOICE_INPUT:   # the chat window opens with Atlas
                 threading.Timer(2.0, lambda: jarvis.pc.open_window(jarvis.local_url("/chat"))).start()
             bridge.routes["/command/state"] = command_json
             jarvis.cad = jarvis_cad.CadHub(say=speaker.say)
