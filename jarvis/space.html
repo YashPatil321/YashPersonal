@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas Space</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --ember: #ff6a4d; --amber: #ffb84d; --text: #fff1ea; --dim: #c2978c; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: #050302; }
+  body { height: 100vh; overflow: hidden; color: var(--text); font: 1.8vh/1.45 Inter, "Segoe UI", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none; touch-action: none; cursor: default; }
+  body.hands { cursor: none; }
+  /* the room behind the glass: slow drifting embers, so the frosted panes have something to frost */
+  #bg { position: fixed; inset: 0; z-index: 0; }
+  #world { position: fixed; inset: 0; z-index: 1; }
+  #handsFx { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+
+  .obj { position: absolute; left: 0; top: 0; width: 24vw; transform-origin: 50% 50%; will-change: transform;
+    border-radius: 2.6vh; padding: 2vh 1.4vw 1.8vh;
+    background: linear-gradient(155deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .04) 42%, rgba(255, 106, 77, .07));
+    border: 1px solid rgba(255, 255, 255, .16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 0 0 1px rgba(255, 106, 77, .06), 0 3vh 7vh rgba(0, 0, 0, .55);
+    backdrop-filter: blur(26px) saturate(170%); -webkit-backdrop-filter: blur(26px) saturate(170%);
+    transition: box-shadow .2s, border-color .2s, opacity .35s; }
+  .obj::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(118deg, rgba(255, 255, 255, .13) 0%, transparent 30%); }
+  .obj.hover { border-color: rgba(255, 170, 140, .55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 0 4vh rgba(255, 106, 77, .35), 0 3vh 7vh rgba(0, 0, 0, .55); }
+  .obj.held { border-color: rgba(255, 200, 170, .85); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 0 7vh rgba(255, 106, 77, .6), 0 5vh 10vh rgba(0, 0, 0, .6); }
+  .obj.gone { opacity: 0; }
+  .obj.new { animation: pop .5s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes pop { from { opacity: 0; filter: blur(8px); } }
+  .obj h4 { font: 600 1.2vh/1 "JetBrains Mono", monospace; letter-spacing: .24em; text-transform: uppercase; color: var(--ember);
+    display: flex; align-items: center; gap: .6vw; margin-bottom: 1.2vh; }
+  .obj h4::before { content: ""; width: .8vh; height: .8vh; border-radius: 50%; background: var(--ember); box-shadow: 0 0 1vh var(--ember); }
+  .obj h4 .x { margin-left: auto; width: 3.2vh; height: 3.2vh; border-radius: 50%; display: grid; place-items: center; color: var(--dim);
+    background: rgba(255, 255, 255, .06); letter-spacing: 0; font-size: 1.6vh; }
+  .obj .title { font-size: 2.6vh; font-weight: 600; line-height: 1.2; }
+  .obj .body { margin-top: .8vh; white-space: pre-wrap; color: #ffe2d8; max-height: 40vh; overflow: hidden; }
+  .obj .q { color: var(--dim); font-size: 1.6vh; margin-bottom: .6vh; }
+  .obj ul { list-style: none; margin-top: .6vh; }
+  .obj li { padding: .7vh 0; border-bottom: 1px solid rgba(255, 255, 255, .08); display: flex; gap: .8vw; }
+  .obj li::before { content: ""; flex: none; width: .7vh; height: .7vh; margin-top: 1vh; border-radius: 50%; background: var(--ember); opacity: .7; }
+  .obj img { width: 100%; border-radius: 1.6vh; display: block; margin-top: .4vh; pointer-events: none; }
+  .obj .url { font: 1.4vh "JetBrains Mono", monospace; color: var(--dim); margin-top: .6vh; word-break: break-all; }
+  .row { display: flex; gap: .6vw; margin-top: 1.4vh; }
+  .btn { flex: 1; min-height: 6vh; border-radius: 1.6vh; display: grid; place-items: center; font-weight: 600; font-size: 1.9vh;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .03)); border: 1px solid rgba(255, 255, 255, .15);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25); transition: transform .12s, background .2s; }
+  .btn.hot { transform: scale(.93); background: linear-gradient(180deg, rgba(255, 106, 77, .55), rgba(255, 106, 77, .2)); }
+  .btn.main { background: linear-gradient(180deg, rgba(255, 140, 110, .95), rgba(255, 90, 60, .8)); color: #1c0803; }
+
+  /* the core: Atlas itself */
+  .obj.core { width: 30vh; height: 30vh; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+  .obj.core canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; }
+  .obj.core .mid { position: relative; text-align: center; }
+  .obj.core .clock { font-size: 6vh; font-weight: 700; letter-spacing: -.02em; text-shadow: 0 0 2vh rgba(255, 106, 77, .5); }
+  .obj.core .date { font: 500 1.2vh/1 "JetBrains Mono", monospace; letter-spacing: .26em; text-transform: uppercase; color: var(--ember); margin-top: .5vh; }
+  .obj.core .st { font: 500 1.1vh/1 "JetBrains Mono", monospace; letter-spacing: .3em; color: var(--dim); margin-top: 1vh; }
+
+  #hint { position: fixed; left: 50%; bottom: 2vh; transform: translateX(-50%); z-index: 2; white-space: nowrap; padding: 1vh 1.4vw; border-radius: 1.6vh;
+    font: 1.4vh "JetBrains Mono", monospace; letter-spacing: .08em; color: var(--dim);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)); border: 1px solid rgba(255, 255, 255, .1);
+    backdrop-filter: blur(16px); transition: opacity 1s; }
+  #flash { position: fixed; left: 50%; top: 4vh; transform: translateX(-50%); z-index: 4; font: 600 1.6vh "JetBrains Mono", monospace;
+    letter-spacing: .25em; color: var(--amber); opacity: 0; transition: opacity .3s; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<div id="world"></div>
+<canvas id="handsFx"></canvas>
+<div id="flash"></div>
+<div id="hint">SQUEEZE 3 FINGERS TO GRAB · THROW TO MOVE · FLICK OFF THE EDGE TO CLOSE · BRING BOTH HANDS TOGETHER TO GATHER</div>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get("token") || "";
+const q = (p) => p + (p.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+const fmt = (s) => esc(s).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+const W = () => innerWidth, H = () => innerHeight;
+const world = $("world");
+function flash(t) { const f = $("flash"); f.textContent = t; f.style.opacity = 1; clearTimeout(flash.h); flash.h = setTimeout(() => f.style.opacity = 0, 1200); }
+
+// ================= objects =================
+const objs = new Map();   // id -> {el, data, x, y, vx, vy, rot, vr, s, held}
+let zTop = 10;
+
+function html(d) {
+  const x = `<span class="x" data-act="close">&#10005;</span>`;
+  switch (d.kind) {
+    case "core": return `<canvas></canvas><div class="mid"><div class="clock">--:--</div><div class="date"></div><div class="st">READY</div></div>`;
+    case "reply": return `<h4>Atlas${x}</h4>${d.q ? `<div class="q">${esc(d.q)}</div>` : ""}<div class="body">${fmt(d.text || "…")}</div>`;
+    case "list": return `<h4>${esc(d.label || "List")}${x}</h4><div class="title">${esc(d.title || "")}</div><ul>${(d.items || []).map((i) => `<li>${fmt(i)}</li>`).join("")}</ul>`;
+    case "image": return `<h4>${esc(d.label || "Image")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<img src="${esc(d.url)}">`;
+    case "link": return `<h4>${esc(d.label || "Link")}${x}</h4><div class="title">${esc(d.title || d.url)}</div><div class="url">${esc(d.url)}</div>${d.body ? `<div class="body">${fmt(d.body)}</div>` : ""}<div class="row"><div class="btn main" data-open="${esc(d.url)}">Open</div></div>`;
+    case "music": return `<h4>Music${x}</h4><div class="title" data-f="song">Nothing playing</div><div class="q" data-f="artist"></div>
+      <div class="row"><div class="btn" data-key="prev">&#9198;</div><div class="btn main" data-key="play_pause">&#9199;</div><div class="btn" data-key="next">&#9197;</div></div>
+      <div class="row"><div class="btn" data-key="vol_down">Vol &minus;</div><div class="btn" data-key="mute">Mute</div><div class="btn" data-key="vol_up">Vol +</div></div>`;
+    case "next": return `<h4>Next up${x}</h4><div class="title" data-f="nextTitle">Nothing else today</div><div class="q" data-f="nextWhen"></div><div class="body" data-f="weather"></div>`;
+    case "timer": return `<h4>Timer${x}</h4><div class="title" data-f="tleft" style="font:600 4.4vh 'JetBrains Mono',monospace">--:--</div><div class="q" data-f="tlabel">Squeeze a time</div>
+      <div class="row"><div class="btn" data-timer="5">5m</div><div class="btn" data-timer="15">15m</div><div class="btn" data-timer="25">25 focus</div></div>
+      <div class="row"><div class="btn" data-timer="0">Stop</div></div>`;
+    default: return `<h4>${esc(d.label || "Note")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}${d.body || d.text ? `<div class="body">${fmt(d.body || d.text)}</div>` : ""}`;
+  }
+}
+
+function place(o) {
+  o.el.style.transform = `translate(${o.x - o.el.offsetWidth / 2}px, ${o.y - o.el.offsetHeight / 2}px) rotate(${o.rot}rad) scale(${o.s})`;
+}
+function spawn(d, at) {
+  if (objs.has(d.id)) return objs.get(d.id);
+  const el = document.createElement("div");
+  el.className = "obj new " + d.kind; el.innerHTML = html(d); el.dataset.id = d.id;
+  el.style.zIndex = ++zTop;
+  world.appendChild(el);
+  const n = objs.size;
+  const p = at || { x: W() * (0.2 + 0.6 * Math.random()), y: H() * (0.25 + 0.5 * Math.random()) };
+  const o = { el, data: d, x: p.x, y: p.y, vx: (Math.random() - .5) * 4, vy: (Math.random() - .5) * 4, rot: 0, vr: 0, s: 1, held: null };
+  objs.set(d.id, o); place(o);
+  setTimeout(() => el.classList.remove("new"), 600);
+  return o;
+}
+function update(id, patch) {
+  const o = objs.get(id); if (!o) return;
+  Object.assign(o.data, patch); o.el.innerHTML = html(o.data); hydrate(o);
+}
+function remove(o, fly) {
+  o.el.classList.add("gone"); objs.delete(o.data.id);
+  setTimeout(() => o.el.remove(), 400);
+}
+function hydrate(o) { if (o.data.kind === "core") o.cv = o.el.querySelector("canvas"); }
+
+// built in objects: Atlas core, next up, music, timer
+function defaults() {
+  spawn({ id: "core", kind: "core", pinned: 1 }, { x: W() / 2, y: H() * .45 });
+  spawn({ id: "next", kind: "next" }, { x: W() * .17, y: H() * .28 });
+  spawn({ id: "music", kind: "music" }, { x: W() * .83, y: H() * .3 });
+  spawn({ id: "timer", kind: "timer" }, { x: W() * .17, y: H() * .7 });
+  objs.forEach(hydrate);
+}
+
+// ================= physics =================
+function step(dt) {
+  for (const o of objs.values()) {
+    if (o.held) continue;
+    o.x += o.vx * dt; o.y += o.vy * dt; o.rot += o.vr * dt;
+    const f = Math.pow(0.04, dt);       // glide, then settle
+    o.vx *= f; o.vy *= f; o.vr *= Math.pow(0.02, dt);
+    const hw = o.el.offsetWidth * o.s / 2, hh = o.el.offsetHeight * o.s / 2;
+    const fast = Math.hypot(o.vx, o.vy) > 2400;
+    if (!o.data.pinned && fast && (o.x < -hw * .2 || o.x > W() + hw * .2 || o.y < -hh * .2 || o.y > H() + hh * .2)) { remove(o); continue; }   // flicked away
+    if (o.x < hw * .5) { o.x = hw * .5; o.vx = Math.abs(o.vx) * .5; }
+    if (o.x > W() - hw * .5) { o.x = W() - hw * .5; o.vx = -Math.abs(o.vx) * .5; }
+    if (o.y < hh * .5) { o.y = hh * .5; o.vy = Math.abs(o.vy) * .5; }
+    if (o.y > H() - hh * .5) { o.y = H() - hh * .5; o.vy = -Math.abs(o.vy) * .5; }
+    if (o.target) {                      // gather / scatter: spring to a spot
+      o.vx += (o.target.x - o.x) * 10 * dt; o.vy += (o.target.y - o.y) * 10 * dt;
+      o.rot += ((o.target.rot ?? 0) - o.rot) * 4 * dt; o.s += ((o.target.s ?? 1) - o.s) * 4 * dt;
+      if (Math.hypot(o.target.x - o.x, o.target.y - o.y) < 2 && Math.hypot(o.vx, o.vy) < 20) o.target = null;
+    }
+    place(o);
+  }
+}
+function gather(at) {
+  const c = at || { x: W() / 2, y: H() / 2 };
+  let i = 0;
+  for (const o of objs.values()) {
+    if (o.data.kind === "core") { o.target = { x: c.x, y: c.y - H() * .3, s: .7 }; continue; }
+    o.target = { x: c.x + (i % 2 ? 6 : -6) * i, y: c.y + i * 5, rot: (i % 2 ? .04 : -.04), s: .9 }; o.el.style.zIndex = ++zTop; i++;
+  }
+  flash("gathered");
+}
+function scatter() {
+  const list = [...objs.values()].filter((o) => o.data.kind !== "core"), n = list.length;
+  const cols = Math.max(1, Math.ceil(Math.sqrt(n * W() / H() / 1.3))), rows = Math.ceil(n / cols);
+  list.forEach((o, i) => {
+    const c = i % cols, r = Math.floor(i / cols);
+    o.target = { x: W() * (c + .5) / cols, y: H() * (.12 + .8 * (r + .5) / rows), rot: 0, s: Math.min(1, 1.6 / Math.max(cols, rows)) + .2 };
+  });
+  const core = objs.get("core"); if (core) core.target = { x: W() / 2, y: H() / 2, s: .8 };
+  flash("spread out");
+}
+
+// ================= pressing buttons inside objects =================
+function act(say) { return fetch(q("/space/do?say=" + encodeURIComponent(say)), { method: "POST" }).catch(() => {}); }
+function press(el) {
+  const b = el && el.closest("[data-act],[data-key],[data-timer],[data-open],.btn");
+  if (!b) return false;
+  b.classList.add("hot"); setTimeout(() => b.classList.remove("hot"), 220);
+  const o = objs.get(b.closest(".obj")?.dataset.id);
+  if (b.dataset.act === "close" && o && !o.data.pinned) { o.vx = 3000; remove(o); }
+  else if (b.dataset.key) act(b.dataset.key);
+  else if (b.dataset.open) fetch(q("/space/do?url=" + encodeURIComponent(b.dataset.open)), { method: "POST" });
+  else if (b.dataset.timer !== undefined) startTimer(+b.dataset.timer);
+  return true;
+}
+let timer = null;
+function startTimer(min) {
+  if (!min) { timer = null; act("cancel the timer"); return; }
+  timer = { end: Date.now() + min * 60000, label: min === 25 ? "Focus" : min + " minute timer" };
+  act(min === 25 ? "lock in for 25 minutes" : `set a timer for ${min} minutes`);
+}
+
+// ================= hands =================
+// each hand: 21 points on screen. Shapes come from distances measured in the hand's own palm width.
+const HAND = new Map();   // slot -> {pts, shape, n, pending, grab, hist}
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+function ext(p, tip, pip) { return dist(p[tip], p[0]) > dist(p[pip], p[0]) * 1.12; }
+function rawShape(p, was) {
+  const palm = dist(p[5], p[17]) || 1;
+  const t = dist(p[4], p[8]) / palm, m = dist(p[4], p[12]) / palm, im = dist(p[8], p[12]) / palm;
+  const sq = was === "squeeze" ? [0.75, 0.85, 0.6] : [0.55, 0.65, 0.45];
+  if (t < sq[0] && m < sq[1] && im < sq[2]) return "squeeze";             // three fingertips together
+  if (t < (was === "pinch" ? 0.5 : 0.34)) return "pinch";
+  const e = [ext(p, 8, 6), ext(p, 12, 10), ext(p, 16, 14), ext(p, 20, 18)];
+  if (e.every(Boolean)) return "open";
+  if (!e.some(Boolean)) return "fist";
+  if (e[0] && !e[1] && !e[2]) return "point";
+  return "other";
+}
+function grabPoint(h) {
+  const p = h.pts;
+  return h.shape === "squeeze" ? [(p[4][0] + p[8][0] + p[12][0]) / 3, (p[4][1] + p[8][1] + p[12][1]) / 3]
+       : h.shape === "pinch" ? [(p[4][0] + p[8][0]) / 2, (p[4][1] + p[8][1]) / 2] : p[8];
+}
+function objAt(x, y) {
+  let best = null;
+  for (const o of objs.values()) {
+    const r = o.el.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom && (!best || +o.el.style.zIndex > +best.el.style.zIndex)) best = o;
+  }
+  return best;
+}
+
+let incoming = [], lastHandsT = 0;
+function onHands(list) {
+  lastHandsT = performance.now();
+  incoming = list.map((h) => h.pts.map(([x, y]) => [x * W(), y * H()]));
+  document.body.classList.toggle("hands", incoming.length > 0);
+}
+function matchHands() {
+  // pair incoming hands with the ones we're following (by wrist), so grabs stay with the right hand
+  const now = performance.now(), used = new Set(), next = new Map();
+  for (const pts of incoming) {
+    let bestK = null, bestD = 1e9;
+    for (const [k, h] of HAND) if (!used.has(k)) { const d = dist(h.pts[0], pts[0]); if (d < bestD) { bestD = d; bestK = k; } }
+    const k = bestK !== null && bestD < W() * .25 ? bestK : Math.random().toString(36).slice(2, 7);
+    used.add(k);
+    const h = HAND.get(k) || { shape: "other", pending: null, n: 0, hist: [], grab: null };
+    // smooth the points a touch (they're already filtered; this takes off the last shimmer)
+    h.pts = h.pts ? pts.map((p, i) => [h.pts[i][0] * .35 + p[0] * .65, h.pts[i][1] * .35 + p[1] * .65]) : pts;
+    const raw = rawShape(h.pts, h.shape);
+    if (raw === h.shape) { h.n = 0; h.pending = null; }
+    else { h.pending === raw ? h.n++ : (h.pending = raw, h.n = 1); if (h.n >= (h.shape === "squeeze" ? 3 : 2)) { h.prev = h.shape; h.shape = raw; h.n = 0; h.changed = true; } }
+    h.seen = now; next.set(k, h);
+  }
+  for (const [k, h] of HAND) if (!next.has(k) && now - h.seen < 160) next.set(k, h);   // blinked out: hold on
+  for (const [k, h] of HAND) if (!next.has(k) && h.grab) release(h);
+  HAND.clear(); next.forEach((v, k) => HAND.set(k, v));
+}
+function release(h) {
+  const o = h.grab.o; o.held = o.held === h ? null : o.held;
+  // throw with the hand's recent speed
+  const hist = h.hist.filter((p) => performance.now() - p.t < 120);
+  if (hist.length > 1 && !o.held) {
+    const a = hist[0], b = hist[hist.length - 1], dt = Math.max(16, b.t - a.t) / 1000;
+    o.vx = (b.x - a.x) / dt; o.vy = (b.y - a.y) / dt;
+  }
+  o.el.classList.remove("held");
+  h.grab = null;
+}
+let twoOpen = null;   // both hands open: watching the gap between them for gather / scatter
+function handsLogic() {
+  const now = performance.now(), hands = [...HAND.values()];
+  for (const o of objs.values()) o.el.classList.remove("hover");
+  for (const h of hands) {
+    const [x, y] = grabPoint(h);
+    h.hist.push({ x, y, t: now }); h.hist = h.hist.filter((p) => now - p.t < 200);
+    const under = objAt(x, y);
+    if (under && !h.grab) under.el.classList.add("hover");
+    if (h.shape === "squeeze" && !h.grab && under) {
+      // grab. If another hand already holds it: two hand mode (resize + rotate)
+      h.grab = { o: under, dx: under.x - x, dy: under.y - y };
+      under.el.classList.add("held"); under.el.style.zIndex = ++zTop; under.target = null;
+      const other = hands.find((k) => k !== h && k.grab && k.grab.o === under);
+      if (other) { under.two = { a: other, b: h, d0: dist(grabPoint(other), [x, y]), s0: under.s, ang0: Math.atan2(y - grabPoint(other)[1], x - grabPoint(other)[0]), r0: under.rot }; }
+      else under.held = h;
+    } else if (h.shape !== "squeeze" && h.grab) {
+      const o = h.grab.o; if (o.two) o.two = null; release(h);
+    }
+    if (h.changed && h.shape === "pinch" && !h.grab) press(document.elementFromPoint(x, y));
+    h.changed = false;
+  }
+  // move held objects
+  for (const o of objs.values()) {
+    if (o.two && o.two.a.grab && o.two.b.grab) {
+      const pa = grabPoint(o.two.a), pb = grabPoint(o.two.b);
+      o.s = Math.max(.35, Math.min(3, o.two.s0 * dist(pa, pb) / Math.max(20, o.two.d0)));
+      o.rot = o.two.r0 + Math.atan2(pb[1] - pa[1], pb[0] - pa[0]) - o.two.ang0;
+      o.x = (pa[0] + pb[0]) / 2; o.y = (pa[1] + pb[1]) / 2; o.vx = o.vy = 0; place(o);
+    } else if (o.held && o.held.grab) {
+      const [x, y] = grabPoint(o.held);
+      const nx = x + o.held.grab.dx, ny = y + o.held.grab.dy;
+      o.x += (nx - o.x) * .6; o.y += (ny - o.y) * .6; place(o);
+    }
+  }
+  // both hands open: pull together = gather, push apart = scatter
+  const open = hands.filter((h) => h.shape === "open");
+  if (open.length === 2 && !hands.some((h) => h.grab)) {
+    const d = dist(open[0].pts[9], open[1].pts[9]);
+    if (!twoOpen) twoOpen = { d0: d, t0: now, done: false };
+    if (!twoOpen.done && now - twoOpen.t0 < 900) {
+      if (d < twoOpen.d0 * .55) { gather({ x: (open[0].pts[9][0] + open[1].pts[9][0]) / 2, y: (open[0].pts[9][1] + open[1].pts[9][1]) / 2 }); twoOpen.done = true; }
+      else if (d > twoOpen.d0 * 1.7) { scatter(); twoOpen.done = true; }
+    } else if (now - twoOpen.t0 >= 900) twoOpen = { d0: d, t0: now, done: false };
+  } else twoOpen = null;
+}
+
+// draw the hands: glass silhouettes with lit joints
+const hc = $("handsFx"), hx = hc.getContext("2d");
+function size() { for (const c of [hc, $("bg")]) { c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio; } }
+addEventListener("resize", size); size();
+const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
+function drawHands() {
+  const k = devicePixelRatio; hx.clearRect(0, 0, hc.width, hc.height);
+  for (const h of HAND.values()) {
+    const P = h.pts.map(([x, y]) => [x * k, y * k]);
+    const palm = dist(P[5], P[17]);
+    const col = h.shape === "squeeze" ? "255,184,77" : h.shape === "pinch" ? "255,150,120" : "255,106,77";
+    // palm: frosted glass
+    hx.beginPath(); [0, 1, 5, 9, 13, 17].forEach((i, n) => n ? hx.lineTo(...P[i]) : hx.moveTo(...P[i])); hx.closePath();
+    hx.fillStyle = `rgba(${col},.10)`; hx.fill();
+    // fingers: thick translucent strokes with a bright core
+    hx.lineCap = "round";
+    for (const [a, b] of BONES) {
+      hx.strokeStyle = `rgba(${col},.16)`; hx.lineWidth = palm * .32; hx.beginPath(); hx.moveTo(...P[a]); hx.lineTo(...P[b]); hx.stroke();
+      hx.strokeStyle = `rgba(255,230,220,.55)`; hx.lineWidth = 1.5 * k; hx.beginPath(); hx.moveTo(...P[a]); hx.lineTo(...P[b]); hx.stroke();
+    }
+    hx.shadowColor = `rgba(${col},1)`; hx.shadowBlur = 14 * k;
+    for (const i of [4, 8, 12, 16, 20]) { hx.fillStyle = "#fff1ea"; hx.beginPath(); hx.arc(...P[i], (i === 8 ? 5 : 3.5) * k, 0, 7); hx.fill(); }
+    hx.shadowBlur = 0;
+    const [gx, gy] = grabPoint(h);
+    hx.strokeStyle = `rgba(${col},.95)`; hx.lineWidth = 3 * k;
+    hx.beginPath(); hx.arc(gx * k, gy * k, (h.shape === "squeeze" ? 16 : 24) * k, 0, 7); hx.stroke();
+    if (h.shape === "squeeze") { hx.fillStyle = `rgba(${col},.35)`; hx.fill(); }
+  }
+}
+
+// the background: soft embers drifting
+const bg = $("bg"), bx = bg.getContext("2d");
+const motes = Array.from({ length: 40 }, () => ({ x: Math.random(), y: Math.random(), r: .04 + Math.random() * .12, v: .002 + Math.random() * .006, h: Math.random() }));
+function drawBg(t) {
+  const w = bg.width, h = bg.height; bx.clearRect(0, 0, w, h);
+  const g = bx.createRadialGradient(w * .5, h * .55, 0, w * .5, h * .55, w * .7);
+  g.addColorStop(0, "rgba(60,18,10,.9)"); g.addColorStop(1, "rgba(5,3,2,1)"); bx.fillStyle = g; bx.fillRect(0, 0, w, h);
+  for (const m of motes) {
+    m.y -= m.v / 60; if (m.y < -.2) { m.y = 1.2; m.x = Math.random(); }
+    const x = (m.x + Math.sin(t / 4000 + m.h * 9) * .03) * w, y = m.y * h, r = m.r * h;
+    const gg = bx.createRadialGradient(x, y, 0, x, y, r);
+    gg.addColorStop(0, `rgba(255,${90 + m.h * 70 | 0},60,.10)`); gg.addColorStop(1, "rgba(255,90,60,0)");
+    bx.fillStyle = gg; bx.beginPath(); bx.arc(x, y, r, 0, 7); bx.fill();
+  }
+}
+
+// the core object's rings
+let orb = "idle";
+function drawCore(t) {
+  const o = objs.get("core"); if (!o || !o.cv) return;
+  const c = o.cv, k = devicePixelRatio, box = c.getBoundingClientRect();
+  if (c.width !== Math.round(o.el.offsetWidth * k)) { c.width = o.el.offsetWidth * k; c.height = o.el.offsetHeight * k; }
+  const g = c.getContext("2d"), R = c.width / 2, sp = { thinking: 4, speaking: 2.5 }[orb] || 1, glow = orb === "idle" ? .5 : 1;
+  g.clearRect(0, 0, c.width, c.height); g.save(); g.translate(R, R);
+  [[.94, 80, 1.2, .5], [.85, 3, 4, .9], [.76, 50, 2, .45]].forEach(([rr, n, wd, a], i) => {
+    g.strokeStyle = `rgba(255,106,77,${a * glow})`; g.lineWidth = wd * k; const dir = i % 2 ? -1 : 1;
+    for (let s = 0; s < n; s += n > 4 ? 2 : 1) { const a0 = s / n * Math.PI * 2 + t / 1000 * sp * (n > 4 ? .15 : .5) * dir; g.beginPath(); g.arc(0, 0, R * rr, a0, a0 + (n > 4 ? Math.PI / n : Math.PI * 2 / n * .62)); g.stroke(); }
+  });
+  g.restore();
+  const d = new Date();
+  o.el.querySelector(".clock").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/ ?[AP]M/, "");
+  o.el.querySelector(".date").textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+  o.el.querySelector(".st").textContent = ({ thinking: "THINKING", speaking: "ANSWERING" })[orb] || "READY";
+}
+
+// ================= main loop =================
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(.05, (t - last) / 1000); last = t;
+  if (t - lastHandsT > 400) incoming = [];
+  matchHands(); handsLogic(); step(dt);
+  drawBg(t); drawHands(); drawCore(t);
+  if (timer) {
+    const left = Math.max(0, timer.end - Date.now()), s = Math.ceil(left / 1000), o = objs.get("timer");
+    if (o) { const f = (n) => o.el.querySelector(`[data-f=${n}]`); f("tleft").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; f("tlabel").textContent = left ? timer.label : "Done"; }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ================= mouse and touch (for testing without hands) =================
+let drag = null;
+world.addEventListener("pointerdown", (e) => {
+  if (press(e.target)) return;
+  const el = e.target.closest(".obj"); if (!el) return;
+  const o = objs.get(el.dataset.id); el.setPointerCapture(e.pointerId);
+  drag = { o, dx: o.x - e.clientX, dy: o.y - e.clientY, hist: [] }; o.held = "mouse"; o.target = null; el.classList.add("held"); el.style.zIndex = ++zTop;
+});
+addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  drag.o.x = e.clientX + drag.dx; drag.o.y = e.clientY + drag.dy; place(drag.o);
+  drag.hist.push({ x: e.clientX, y: e.clientY, t: performance.now() }); drag.hist = drag.hist.filter((p) => performance.now() - p.t < 100);
+});
+addEventListener("pointerup", () => {
+  if (!drag) return; const o = drag.o, h = drag.hist;
+  if (h.length > 1) { const dt = Math.max(16, h[h.length - 1].t - h[0].t) / 1000; o.vx = (h[h.length - 1].x - h[0].x) / dt; o.vy = (h[h.length - 1].y - h[0].y) / dt; }
+  o.held = null; o.el.classList.remove("held"); drag = null;
+});
+world.addEventListener("wheel", (e) => { const el = e.target.closest(".obj"); if (!el) return; const o = objs.get(el.dataset.id); o.s = Math.max(.35, Math.min(3, o.s * (e.deltaY < 0 ? 1.08 : .93))); place(o); });
+world.addEventListener("dblclick", (e) => { const el = e.target.closest(".obj"); const o = el && objs.get(el.dataset.id); if (o && !o.data.pinned) remove(o); });
+addEventListener("keydown", (e) => { if (e.key === "g") gather(); if (e.key === "s") scatter(); });
+
+// ================= Atlas =================
+function onEvent(ev) {
+  if (ev.type === "add") { const o = spawn(ev.obj, { x: W() * (.35 + .3 * Math.random()), y: H() * .82 }); o.vy = -900 - Math.random() * 400; o.vx = (Math.random() - .5) * 500; hydrate(o); }
+  else if (ev.type === "update") update(ev.id, ev.patch);
+  else if (ev.type === "cmd") {
+    if (ev.do === "gather") gather(); else if (ev.do === "scatter") scatter();
+    else if (ev.do === "clear") for (const o of [...objs.values()]) if (!["core", "next", "music", "timer"].includes(o.data.id)) { o.vy = -3000; remove(o); }
+  }
+}
+async function boot() {
+  defaults();
+  if (!TOKEN) return;
+  try { const s = await (await fetch(q("/space/state"))).json(); for (const d of s.objects) spawn(d); objs.forEach(hydrate); } catch (e) {}
+  const es = new EventSource(q("/space/stream"));
+  es.onmessage = (e) => { const d = JSON.parse(e.data); (d.ev || []).forEach(onEvent); if (d.hands) onHands(d.hands); };
+  es.onerror = () => { es.close(); setTimeout(boot2, 2000); };
+  setInterval(refresh, 4000); refresh();
+  const cs = new EventSource(q("/chat/stream"));
+  cs.onmessage = (e) => { const d = JSON.parse(e.data); if (d.state) orb = d.state; };
+}
+function boot2() { const es = new EventSource(q("/space/stream")); es.onmessage = (e) => { const d = JSON.parse(e.data); (d.ev || []).forEach(onEvent); if (d.hands) onHands(d.hands); }; es.onerror = () => { es.close(); setTimeout(boot2, 2000); }; }
+async function refresh() {
+  let s; try { s = await (await fetch(q("/desk/state"))).json(); } catch (e) { return; }
+  const set = (id, f, v) => { const o = objs.get(id); const el = o && o.el.querySelector(`[data-f=${f}]`); if (el) el.textContent = v; };
+  const m = (s.music || "").split(" - ");
+  set("music", "song", m.length > 1 ? m.slice(1).join(" - ") : (s.music || "Nothing playing")); set("music", "artist", m.length > 1 ? m[0] : "");
+  set("next", "nextTitle", s.next ? s.next.title : "Nothing else today");
+  set("next", "nextWhen", s.next ? (s.next.when || "") + (s.next.leave_in != null ? ` · leave in ${s.next.leave_in} min` : "") : "");
+  set("next", "weather", s.weather || "");
+}
+setTimeout(() => $("hint").style.opacity = 0, 12000);
+boot(); requestAnimationFrame(frame);
+window.__hands = onHands; window.__event = onEvent;   // for previews and tests
+</script>
+</body>
+</html>

@@ -15,12 +15,18 @@ FEED = []                    # [{"id", "who": "you"|"atlas", "text", "t"}]
 LOCK = threading.Lock()
 NEW = threading.Condition(LOCK)
 _next = [1]
+LISTENERS = []               # fn(who, text) for every line, e.g. Atlas Space turning answers into objects
 
 
 def add(who, text):
     text = (text or "").strip()
     if not text:
         return
+    for fn in LISTENERS:
+        try:
+            fn(who, text)
+        except Exception:
+            pass
     with NEW:
         # Atlas speaks in sentences: join the pieces of one answer into one message
         if who == "atlas" and FEED and FEED[-1]["who"] == "atlas" and time.time() - FEED[-1]["t"] < 4:

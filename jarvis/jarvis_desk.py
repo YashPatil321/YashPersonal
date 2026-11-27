@@ -35,6 +35,7 @@ DESK_CAMERA_INDEX = 1        # the downward camera. The monitor webcam is usuall
 DESK_CAMERA_SIZE = (1280, 720)
 DESK_DISPLAY = None          # which screen is the projector (0, 1, 2 ...). None = the smallest screen that isn't the main one
 DWELL_SECONDS = 0.6
+MEDIA_KEYS = ("vol_up", "vol_down", "next", "prev", "play_pause", "mute")
 DESK_MODE = "screen"         # "screen": the projector is a Windows touchscreen (touch any app). "panels": Atlas's desk page
 DESK_TOUCH = "camera"        # "camera": hand tracking from the down camera. "laser": an IR line laser + IR camera, real touch
 DESK_EXPOSURE = None         # None keeps what the camera picked. -7 or -8 = sharper fast fingers if the room is bright enough
@@ -422,6 +423,7 @@ class Desk:
         self.surface = None          # touch -> Windows, built once calibrated (see jarvis_surface)
         self.touchcal = None
         self.mode = DESK_MODE
+        self.space = None            # Atlas Space, when it takes the hands (mode "space")
         import jarvis_surface
         self.stats = jarvis_surface.Stats()
 
@@ -572,6 +574,11 @@ class Desk:
         small = frame if w <= 1280 else cv2.resize(frame, (1280, int(h * 1280 / w)), interpolation=cv2.INTER_AREA)
         rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)   # the hand model runs on a smaller copy (fast); tips are refined at full size
         hands = det.hands_all(rgb, now_ms if now_ms is not None else time.time() * 1000)
+        if self.mode == "space" and self.space is not None:   # Atlas Space: every point of both hands, on the mat
+            import jarvis_surface
+            hands = [jarvis_surface.refine_tips(frame, lm, tips=((3, 4), (7, 8), (11, 12))) for lm in hands]
+            self.space.feed_desk([[self.cal.to_desk((x * w, y * h)) for x, y in lm] for lm in hands])
+            return
         if self.mode == "screen":   # the whole projected desktop is the touchscreen
             import jarvis_surface
             to_mat = lambda p: self.cal.to_desk((p[0] * w, p[1] * h))

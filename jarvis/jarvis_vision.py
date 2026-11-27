@@ -722,6 +722,7 @@ class Vision:
         self.on_gesture, self.on_face, self.say, self.on_people = on_gesture, on_face, say, on_people
         self.touch = None          # (TouchController, WindowsTouch) while touch mode is on
         self.cad = None            # CadHub while the CAD workshop is open: hands go to the 3D model, not the gestures
+        self.space = None          # Atlas Space: while it's open, both hands go there
         self.faceid = None
         self.room = None
         self.enroll = None         # (name, feats list, until, done callback) while learning a face
@@ -849,6 +850,9 @@ class Vision:
                         if self.on_face:
                             self.on_face(seen)
                 if not det.hands or getattr(self, "low_power", False):
+                    continue
+                if self.space is not None and self.space.wants_webcam():
+                    self.space.feed_webcam(det.hands_all(rgb, ts))
                     continue
                 if self.cad and self.cad.active:
                     self.cad.set_hands(det.hands_all(rgb, ts))

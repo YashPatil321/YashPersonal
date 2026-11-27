@@ -54,6 +54,7 @@ import jarvis_room
 import jarvis_wake
 import jarvis_chats
 import jarvis_chatui
+import jarvis_space
 import jarvis_evolve
 import jarvis_multi
 import jarvis_persona
@@ -162,10 +163,13 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio, jarvis_routines, jarvis_trust):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio, jarvis_routines, jarvis_trust, jarvis_space):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
+
+
+SPACE = jarvis_space.Space()
 
 
 def typing_console():
@@ -1105,7 +1109,7 @@ def _route(text):
         return ("command_center", None)
     cc = cc or jarvis_trust.route_trust(t) or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
-        or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
+        or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_space.route_space(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
     if cc:
         return cc
@@ -1730,6 +1734,10 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
     if full:
         extra += (f" You have full access to Yash's Windows PC. To see or control the screen (windows, tabs, buttons, typing, "
                   f"shortcuts, screenshots) run: \"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" help. "
+                  "When Atlas Space is open (his glass workspace), put things worth seeing there as objects: jarvis_ctl.py "
+                  "space card --title T --body B, space list --title T item1 item2 ..., space image URL --title T, space link URL "
+                  "--title T, space gather / scatter / clear. Lists, plans, results, images and links go on Space; keep the spoken "
+                  "answer short. "
                   "For anything on screen, work in a loop: run jarvis_ctl.py look (a screenshot with a coordinate grid plus a "
                   "numbered list of everything clickable with positions), read the image, act with clicknum, typeinto, keys, "
                   "clickxy, drag or scroll, then look again to check it worked; use read to get the text of a page or doc. "
@@ -2169,9 +2177,9 @@ class Jarvis:
     def local_url(self, path):
         return f"http://127.0.0.1:{jarvis_phone.PHONE_PORT}{path}?token={jarvis_phone.token()}"
 
-    def open_desk_page(self, path):
-        """Opens the desk full screen on the projector."""
-        scr = jarvis_desk.projector_screen(or_main=True)
+    def open_desk_page(self, path, scr=None):
+        """Opens the desk full screen on the projector (or on scr)."""
+        scr = scr or jarvis_desk.projector_screen(or_main=True)
         url = self.local_url(path)
         exe, prof = browser_exe(), browser_profile()
         if not exe:
@@ -2185,7 +2193,7 @@ class Jarvis:
                 time.sleep(3)
                 sc = jarvis_screen.Screen()
                 for hwnd, _, title in sc.windows():
-                    if title.startswith("Jarvis Desk") or title.startswith("Jarvis Hologram"):
+                    if title.startswith(("Jarvis Desk", "Jarvis Hologram", "Atlas Space")):
                         sc.place(hwnd, (x, y, w, h))
                         sc.focus(hwnd)
                         time.sleep(0.3)
@@ -2196,6 +2204,38 @@ class Jarvis:
             threading.Thread(target=fit, daemon=True).start()
         else:
             self.pc.open_url(url, app_window=True)
+
+    def space_action(self, action, arg, say):
+        sp = SPACE
+        if action == "space_cmd":
+            sp.command(arg)
+            if not sp.active:
+                say("Space isn't open. Say desk mode.")
+            return True
+        if action == "space_close":
+            self.close_desk_page()
+            if self.desk and self.desk.mode == "space":
+                self.desk.stop()
+            say("Space closed.")
+            return True
+        mons = jarvis_desk.monitors()
+        proj = jarvis_desk.projector_screen()
+        scr = jarvis_space.jarvis_screen(mons, proj) or (0, 0, 1920, 1080, True)
+        d = self.desk
+        src = jarvis_space.SPACE_HANDS
+        if src == "auto":
+            src = "desk" if (d and d.cal.ready and proj and tuple(scr[:4]) == tuple(proj[:4])) else "webcam"
+        sp.source = src
+        if src == "desk" and d:
+            d.space, d.mode = sp, "space"
+            d.start()
+        elif src == "webcam" and self.vision is not None:
+            self.vision.space = sp
+        self.close_desk_page()
+        self.open_desk_page("/space", scr)
+        how = "on the mat" if src == "desk" else "in the air in front of the camera"
+        say(f"Space is up. Hands {how}: squeeze three fingers to grab, throw to move, bring both hands together to gather.")
+        return True
 
     def desk_calibrate(self, d, say):
         """Projects the markers (or, with the laser, 4 dots to touch), lines the camera up, then gets out of the way."""
@@ -2220,7 +2260,7 @@ class Jarvis:
         try:
             import ctypes
             for hwnd, _, title in jarvis_screen.Screen().windows():
-                if title.startswith("Jarvis Desk"):
+                if title.startswith(("Jarvis Desk", "Atlas Space")):
                     ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)   # WM_CLOSE
         except Exception as e:
             log(f"close desk page: {e}")
@@ -3013,6 +3053,8 @@ class Jarvis:
                 hub.send("close")
                 say("Workshop closed.")
             return True
+        if action in ("space_open", "space_close", "space_cmd") or (action == "desk" and arg is True):
+            return self.space_action("space_open" if action == "desk" else action, arg, say)
         if action == "desk_status":
             say(self.desk.status() if self.desk else "The desk isn't set up. It needs the phone bridge on.")
             return True
@@ -3634,6 +3676,15 @@ def main():
             bridge.routes["/command/memory"] = memory_json
             bridge.routes["/command"] = command_page
             jarvis_chatui.register(bridge, jarvis, orb_state=lambda: jarvis_orb.LAST.get("state", "idle"))
+
+            def space_act(phrase):
+                if phrase in jarvis_desk.MEDIA_KEYS:
+                    jarvis.pc.key(phrase, 2 if phrase.startswith("vol") else 1)
+                else:
+                    jarvis.remote_ask(phrase, speak=True)
+            SPACE.register(bridge, act=space_act, open_url=jarvis.pc.open_url)
+            jarvis_chatui.LISTENERS.append(SPACE.on_chat)
+            threading.Thread(target=SPACE.watch, daemon=True).start()
             if CHAT_ON_START or not VOICE_INPUT:   # the chat window opens with Atlas
                 threading.Timer(2.0, lambda: jarvis.pc.open_window(jarvis.local_url("/chat"))).start()
             bridge.routes["/command/state"] = command_json

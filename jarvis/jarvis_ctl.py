@@ -303,11 +303,51 @@ def read_text(limit=12000):
     return "\n".join(out)[:limit]
 
 
+def space(args):
+    """Puts objects on Atlas Space (the glass workspace) through Atlas's local server.
+    space card --title T --body B | space list --title T item1 item2 ... | space image URL [--title T]
+    space link URL [--title T] [--body B] | space gather | space scatter | space clear"""
+    import json
+    import urllib.request
+    import jarvis_phone
+    if not args:
+        print(space.__doc__)
+        return 1
+    kind, rest = args[0], args[1:]
+    base = f"http://127.0.0.1:{jarvis_phone.PHONE_PORT}"
+    tok = jarvis_phone.token()
+    if kind in ("gather", "scatter", "clear"):
+        urllib.request.urlopen(f"{base}/space/cmd?do={kind}&token={tok}", data=b"{}", timeout=10).read()
+        print("ok")
+        return 0
+    data, items, i = {}, [], 0
+    while i < len(rest):
+        a = rest[i]
+        if a.startswith("--") and i + 1 < len(rest):
+            data[a[2:]] = rest[i + 1]
+            i += 2
+            continue
+        items.append(a)
+        i += 1
+    if kind in ("image", "link") and items:
+        data.setdefault("url", items.pop(0))
+    if kind == "list":
+        data["items"] = "\n".join(items)
+    elif items and "body" not in data:
+        data["body"] = " ".join(items)
+    data["kind"] = {"card": "card", "note": "card", "text": "card"}.get(kind, kind)
+    req = urllib.request.Request(f"{base}/space/push?token={tok}", data=json.dumps(data).encode(), headers={"Content-Type": "application/json"})
+    print("added " + urllib.request.urlopen(req, timeout=10).read().decode())
+    return 0
+
+
 def main(argv):
     if not argv or argv[0] in ("help", "-h", "--help"):
         print(__doc__)
         return 0
     cmd, args = argv[0], argv[1:]
+    if cmd == "space":
+        return space(args)
     dpi_aware()
     if cmd == "look":
         look(next((a for a in args if not a.startswith("--")), None))
