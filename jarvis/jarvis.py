@@ -55,6 +55,7 @@ import jarvis_wake
 import jarvis_chats
 import jarvis_chatui
 import jarvis_space
+import jarvis_monitors
 import jarvis_evolve
 import jarvis_multi
 import jarvis_persona
@@ -105,6 +106,7 @@ TELEGRAM_TOKEN = ""          # your own Telegram bot (from @BotFather) to talk t
 TELEGRAM_CHAT_ID = 0         # filled in automatically when you pair
 PUSH_TO_TALK = True          # Ctrl+Alt+Space anywhere in Windows = talk to Atlas (no wake word, works with loud music)
 VOICE_INPUT = True           # False = no mic at all: you type to Atlas in its window (say or type "voice off" / "voice on")
+JARVIS_SCREEN_ON_START = True   # with more than one screen, Atlas Space opens on the Jarvis monitor every start
 CHAT_ON_START = True         # open the Atlas chat window every time Atlas starts
 TYPE_TO_ATLAS = True         # type commands into the Atlas window too (handy with no mic or no GPU)
 FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
@@ -170,6 +172,39 @@ for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain
 
 
 SPACE = jarvis_space.Space()
+
+
+_CPU = {"t": None}
+
+
+def system_stats():
+    """CPU %, memory %, disk free, uptime: plain Windows calls, no extra packages."""
+    if not IS_WIN:
+        return {}
+    import ctypes
+    from ctypes import wintypes
+    k = ctypes.windll.kernel32
+    out = {}
+    idle, kern, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
+    if k.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kern), ctypes.byref(user)):
+        v = lambda f: (f.dwHighDateTime << 32) | f.dwLowDateTime
+        cur = (v(idle), v(kern), v(user))
+        if _CPU["t"]:
+            di, dk, du = (cur[i] - _CPU["t"][i] for i in range(3))
+            out["cpu"] = round(100 * (1 - di / max(1, dk + du)))
+        _CPU["t"] = cur
+
+    class MS(ctypes.Structure):
+        _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong)] + [(n, ctypes.c_ulonglong) for n in ("t", "a", "tp", "ap", "tv", "av", "ax")]
+    ms = MS(len=ctypes.sizeof(MS))
+    if k.GlobalMemoryStatusEx(ctypes.byref(ms)):
+        out["ram"] = int(ms.load)
+    free = ctypes.c_ulonglong()
+    if k.GetDiskFreeSpaceExW("C:\\", ctypes.byref(free), None, None):
+        out["disk_free_gb"] = round(free.value / 2 ** 30)
+    k.GetTickCount64.restype = ctypes.c_ulonglong
+    out["uptime_h"] = round(k.GetTickCount64() / 3.6e6, 1)
+    return out
 
 
 def typing_console():
@@ -1107,9 +1142,9 @@ def _route(text):
         return ("chat_open", None)
     if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
         return ("command_center", None)
-    cc = cc or jarvis_trust.route_trust(t) or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_space.route_space(t) or jarvis_monitors.route_monitors(t) or jarvis_trust.route_trust(t) or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
-        or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_space.route_space(t) or jarvis_desk.route_desk(t) \
+        or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
     if cc:
         return cc
@@ -2327,6 +2362,22 @@ class Jarvis:
         if now - cache.get("wx_t", 0) > 600:
             cache["wx"], cache["wx_t"] = jarvis_extras.weather_brief(), now
         out["music"], out["weather"] = cache.get("music"), cache.get("wx")
+        try:   # for the glass screen: today's schedule, the PC, recent notes
+            if b:
+                lt = time.localtime()
+                base = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+                ag = []
+                for e in getattr(b.planner, "events", []):
+                    m = re.match(r"(\d{1,2}):(\d{2})", str(e.get("start", "")))
+                    if m:
+                        at = base + int(m.group(1)) * 3600 + int(m.group(2)) * 60
+                        ag.append((at, time.strftime("%I:%M %p", time.localtime(at)).lstrip("0"), e.get("title", ""), at < now))
+                out["agenda"] = [{"when": w, "title": t, "past": p} for _, w, t, p in sorted(ag)][:8]
+                inbox = (b.vault.read("Jarvis/Inbox.md") or "").splitlines()
+                out["notes"] = [l[2:].strip() for l in inbox if l.startswith("- ")][-5:]
+            out["system"] = system_stats()
+        except Exception as e:
+            log(f"desk state extras: {e}")
         if self.vision and self.vision.last_seen_names:
             out["people"] = ", ".join(("Yash" if n == jarvis_faces.OWNER else jarvis_faces.spoken_name(n)) if n else "a guest"
                                       for n in self.vision.last_seen_names)
@@ -3053,6 +3104,45 @@ class Jarvis:
                 hub.send("close")
                 say("Workshop closed.")
             return True
+        if action == "monitor_move":
+            name, where = arg
+            if not IS_WIN:
+                say("Moving windows only works on Windows.")
+                return True
+            h = jarvis_monitors.find(name, jarvis_screen.Screen().windows())
+            jscr = jarvis_space.jarvis_screen(jarvis_desk.monitors(), jarvis_desk.projector_screen())
+            if h is None:
+                say("I don't know which window you mean." if name in ("this", "it", "that") else f"I can't find {name}.")
+                return True
+            sc = jarvis_screen.Screen()
+            hs = [w for w, exe, t in sc.windows() if not t.lower().startswith(jarvis_monitors.MINE)] if h == "all" else [h]
+            done = [jarvis_monitors.move(w, where, jscr, sc) for w in hs]
+            if all(d is None for d in done):
+                n = len(jarvis_monitors.screens())
+                say("You only have one screen." if n < 2 else f"There's no {where} screen from there.")
+            else:
+                where_said = {"other": "the other screen", "next": "the next screen", "here": "this screen"}.get(where, f"the {where} screen")
+                say(("Everything's on " if h == "all" else "Moved it to ") + where_said + ".")
+            return True
+        if action == "space_obj":
+            what, oid, extra = arg
+            if what == "widget":
+                SPACE.command("widget", id=oid)
+                say("On the screen.")
+            elif what == "close":
+                SPACE.command("close", id=oid)
+                say("Gone.")
+            elif what == "move":
+                SPACE.command("move", id=oid, where=jarvis_space.SPOTS.get(extra, (.5, .5)))
+                say("Done.")
+            elif what == "scale":
+                f = {"bigger": 1.35, "larger": 1.35, "huge": 2.0, "zoom in on": 1.8, "blow up": 2.0, "smaller": .75, "tiny": .5, "shrink": .7}.get(extra, None)
+                SPACE.command("scale", id=oid, by=f, reset=f is None)
+                say("Done.")
+            elif what == "front":
+                SPACE.command("front", id=oid)
+                say("Here.")
+            return True
         if action in ("space_open", "space_close", "space_cmd") or (action == "desk" and arg is True):
             return self.space_action("space_open" if action == "desk" else action, arg, say)
         if action == "desk_status":
@@ -3685,6 +3775,9 @@ def main():
             SPACE.register(bridge, act=space_act, open_url=jarvis.pc.open_url)
             jarvis_chatui.LISTENERS.append(SPACE.on_chat)
             threading.Thread(target=SPACE.watch, daemon=True).start()
+            jarvis_monitors.track_last(None)
+            if JARVIS_SCREEN_ON_START and len(jarvis_desk.monitors()) > 1:   # the glass screen is always up on the Jarvis monitor
+                threading.Timer(8.0, lambda: jarvis.space_action("space_open", None, lambda *a: None)).start()
             if CHAT_ON_START or not VOICE_INPUT:   # the chat window opens with Atlas
                 threading.Timer(2.0, lambda: jarvis.pc.open_window(jarvis.local_url("/chat"))).start()
             bridge.routes["/command/state"] = command_json

@@ -39,6 +39,13 @@
     background: rgba(255, 255, 255, .06); letter-spacing: 0; font-size: 1.6vh; }
   .obj .title { font-size: 2.6vh; font-weight: 600; line-height: 1.2; }
   .obj .body { margin-top: .8vh; white-space: pre-wrap; color: #ffe2d8; max-height: 40vh; overflow: hidden; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vh .8vw; }
+  .stat b { display: block; font: 600 3.4vh/1 "JetBrains Mono", monospace; }
+  .stat span { color: var(--dim); font-size: 1.4vh; letter-spacing: .1em; text-transform: uppercase; }
+  .bar { height: .6vh; border-radius: .3vh; background: rgba(255, 255, 255, .08); margin-top: .6vh; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, #ff6a4d, #ffb84d); }
+  .obj li.past { opacity: .45; }
+  .obj li em { font-style: normal; color: var(--ember); font-family: "JetBrains Mono", monospace; font-size: 1.5vh; min-width: 7.5vw; }
   .obj .q { color: var(--dim); font-size: 1.6vh; margin-bottom: .6vh; }
   .obj ul { list-style: none; margin-top: .6vh; }
   .obj li { padding: .7vh 0; border-bottom: 1px solid rgba(255, 255, 255, .08); display: flex; gap: .8vw; }
@@ -64,6 +71,12 @@
     font: 1.4vh "JetBrains Mono", monospace; letter-spacing: .08em; color: var(--dim);
     background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)); border: 1px solid rgba(255, 255, 255, .1);
     backdrop-filter: blur(16px); transition: opacity 1s; }
+  #coach { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; display: none; text-align: center;
+    padding: 2.4vh 2vw; border-radius: 2.4vh; max-width: 34vw; pointer-events: none;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .04)); border: 1px solid rgba(255, 255, 255, .18);
+    backdrop-filter: blur(24px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 4vh 9vh rgba(0, 0, 0, .6); }
+  #coach b { display: block; font-size: 3vh; margin-bottom: .8vh; }
+  #coach span { color: #ffe2d8; }
   #flash { position: fixed; left: 50%; top: 4vh; transform: translateX(-50%); z-index: 4; font: 600 1.6vh "JetBrains Mono", monospace;
     letter-spacing: .25em; color: var(--amber); opacity: 0; transition: opacity .3s; text-transform: uppercase; }
 </style>
@@ -73,7 +86,8 @@
 <div id="world"></div>
 <canvas id="handsFx"></canvas>
 <div id="flash"></div>
-<div id="hint">SQUEEZE 3 FINGERS TO GRAB · THROW TO MOVE · FLICK OFF THE EDGE TO CLOSE · BRING BOTH HANDS TOGETHER TO GATHER</div>
+<div id="hint">CLOSE YOUR HAND ON SOMETHING TO GRAB IT · OPEN TO LET GO · THROW IT TO MOVE IT · PINCH TO PRESS · BOTH HANDS TOGETHER TO GATHER</div>
+<div id="coach"><b>Grab anything</b><span>Hold your hand up. Move it over a card, then close your hand like you're picking it up.</span></div>
 
 <script>
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
@@ -101,9 +115,12 @@ function html(d) {
       <div class="row"><div class="btn" data-key="prev">&#9198;</div><div class="btn main" data-key="play_pause">&#9199;</div><div class="btn" data-key="next">&#9197;</div></div>
       <div class="row"><div class="btn" data-key="vol_down">Vol &minus;</div><div class="btn" data-key="mute">Mute</div><div class="btn" data-key="vol_up">Vol +</div></div>`;
     case "next": return `<h4>Next up${x}</h4><div class="title" data-f="nextTitle">Nothing else today</div><div class="q" data-f="nextWhen"></div><div class="body" data-f="weather"></div>`;
-    case "timer": return `<h4>Timer${x}</h4><div class="title" data-f="tleft" style="font:600 4.4vh 'JetBrains Mono',monospace">--:--</div><div class="q" data-f="tlabel">Squeeze a time</div>
+    case "timer": return `<h4>Timer${x}</h4><div class="title" data-f="tleft" style="font:600 4.4vh 'JetBrains Mono',monospace">--:--</div><div class="q" data-f="tlabel">Pick a time</div>
       <div class="row"><div class="btn" data-timer="5">5m</div><div class="btn" data-timer="15">15m</div><div class="btn" data-timer="25">25 focus</div></div>
       <div class="row"><div class="btn" data-timer="0">Stop</div></div>`;
+    case "agenda": return `<h4>Today${x}</h4><ul data-f="agenda"><li>Nothing on the calendar</li></ul>`;
+    case "system": return `<h4>This PC${x}</h4><div class="stats" data-f="system"></div>`;
+    case "notes": return `<h4>Inbox${x}</h4><ul data-f="notes"><li>Nothing captured yet</li></ul>`;
     default: return `<h4>${esc(d.label || "Note")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}${d.body || d.text ? `<div class="body">${fmt(d.body || d.text)}</div>` : ""}`;
   }
 }
@@ -136,12 +153,18 @@ function hydrate(o) { if (o.data.kind === "core") o.cv = o.el.querySelector("can
 
 // built in objects: Atlas core, next up, music, timer
 function defaults() {
-  spawn({ id: "core", kind: "core", pinned: 1 }, { x: W() / 2, y: H() * .45 });
-  spawn({ id: "next", kind: "next" }, { x: W() * .17, y: H() * .28 });
-  spawn({ id: "music", kind: "music" }, { x: W() * .83, y: H() * .3 });
-  spawn({ id: "timer", kind: "timer" }, { x: W() * .17, y: H() * .7 });
+  // the Jarvis screen's home layout: Atlas in the middle, your day on the left, the PC and music on the right
+  spawn({ id: "core", kind: "core", pinned: 1 }, { x: W() * .5, y: H() * .34 });
+  spawn({ id: "next", kind: "next" }, { x: W() * .17, y: H() * .17 });
+  spawn({ id: "agenda", kind: "agenda" }, { x: W() * .17, y: H() * .5 });
+  spawn({ id: "timer", kind: "timer" }, { x: W() * .17, y: H() * .83 });
+  spawn({ id: "music", kind: "music" }, { x: W() * .83, y: H() * .2 });
+  spawn({ id: "system", kind: "system" }, { x: W() * .83, y: H() * .52 });
+  spawn({ id: "notes", kind: "notes" }, { x: W() * .83, y: H() * .8 });
+  for (const o of objs.values()) { o.vx = o.vy = 0; }
   objs.forEach(hydrate);
 }
+const WIDGET = { core: "core", next: "next", agenda: "agenda", timer: "timer", music: "music", system: "system", notes: "notes" };
 
 // ================= physics =================
 function step(dt) {
@@ -216,6 +239,11 @@ function rawShape(p, was) {
   const sq = was === "squeeze" ? [0.75, 0.85, 0.6] : [0.55, 0.65, 0.45];
   if (t < sq[0] && m < sq[1] && im < sq[2]) return "squeeze";             // three fingertips together
   if (t < (was === "pinch" ? 0.5 : 0.34)) return "pinch";
+  // a closed hand: every fingertip pulled in close to the palm. The most natural grab there is.
+  const c = [(p[0][0] + p[5][0] + p[17][0]) / 3, (p[0][1] + p[5][1] + p[17][1]) / 3];
+  const L = dist(p[0], p[9]) || 1;   // wrist to middle knuckle: the hand's own ruler, steady as it turns
+  const curl = [8, 12, 16, 20].filter((i) => dist(p[i], c) < L * (was === "grab" ? 0.95 : 0.8)).length;
+  if (curl >= 4 || (was === "grab" && curl >= 3)) return "grab";
   const e = [ext(p, 8, 6), ext(p, 12, 10), ext(p, 16, 14), ext(p, 20, 18)];
   if (e.every(Boolean)) return "open";
   if (!e.some(Boolean)) return "fist";
@@ -224,23 +252,31 @@ function rawShape(p, was) {
 }
 function grabPoint(h) {
   const p = h.pts;
+  if (h.shape === "grab") return [(p[0][0] + p[5][0] + p[9][0] + p[17][0]) / 4, (p[0][1] + p[5][1] + p[9][1] + p[17][1]) / 4];
   return h.shape === "squeeze" ? [(p[4][0] + p[8][0] + p[12][0]) / 3, (p[4][1] + p[8][1] + p[12][1]) / 3]
        : h.shape === "pinch" ? [(p[4][0] + p[8][0]) / 2, (p[4][1] + p[8][1]) / 2] : p[8];
 }
-function objAt(x, y) {
-  let best = null;
+function objAt(x, y, pad = 0) {
+  // magnetic: a hand near an object (within pad px) counts as on it, so you don't have to be pixel perfect
+  let best = null, bestD = 1e9;
   for (const o of objs.values()) {
     const r = o.el.getBoundingClientRect();
-    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom && (!best || +o.el.style.zIndex > +best.el.style.zIndex)) best = o;
+    const dx = Math.max(r.left - x, 0, x - r.right), dy = Math.max(r.top - y, 0, y - r.bottom), d = Math.hypot(dx, dy);
+    if (d <= pad && (d < bestD - 1 || (Math.abs(d - bestD) <= 1 && +o.el.style.zIndex > +best.el.style.zIndex))) { best = o; bestD = d; }
   }
   return best;
 }
+const isGrab = (s) => s === "squeeze" || s === "grab";
 
 let incoming = [], lastHandsT = 0;
+const coach = { shown: false, grabbed: false };
+try { coach.grabbed = localStorage.getItem("spaceCoach") === "1"; } catch (e) {}
+function coachDone() { $("coach").style.display = "none"; flash("nice"); try { localStorage.setItem("spaceCoach", "1"); } catch (e) {} }
 function onHands(list) {
   lastHandsT = performance.now();
   incoming = list.map((h) => h.pts.map(([x, y]) => [x * W(), y * H()]));
   document.body.classList.toggle("hands", incoming.length > 0);
+  if (incoming.length && !coach.grabbed && !coach.shown) { coach.shown = true; $("coach").style.display = "block"; setTimeout(() => $("coach").style.display = "none", 12000); }
 }
 function matchHands() {
   // pair incoming hands with the ones we're following (by wrist), so grabs stay with the right hand
@@ -255,7 +291,7 @@ function matchHands() {
     h.pts = h.pts ? pts.map((p, i) => [h.pts[i][0] * .35 + p[0] * .65, h.pts[i][1] * .35 + p[1] * .65]) : pts;
     const raw = rawShape(h.pts, h.shape);
     if (raw === h.shape) { h.n = 0; h.pending = null; }
-    else { h.pending === raw ? h.n++ : (h.pending = raw, h.n = 1); if (h.n >= (h.shape === "squeeze" ? 3 : 2)) { h.prev = h.shape; h.shape = raw; h.n = 0; h.changed = true; } }
+    else { h.pending === raw ? h.n++ : (h.pending = raw, h.n = 1); if (h.n >= (isGrab(h.shape) ? 3 : 2)) { h.prev = h.shape; h.shape = raw; h.n = 0; h.changed = true; } }
     h.seen = now; next.set(k, h);
   }
   for (const [k, h] of HAND) if (!next.has(k) && now - h.seen < 160) next.set(k, h);   // blinked out: hold on
@@ -280,16 +316,17 @@ function handsLogic() {
   for (const h of hands) {
     const [x, y] = grabPoint(h);
     h.hist.push({ x, y, t: now }); h.hist = h.hist.filter((p) => now - p.t < 200);
-    const under = objAt(x, y);
+    const under = objAt(x, y, W() * .035);
     if (under && !h.grab) under.el.classList.add("hover");
-    if (h.shape === "squeeze" && !h.grab && under) {
+    if (isGrab(h.shape) && !h.grab && under && !coach.grabbed) { coach.grabbed = true; coachDone(); }
+    if (isGrab(h.shape) && !h.grab && under) {
       // grab. If another hand already holds it: two hand mode (resize + rotate)
       h.grab = { o: under, dx: under.x - x, dy: under.y - y };
       under.el.classList.add("held"); under.el.style.zIndex = ++zTop; under.target = null;
       const other = hands.find((k) => k !== h && k.grab && k.grab.o === under);
       if (other) { under.two = { a: other, b: h, d0: dist(grabPoint(other), [x, y]), s0: under.s, ang0: Math.atan2(y - grabPoint(other)[1], x - grabPoint(other)[0]), r0: under.rot }; }
       else under.held = h;
-    } else if (h.shape !== "squeeze" && h.grab) {
+    } else if (!isGrab(h.shape) && h.grab) {
       const o = h.grab.o; if (o.two) o.two = null; release(h);
     }
     if (h.changed && h.shape === "pinch" && !h.grab) press(document.elementFromPoint(x, y));
@@ -330,7 +367,7 @@ function drawHands() {
   for (const h of HAND.values()) {
     const P = h.pts.map(([x, y]) => [x * k, y * k]);
     const palm = dist(P[5], P[17]);
-    const col = h.shape === "squeeze" ? "255,184,77" : h.shape === "pinch" ? "255,150,120" : "255,106,77";
+    const col = isGrab(h.shape) ? "255,184,77" : h.shape === "pinch" ? "255,150,120" : "255,106,77";
     // palm: frosted glass
     hx.beginPath(); [0, 1, 5, 9, 13, 17].forEach((i, n) => n ? hx.lineTo(...P[i]) : hx.moveTo(...P[i])); hx.closePath();
     hx.fillStyle = `rgba(${col},.10)`; hx.fill();
@@ -345,8 +382,12 @@ function drawHands() {
     hx.shadowBlur = 0;
     const [gx, gy] = grabPoint(h);
     hx.strokeStyle = `rgba(${col},.95)`; hx.lineWidth = 3 * k;
-    hx.beginPath(); hx.arc(gx * k, gy * k, (h.shape === "squeeze" ? 16 : 24) * k, 0, 7); hx.stroke();
-    if (h.shape === "squeeze") { hx.fillStyle = `rgba(${col},.35)`; hx.fill(); }
+    hx.beginPath(); hx.arc(gx * k, gy * k, (isGrab(h.shape) ? 16 : 24) * k, 0, 7); hx.stroke();
+    if (isGrab(h.shape)) { hx.fillStyle = `rgba(${col},.35)`; hx.fill(); }
+    // what the hand is doing, in words, so you always know what Atlas sees
+    const word = h.grab ? "holding" : { grab: "grab", squeeze: "grab", pinch: "press", open: "open", point: "point", fist: "grab" }[h.shape] || "";
+    if (word) { hx.font = `600 ${12 * k}px "JetBrains Mono", monospace`; hx.fillStyle = `rgba(${col},.9)`; hx.textAlign = "center";
+      hx.fillText(word.toUpperCase(), gx * k, gy * k + 42 * k); }
   }
 }
 
@@ -426,6 +467,12 @@ function onEvent(ev) {
   if (ev.type === "add") { const o = spawn(ev.obj, { x: W() * (.35 + .3 * Math.random()), y: H() * .82 }); o.vy = -900 - Math.random() * 400; o.vx = (Math.random() - .5) * 500; hydrate(o); }
   else if (ev.type === "update") update(ev.id, ev.patch);
   else if (ev.type === "cmd") {
+    const o = ev.id && objs.get(ev.id);
+    if (ev.do === "widget") { const w = objs.get(ev.id) || spawn({ id: ev.id, kind: WIDGET[ev.id] || ev.id }, { x: W() / 2, y: H() * .85 }); hydrate(w); w.target = { x: W() / 2, y: H() / 2, s: 1.15 }; w.el.style.zIndex = ++zTop; refresh(); return; }
+    if (ev.do === "close" && o) { if (!o.data.pinned) { o.vy = -3000; remove(o); } return; }
+    if (ev.do === "move" && o) { o.target = { x: W() * ev.where[0], y: H() * ev.where[1], s: o.s, rot: 0 }; o.el.style.zIndex = ++zTop; return; }
+    if (ev.do === "scale" && o) { o.target = { x: o.x, y: o.y, s: ev.reset ? 1 : Math.max(.4, Math.min(3, o.s * ev.by)), rot: o.rot }; o.el.style.zIndex = ++zTop; return; }
+    if (ev.do === "front" && o) { o.el.style.zIndex = ++zTop; o.target = { x: W() / 2, y: H() / 2, s: Math.max(o.s, 1.2), rot: 0 }; o.el.classList.add("hover"); return; }
     if (ev.do === "gather") gather(); else if (ev.do === "scatter") scatter();
     else if (ev.do === "clear") for (const o of [...objs.values()]) if (!["core", "next", "music", "timer"].includes(o.data.id)) { o.vy = -3000; remove(o); }
   }
@@ -450,6 +497,13 @@ async function refresh() {
   set("next", "nextTitle", s.next ? s.next.title : "Nothing else today");
   set("next", "nextWhen", s.next ? (s.next.when || "") + (s.next.leave_in != null ? ` · leave in ${s.next.leave_in} min` : "") : "");
   set("next", "weather", s.weather || "");
+  const html = (id, f, v) => { const o = objs.get(id); const el = o && o.el.querySelector(`[data-f=${f}]`); if (el) el.innerHTML = v; };
+  if (s.agenda) html("agenda", "agenda", s.agenda.length ? s.agenda.map((e) => `<li class="${e.past ? "past" : ""}"><em>${esc(e.when)}</em>${esc(e.title)}</li>`).join("") : "<li>Nothing on the calendar</li>");
+  if (s.notes) html("notes", "notes", s.notes.length ? s.notes.map((n) => `<li>${fmt(n)}</li>`).join("") : "<li>Nothing captured yet</li>");
+  const y = s.system || {};
+  const st = (k, v, pct) => `<div class="stat"><span>${k}</span><b>${v}</b>${pct != null ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}</div>`;
+  html("system", "system", st("CPU", (y.cpu ?? "--") + "%", y.cpu) + st("Memory", (y.ram ?? "--") + "%", y.ram) +
+       st("Disk free", (y.disk_free_gb ?? "--") + " GB") + st("Up", (y.uptime_h ?? "--") + " h"));
 }
 setTimeout(() => $("hint").style.opacity = 0, 12000);
 boot(); requestAnimationFrame(frame);

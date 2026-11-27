@@ -27,6 +27,7 @@ Settings (local_settings.py):
 
 import json
 import os
+import re
 import threading
 import time
 
@@ -41,8 +42,18 @@ def _log(msg):
     print(time.strftime("[%H:%M:%S] ") + "space: " + str(msg), flush=True)
 
 
+CURRENT = None   # the Space, for routing voice commands about its objects
+WIDGETS = {"core": ("core", "atlas", "clock"), "next": ("next", "next up", "up next"), "music": ("music", "player", "song"),
+           "timer": ("timer", "focus"), "agenda": ("agenda", "calendar", "schedule", "day"),
+           "system": ("system", "computer", "pc", "stats"), "notes": ("notes", "inbox", "note")}
+SPOTS = {"top left": (.17, .2), "top right": (.83, .2), "bottom left": (.17, .8), "bottom right": (.83, .8), "top": (.5, .16),
+         "bottom": (.5, .84), "left": (.15, .5), "right": (.85, .5), "center": (.5, .5), "middle": (.5, .5)}
+
+
 class Space:
     def __init__(self):
+        global CURRENT
+        CURRENT = self
         self.objects = []          # [{"id", "kind", ...data}]
         self.events = []           # [(seq, event)] recent, for the stream
         self.seq = 0
@@ -79,10 +90,27 @@ class Space:
                 return True
         return False
 
-    def command(self, what):
+    def command(self, what, **more):
         if what == "clear":
             self.objects = [o for o in self.objects if o.get("pinned")]
-        self._emit({"type": "cmd", "do": what})
+        if what == "close" and more.get("id"):
+            self.objects = [o for o in self.objects if o["id"] != more["id"]]
+        self._emit({"type": "cmd", "do": what, **more})
+
+    def find(self, name):
+        """The object a spoken name means: a built in widget, else the newest object whose title or kind matches."""
+        n = re.sub(r"^(?:the|my|that|this)\s+", "", name.lower().strip())
+        n = re.sub(r"\s+(?:card|widget|panel|object|window|box|thing)$", "", n)
+        for wid, words in WIDGETS.items():
+            if n in words:
+                return wid
+        for o in reversed(self.objects):
+            hay = " ".join(str(o.get(k, "")) for k in ("title", "label", "kind", "q")).lower()
+            if n and (n in hay or all(w in hay for w in n.split())):
+                return o["id"]
+        if n in ("last", "last one", "newest", "it", "that", "this") and self.objects:
+            return self.objects[-1]["id"]
+        return None
 
     # ---------- what Atlas says becomes objects ----------
     def on_chat(self, who, text):
@@ -226,7 +254,27 @@ def jarvis_screen(mons, projector=None):
 
 
 def route_space(t):
-    import re
+    sp = CURRENT
+    if sp is not None and sp.active:   # talking about something on the glass screen
+        m = re.fullmatch(r"(?:close|remove|hide|dismiss|get rid of|throw away|kill) (.+)", t)
+        if m and sp.find(m.group(1)):
+            return ("space_obj", ("close", sp.find(m.group(1)), None))
+        m = re.fullmatch(r"(?:move|put|send|drag|slide) (.+?) (?:to |into |in )?(?:the )?(" + "|".join(SPOTS) + r")(?: corner| side| of the screen)?", t)
+        if m and sp.find(m.group(1)):
+            return ("space_obj", ("move", sp.find(m.group(1)), m.group(2)))
+        m = re.fullmatch(r"(?:make|scale) (.+?) (bigger|larger|huge|smaller|tiny|normal(?: size)?)", t) or \
+            re.fullmatch(r"(zoom in on|blow up|shrink) (.+)", t)
+        if m:
+            name, how = (m.group(1), m.group(2)) if not m.group(1).startswith(("zoom", "blow", "shrink")) else (m.group(2), m.group(1))
+            if sp.find(name):
+                return ("space_obj", ("scale", sp.find(name), how))
+        m = re.fullmatch(r"(?:bring up|focus on|pull up|show me|open) (.+)", t)
+        if m and sp.find(m.group(1)) and sp.find(m.group(1)) in WIDGETS or (m and any(o["id"] == sp.find(m.group(1)) for o in sp.objects)):
+            return ("space_obj", ("front", sp.find(m.group(1)), None))
+        m = re.fullmatch(r"(?:add|put|show)(?: me)? (?:my |the )?(agenda|calendar|schedule|system stats|system|stats|notes|inbox|timer|music|clock)(?: (?:on|to) (?:the )?(?:space|jarvis screen|screen|glass))?", t)
+        if m:
+            wid = next(w for w, words in WIDGETS.items() if m.group(1).split()[0] in words or m.group(1) in words)
+            return ("space_obj", ("widget", wid, None))
     if re.fullmatch(r"(?:open|start|show|launch) (?:the |atlas )?space|space mode|(?:open )?atlas space|workspace mode", t):
         return ("space_open", None)
     if re.fullmatch(r"(?:close|stop|hide) (?:the )?space|space off", t):
