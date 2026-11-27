@@ -103,6 +103,8 @@ class Space:
             self.cond.notify_all()
 
     def add(self, kind, **data):
+        if kind != "reply" and self.reply_id and time.time() - getattr(self, "reply_t", 0) < 180 and "parent" not in data:
+            data["parent"] = self.reply_id   # made for the question being answered: tie it to that answer
         obj = {"id": f"o{self._next}", "kind": kind, **{k: v for k, v in data.items() if v not in (None, "", [])}}
         self._next += 1
         self.objects = (self.objects + [obj])[-40:]
@@ -118,6 +120,8 @@ class Space:
         return False
 
     def command(self, what, **more):
+        if what == "calibrate":
+            more["region"] = list(SPACE_REGION)
         if what == "clear":
             self.objects = [o for o in self.objects if o.get("pinned")]
         if what == "close" and more.get("id"):
@@ -145,7 +149,9 @@ class Space:
         if not self.active:
             return
         if who == "you":
+            self.reply_id = None
             self.reply_id = self.add("reply", q=text, text="")
+            self.reply_t = time.time()
         elif who == "atlas":
             if self.reply_id and self.update(self.reply_id, text=text):
                 return
@@ -198,7 +204,7 @@ class Space:
                 send(h, 200, f.read(), "text/html; charset=utf-8")
 
         def state(h, q):
-            send(h, 200, json.dumps({"objects": space.objects, "seq": space.seq, "source": space.source}), "application/json")
+            send(h, 200, json.dumps({"objects": space.objects, "seq": space.seq, "source": space.source, "region": list(SPACE_REGION)}), "application/json")
 
         def stream(h, q):
             h.send_response(200)
@@ -281,7 +287,20 @@ class Space:
                 threading.Thread(target=act, args=(what,), daemon=True).start()
             send(h, 200, "ok", "text/plain")
 
-        bridge.routes.update({"/space": page, "/space/state": state, "/space/stream": stream,
+        def region(h, q):   # reach calibration from the page
+            global SPACE_REGION
+            try:
+                r = tuple(float(v) for v in str(q.get("region", "")).split(","))
+                if len(r) == 4 and 0 <= r[0] < r[2] <= 1.2 and -0.2 <= r[1] < r[3] <= 1.2:
+                    SPACE_REGION = r
+                    save_setting("SPACE_REGION", r)
+                    _log(f"reach saved: {r}")
+                    return send(h, 200, "ok", "text/plain")
+            except Exception:
+                pass
+            send(h, 400, "bad region", "text/plain")
+
+        bridge.routes.update({"/space/region": region, "/space": page, "/space/state": state, "/space/stream": stream,
                               "/space/push": push, "/space/cmd": cmd, "/space/do": do,
                               "/space/file": file})
 
@@ -291,6 +310,17 @@ class Space:
             time.sleep(2)
             if self.active and time.time() - self.last_seen_page > 3:
                 self.active = False
+
+
+def save_setting(name, value):
+    path = os.path.join(HERE, "local_settings.py")
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except OSError:
+        lines = []
+    lines = [l for l in lines if not re.match(rf"\s*{name}\s*=", l)] + [f"{name} = {value!r}"]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def jarvis_screen(mons, projector=None):
@@ -334,6 +364,13 @@ def route_space(t):
         return ("space_file", m.group(1))
     if re.fullmatch(r"(?:open|start|show|launch) (?:the |atlas )?space|space mode|(?:open )?atlas space|workspace mode", t):
         return ("space_open", None)
+    if re.fullmatch(r"(?:calibrate|fit|set up|tune) (?:my |the )?(?:hands|hand tracking|reach|space to my reach)|hand calibration", t):
+        return ("space_cmd", "calibrate")
+    if re.fullmatch(r"(?:unfocus|exit focus|stop focusing|unzoom)", t) and sp is not None and sp.active:
+        return ("space_cmd", "unfocus")
+    m = re.fullmatch(r"focus (?:on )?(.+)", t)
+    if m and sp is not None and sp.active and sp.find(m.group(1)):
+        return ("space_obj", ("front", sp.find(m.group(1)), None))
     if re.fullmatch(r"(?:close|stop|hide) (?:the )?space|space off", t):
         return ("space_close", None)
     if re.fullmatch(r"(?:pull|bring|gather) (?:everything|it all|all of it|them all|it) (?:together|in|here|to me)|gather (?:up|everything)|stack (?:everything|it all)(?: up)?", t):

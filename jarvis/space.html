@@ -26,7 +26,8 @@
     backdrop-filter: blur(26px) saturate(170%); -webkit-backdrop-filter: blur(26px) saturate(170%);
     transition: box-shadow .2s, border-color .2s, opacity .35s; }
   .obj::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    background: linear-gradient(118deg, rgba(255, 255, 255, .13) 0%, transparent 30%); }
+    background: radial-gradient(60% 50% at var(--gx, 30%) var(--gy, 0%), rgba(255, 240, 230, .16), transparent 70%),
+                linear-gradient(118deg, rgba(255, 255, 255, .11) 0%, transparent 30%); }
   .obj.hover { border-color: rgba(255, 170, 140, .55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 0 4vh rgba(255, 106, 77, .35), 0 3vh 7vh rgba(0, 0, 0, .55); }
   .obj.held { border-color: rgba(255, 200, 170, .85); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 0 7vh rgba(255, 106, 77, .6), 0 5vh 10vh rgba(0, 0, 0, .6); }
   .obj.gone { opacity: 0; }
@@ -103,6 +104,15 @@
     backdrop-filter: blur(24px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 4vh 9vh rgba(0, 0, 0, .6); }
   #coach b { display: block; font-size: 3vh; margin-bottom: .8vh; }
   #coach span { color: #ffe2d8; }
+  body.focusing .obj:not(.focused):not(.core) { opacity: .28; filter: blur(3px) saturate(.6); }
+  .obj { transition: box-shadow .2s, border-color .2s, opacity .35s, filter .35s; }
+  .obj.focused { box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 0 10vh rgba(255,106,77,.45), 0 6vh 14vh rgba(0,0,0,.7); }
+  #calib { position: fixed; inset: 0; z-index: 6; display: none; background: rgba(5,3,2,.55); backdrop-filter: blur(6px); }
+  #calib .tgt { position: absolute; width: 9vh; height: 9vh; margin: -4.5vh 0 0 -4.5vh; border-radius: 50%; border: .4vh solid #ffb84d;
+    box-shadow: 0 0 4vh #ff6a4d, inset 0 0 3vh rgba(255,184,77,.5); }
+  #calib .tgt::after { content: ""; position: absolute; inset: 40%; border-radius: 50%; background: #fff1ea; }
+  #calib p { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); text-align: center; font-size: 2.4vh; max-width: 40vw; }
+  #calib p b { display: block; font-size: 3.4vh; margin-bottom: 1vh; }
   #flash { position: fixed; left: 50%; top: 4vh; transform: translateX(-50%); z-index: 4; font: 600 1.6vh "JetBrains Mono", monospace;
     letter-spacing: .25em; color: var(--amber); opacity: 0; transition: opacity .3s; text-transform: uppercase; }
 </style>
@@ -112,7 +122,8 @@
 <div id="world"></div>
 <canvas id="handsFx"></canvas>
 <div id="flash"></div>
-<div id="hint">CLOSE YOUR HAND ON SOMETHING TO GRAB IT · OPEN TO LET GO · THROW IT TO MOVE IT · PINCH TO PRESS · BOTH HANDS TOGETHER TO GATHER</div>
+<div id="calib"><div class="tgt" id="tgt"></div><p><b>Fit Space to your reach</b><span id="calibMsg">Point at the glowing circle and hold still.</span></p></div>
+<div id="hint">CLOSE YOUR HAND TO GRAB · OPEN TO LET GO · PUSH TOWARD THE SCREEN TO PRESS · DOUBLE PINCH TO FOCUS · BOTH HANDS TOGETHER TO GATHER</div>
 <div id="coach"><b>Grab anything</b><span>Hold your hand up. Move it over a card, then close your hand like you're picking it up.</span></div>
 
 <script>
@@ -303,7 +314,27 @@ async function stlView(box, url, o) {
 }
 
 function place(o) {
-  o.el.style.transform = `translate(${o.x - o.el.offsetWidth / 2}px, ${o.y - o.el.offsetHeight / 2}px) rotate(${o.rot}rad) scale(${o.s})`;
+  o.el.style.transform = `translate(${o.x - o.el.offsetWidth / 2}px, ${o.y - o.el.offsetHeight / 2}px) perspective(1400px) ` +
+    `rotateX(${(o.tx || 0).toFixed(2)}deg) rotateY(${(o.ty || 0).toFixed(2)}deg) rotate(${o.rot}rad) scale(${o.s})`;
+}
+function tilt() {
+  // glass leans toward a nearby hand and catches its light, like a real pane
+  const hands = [...HAND.values()].map((h) => grabPoint(h));
+  for (const o of objs.values()) {
+    let tx = 0, ty = 0, gx = 30, gy = 0;
+    const r = o.el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    for (const [x, y] of hands) {
+      const dx = (x - cx) / (r.width / 2 + 1), dy = (y - cy) / (r.height / 2 + 1), d = Math.hypot(dx, dy);
+      if (d < 2.2) {
+        const k = (o.held ? 1.6 : 1) * Math.max(0, 1 - d / 2.2);
+        ty += Math.max(-1, Math.min(1, dx)) * 9 * k; tx -= Math.max(-1, Math.min(1, dy)) * 9 * k;
+        gx = 50 + Math.max(-1, Math.min(1, dx)) * 50; gy = 50 + Math.max(-1, Math.min(1, dy)) * 50;
+      }
+    }
+    o.tx = (o.tx || 0) * .82 + tx * .18; o.ty = (o.ty || 0) * .82 + ty * .18;
+    o.el.style.setProperty("--gx", gx + "%"); o.el.style.setProperty("--gy", gy + "%");
+    if (Math.abs(o.tx) > .05 || Math.abs(o.ty) > .05 || o.held) place(o);
+  }
 }
 function spawn(d, at) {
   if (objs.has(d.id)) return objs.get(d.id);
@@ -366,6 +397,23 @@ function step(dt) {
     place(o);
   }
 }
+const PUSH = 0.14;   // how much bigger the hand has to get (pushed toward the camera) to count as a press
+let focused = null;
+function focus(o) {
+  if (focused === o) return unfocus();
+  unfocus(); focused = o; $("coach").style.display = "none";
+  o.prevT = { x: o.x, y: o.y, s: o.s, rot: o.rot };
+  o.target = { x: W() / 2, y: H() / 2, s: Math.min(2.2, Math.max(1.4, (H() * .7) / Math.max(1, o.el.offsetHeight))), rot: 0 };
+  o.el.style.zIndex = ++zTop; document.body.classList.add("focusing"); o.el.classList.add("focused");
+}
+function unfocus() {
+  if (!focused) return;
+  const o = focused; focused = null;
+  if (o.prevT && objs.has(o.data.id)) o.target = o.prevT;
+  document.body.classList.remove("focusing"); o.el.classList.remove("focused");
+}
+const ripples = [];
+function ripple(x, y) { ripples.push({ x, y, t: performance.now() }); }
 function gather(at) {
   const c = at || { x: W() / 2, y: H() / 2 };
   let i = 0;
@@ -408,6 +456,17 @@ function startTimer(min) {
 
 // ================= hands =================
 // each hand: 21 points on screen. Shapes come from distances measured in the hand's own palm width.
+class OE {
+  constructor(minCut = 1.4, beta = 0.012, lead = 0.03) { this.mc = minCut; this.b = beta; this.lead = lead; this.x = null; }
+  a(c, dt) { const r = 2 * Math.PI * c * dt; return r / (r + 1); }
+  f(x, t) {
+    if (this.x === null) { this.x = x; this.dx = 0; this.t = t; return x; }
+    const dt = Math.max(1e-3, t - this.t); this.t = t;
+    const dx = (x - this.x) / dt; this.dx += this.a(1, dt) * (dx - this.dx);
+    this.x += this.a(this.mc + this.b * Math.abs(this.dx), dt) * (x - this.x);
+    return this.x + Math.max(-40, Math.min(40, this.dx * this.lead));
+  }
+}
 const HAND = new Map();   // slot -> {pts, shape, n, pending, grab, hist}
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 function ext(p, tip, pip) { return dist(p[tip], p[0]) > dist(p[pip], p[0]) * 1.12; }
@@ -464,9 +523,11 @@ function matchHands() {
     for (const [k, h] of HAND) if (!used.has(k)) { const d = dist(h.pts[0], pts[0]); if (d < bestD) { bestD = d; bestK = k; } }
     const k = bestK !== null && bestD < W() * .25 ? bestK : Math.random().toString(36).slice(2, 7);
     used.add(k);
-    const h = HAND.get(k) || { shape: "other", pending: null, n: 0, hist: [], grab: null };
-    // smooth the points a touch (they're already filtered; this takes off the last shimmer)
-    h.pts = h.pts ? pts.map((p, i) => [h.pts[i][0] * .35 + p[0] * .65, h.pts[i][1] * .35 + p[1] * .65]) : pts;
+    const h = HAND.get(k) || { shape: "other", pending: null, n: 0, hist: [], grab: null, f: pts.map(() => [new OE(), new OE()]), L: [], trail: [] };
+    // every joint through its own One Euro filter: rock steady when you hold still, no lag when you move fast,
+    // plus a nudge ahead along its motion to cancel the camera's delay
+    const ts = now / 1000;
+    h.pts = pts.map((p, i) => [h.f[i][0].f(p[0], ts), h.f[i][1].f(p[1], ts)]);
     const raw = rawShape(h.pts, h.shape);
     if (raw === h.shape) { h.n = 0; h.pending = null; }
     else { h.pending === raw ? h.n++ : (h.pending = raw, h.n = 1); if (h.n >= (isGrab(h.shape) ? 3 : 2)) { h.prev = h.shape; h.shape = raw; h.n = 0; h.changed = true; } }
@@ -494,6 +555,18 @@ function handsLogic() {
   for (const h of hands) {
     const [x, y] = grabPoint(h);
     h.hist.push({ x, y, t: now }); h.hist = h.hist.filter((p) => now - p.t < 200);
+    h.trail.push({ x: h.pts[8][0], y: h.pts[8][1], t: now }); h.trail = h.trail.filter((p) => now - p.t < 320);
+    // depth: a hand pushed toward the camera looks bigger. Push your pointing hand at something = press it.
+    const size = dist(h.pts[0], h.pts[9]);
+    h.L.push({ v: size, t: now }); h.L = h.L.filter((p) => now - p.t < 700);
+    const base = Math.min(...h.L.map((p) => p.v));
+    h.push = Math.max(0, Math.min(1, (size / base - 1) / PUSH));
+    if (h.push >= 1 && !h.grab && (h.shape === "point" || h.shape === "open") && now - (h.pushed || 0) > 700) {
+      h.pushed = now; h.L = [{ v: size, t: now }];
+      const tip = h.pts[8], el = document.elementFromPoint(tip[0], tip[1]);
+      if (!press(el)) { const o = objAt(tip[0], tip[1], W() * .03); if (o) focus(o); }
+      ripple(tip[0], tip[1]);
+    }
     const under = objAt(x, y, W() * .035);
     if (under && !h.grab) under.el.classList.add("hover");
     if (isGrab(h.shape) && !h.grab && under && !coach.grabbed) { coach.grabbed = true; coachDone(); }
@@ -507,7 +580,14 @@ function handsLogic() {
     } else if (!isGrab(h.shape) && h.grab) {
       const o = h.grab.o; if (o.two) o.two = null; release(h);
     }
-    if (h.changed && h.shape === "pinch" && !h.grab) { h.turnO = under && under.turn ? under : null; if (!h.turnO) press(document.elementFromPoint(x, y)); h.lastXY = [x, y]; }
+    if (h.changed && h.shape === "pinch" && !h.grab) {
+      h.turnO = under && under.turn ? under : null;
+      if (!h.turnO && !press(document.elementFromPoint(x, y))) {
+        if (now - (h.lastPinch || 0) < 450) { under ? focus(under) : unfocus(); h.lastPinch = 0; }   // double pinch: focus / back
+        else h.lastPinch = now;
+      }
+      h.lastXY = [x, y];
+    }
     if (h.shape === "pinch" && h.turnO) { h.turnO.turn(x - h.lastXY[0], y - h.lastXY[1]); h.lastXY = [x, y]; }
     if (h.shape !== "pinch") h.turnO = null;
     h.changed = false;
@@ -537,14 +617,45 @@ function handsLogic() {
   } else twoOpen = null;
 }
 
+// objects made for the same question are tied together with a line of light
+function drawLinks(t) {
+  const k = devicePixelRatio, g = bx;
+  for (const o of objs.values()) {
+    const p = o.data.parent && objs.get(o.data.parent);
+    if (!p) continue;
+    const a = [p.x * k, p.y * k], b = [o.x * k, o.y * k], mx = (a[0] + b[0]) / 2, my = Math.min(a[1], b[1]) - 60 * k;
+    const gr = g.createLinearGradient(a[0], a[1], b[0], b[1]);
+    gr.addColorStop(0, "rgba(255,106,77,.0)"); gr.addColorStop(.5, "rgba(255,184,77,.55)"); gr.addColorStop(1, "rgba(255,106,77,.0)");
+    g.strokeStyle = gr; g.lineWidth = 2 * k; g.setLineDash([10 * k, 14 * k]); g.lineDashOffset = -t / 25;
+    g.beginPath(); g.moveTo(...a); g.quadraticCurveTo(mx, my, ...b); g.stroke(); g.setLineDash([]);
+  }
+}
+
 // draw the hands: glass silhouettes with lit joints
 const hc = $("handsFx"), hx = hc.getContext("2d");
 function size() { for (const c of [hc, $("bg")]) { c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio; } }
 addEventListener("resize", size); size();
 const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
 function drawHands() {
-  const k = devicePixelRatio; hx.clearRect(0, 0, hc.width, hc.height);
+  const k = devicePixelRatio, now = performance.now(); hx.clearRect(0, 0, hc.width, hc.height);
+  for (const r of ripples) {
+    const f = (now - r.t) / 650; if (f > 1) continue;
+    hx.strokeStyle = `rgba(255,184,77,${1 - f})`; hx.lineWidth = 3 * k; hx.beginPath(); hx.arc(r.x * k, r.y * k, (18 + 80 * f) * k, 0, 7); hx.stroke();
+  }
+  while (ripples.length && now - ripples[0].t > 700) ripples.shift();
   for (const h of HAND.values()) {
+    // a light trail behind the fingertip
+    for (let i = 1; i < h.trail.length; i++) {
+      const a = h.trail[i - 1], b = h.trail[i], f = 1 - (now - b.t) / 320;
+      hx.strokeStyle = `rgba(255,170,120,${.5 * f})`; hx.lineWidth = 6 * k * f; hx.lineCap = "round";
+      hx.beginPath(); hx.moveTo(a.x * k, a.y * k); hx.lineTo(b.x * k, b.y * k); hx.stroke();
+    }
+    // how far you've pushed toward a press
+    if (h.push > .15 && !h.grab) {
+      const [px, py] = h.pts[8];
+      hx.strokeStyle = "rgba(255,184,77,.95)"; hx.lineWidth = 4 * k;
+      hx.beginPath(); hx.arc(px * k, py * k, 30 * k, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * h.push); hx.stroke();
+    }
     const P = h.pts.map(([x, y]) => [x * k, y * k]);
     const palm = dist(P[5], P[17]);
     const col = isGrab(h.shape) ? "255,184,77" : h.shape === "pinch" ? "255,150,120" : "255,106,77";
@@ -606,13 +717,55 @@ function drawCore(t) {
   o.el.querySelector(".st").textContent = ({ thinking: "THINKING", speaking: "ANSWERING" })[orb] || "READY";
 }
 
+// ================= fitting Space to your reach =================
+// Point at each corner where it feels comfortable to reach; Space learns which part of the camera picture is your
+// reach and maps it to the whole screen. "calibrate my hands" starts it.
+let region = [0.15, 0.12, 0.85, 0.82], calib = null;
+const CORNERS = [[.1, .12], [.9, .12], [.9, .88], [.1, .88]];
+function startCalib(r) {
+  if (r) region = r;
+  calib = { i: 0, got: [], hold: null };
+  $("calib").style.display = "block"; showTarget();
+}
+function showTarget() {
+  const [x, y] = CORNERS[calib.i]; $("tgt").style.left = x * 100 + "vw"; $("tgt").style.top = y * 100 + "vh";
+  $("calibMsg").textContent = `Point at the glowing circle (${calib.i + 1} of 4) where it's comfortable to reach, and hold still.`;
+}
+function calibStep(now) {
+  if (!calib) return;
+  const h = [...HAND.values()][0];
+  if (!h) { calib.hold = null; return; }
+  const tip = h.pts[8];
+  // back to camera coordinates (0..1 of the camera picture) with the region in use now
+  const raw = [region[0] + tip[0] / W() * (region[2] - region[0]), region[1] + tip[1] / H() * (region[3] - region[1])];
+  if (calib.hold && dist(raw, calib.hold.p) < .015) {
+    if (now - calib.hold.t > 900) {
+      calib.got.push(raw); calib.i++; calib.hold = null; ripple(tip[0], tip[1]);
+      if (calib.i >= 4) return finishCalib();
+      showTarget();
+    }
+  } else calib.hold = { p: raw, t: now };
+}
+function finishCalib() {
+  const g = calib.got, mx = .02;
+  const x0 = Math.min(g[0][0], g[3][0]) - mx, x1 = Math.max(g[1][0], g[2][0]) + mx;
+  const y0 = Math.min(g[0][1], g[1][1]) - mx, y1 = Math.max(g[2][1], g[3][1]) + mx;
+  calib = null; $("calib").style.display = "none";
+  if (x1 - x0 < .15 || y1 - y0 < .12) { flash("too small, try again"); return; }
+  // the corners were 10% in from the edges, so stretch out to the full screen
+  const sx = (x1 - x0) / .8, sy = (y1 - y0) / .76;
+  region = [x0 - sx * .1, y0 - sy * .12, x1 + sx * .1, y1 + sy * .12].map((v) => +v.toFixed(3));
+  fetch(q("/space/region"), { method: "POST", body: JSON.stringify({ region: region.join(",") }) });
+  flash("reach saved");
+}
+
 // ================= main loop =================
 let last = performance.now();
 function frame(t) {
   const dt = Math.min(.05, (t - last) / 1000); last = t;
   if (t - lastHandsT > 400) incoming = [];
-  matchHands(); handsLogic(); step(dt);
-  drawBg(t); drawHands(); drawCore(t);
+  matchHands(); if (calib) calibStep(t); else handsLogic(); step(dt); tilt();
+  drawBg(t); drawLinks(t); drawHands(); drawCore(t);
   if (timer) {
     const left = Math.max(0, timer.end - Date.now()), s = Math.ceil(left / 1000), o = objs.get("timer");
     if (o) { const f = (n) => o.el.querySelector(`[data-f=${n}]`); f("tleft").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; f("tlabel").textContent = left ? timer.label : "Done"; }
@@ -652,7 +805,9 @@ function onEvent(ev) {
     if (ev.do === "close" && o) { if (!o.data.pinned) { o.vy = -3000; remove(o); } return; }
     if (ev.do === "move" && o) { o.target = { x: W() * ev.where[0], y: H() * ev.where[1], s: o.s, rot: 0 }; o.el.style.zIndex = ++zTop; return; }
     if (ev.do === "scale" && o) { o.target = { x: o.x, y: o.y, s: ev.reset ? 1 : Math.max(.4, Math.min(3, o.s * ev.by)), rot: o.rot }; o.el.style.zIndex = ++zTop; return; }
-    if (ev.do === "front" && o) { o.el.style.zIndex = ++zTop; o.target = { x: W() / 2, y: H() / 2, s: Math.max(o.s, 1.2), rot: 0 }; o.el.classList.add("hover"); return; }
+    if (ev.do === "front" && o) { focus(o); return; }
+    if (ev.do === "unfocus") { unfocus(); return; }
+    if (ev.do === "calibrate") { startCalib(ev.region); return; }
     if (ev.do === "gather") gather(); else if (ev.do === "scatter") scatter();
     else if (ev.do === "clear") for (const o of [...objs.values()]) if (!["core", "next", "music", "timer"].includes(o.data.id)) { o.vy = -3000; remove(o); }
   }
@@ -660,7 +815,7 @@ function onEvent(ev) {
 async function boot() {
   defaults();
   if (!TOKEN) return;
-  try { const s = await (await fetch(q("/space/state"))).json(); for (const d of s.objects) spawn(d); objs.forEach(hydrate); } catch (e) {}
+  try { const s = await (await fetch(q("/space/state"))).json(); if (s.region) region = s.region; for (const d of s.objects) spawn(d); objs.forEach(hydrate); } catch (e) {}
   const es = new EventSource(q("/space/stream"));
   es.onmessage = (e) => { const d = JSON.parse(e.data); (d.ev || []).forEach(onEvent); if (d.hands) onHands(d.hands); };
   es.onerror = () => { es.close(); setTimeout(boot2, 2000); };
@@ -669,6 +824,7 @@ async function boot() {
   cs.onmessage = (e) => { const d = JSON.parse(e.data); if (d.state) orb = d.state; };
 }
 function boot2() { const es = new EventSource(q("/space/stream")); es.onmessage = (e) => { const d = JSON.parse(e.data); (d.ev || []).forEach(onEvent); if (d.hands) onHands(d.hands); }; es.onerror = () => { es.close(); setTimeout(boot2, 2000); }; }
+let cpuHist = [];
 async function refresh() {
   let s; try { s = await (await fetch(q("/desk/state"))).json(); } catch (e) { return; }
   const set = (id, f, v) => { const o = objs.get(id); const el = o && o.el.querySelector(`[data-f=${f}]`); if (el) el.textContent = v; };
@@ -682,7 +838,10 @@ async function refresh() {
   if (s.notes) html("notes", "notes", s.notes.length ? s.notes.map((n) => `<li>${fmt(n)}</li>`).join("") : "<li>Nothing captured yet</li>");
   const y = s.system || {};
   const st = (k, v, pct) => `<div class="stat"><span>${k}</span><b>${v}</b>${pct != null ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}</div>`;
-  html("system", "system", st("CPU", (y.cpu ?? "--") + "%", y.cpu) + st("Memory", (y.ram ?? "--") + "%", y.ram) +
+  if (y.cpu != null) { cpuHist.push(y.cpu); cpuHist = cpuHist.slice(-40); }
+  const spark = cpuHist.length > 1 ? `<svg viewBox="0 0 200 40" style="grid-column:1/-1;width:100%;height:5vh"><polyline fill="none" stroke="#ff6a4d" stroke-width="2"
+    style="filter:drop-shadow(0 0 3px #ff6a4d)" points="${cpuHist.map((v, i) => `${i * 200 / 39},${38 - v * .36}`).join(" ")}"/></svg>` : "";
+  html("system", "system", spark + st("CPU", (y.cpu ?? "--") + "%", y.cpu) + st("Memory", (y.ram ?? "--") + "%", y.ram) +
        st("Disk free", (y.disk_free_gb ?? "--") + " GB") + st("Up", (y.uptime_h ?? "--") + " h"));
 }
 setTimeout(() => $("hint").style.opacity = 0, 12000);
