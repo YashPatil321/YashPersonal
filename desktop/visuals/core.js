@@ -20,7 +20,8 @@ Wave.DEFAULTS = {
   card: 'compact', // compact | centred | cover | text | none
   albumGlow: true,
   widgetEnabled: true,
-  widgetPlacement: 'wallpaper', // wallpaper | top | normal
+  widgetPlacement: 'desktop', // desktop (behind windows, clickable) | wallpaper (behind icons, click-through) | top | normal
+  widgetLocked: false,
   // audio
   sensitivity: 1,
   smoothing: 0.55,
@@ -40,7 +41,7 @@ Wave.DEFAULTS = {
   clockOpacity: 1,
   clockShadow: true,
   clockGlow: false,
-  clockPlacement: 'wallpaper',
+  clockPlacement: 'desktop',
   // full screen
   fsStyle: 'ring',
   fsTheme: 'album', // album | <theme id>

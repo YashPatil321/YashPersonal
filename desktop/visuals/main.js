@@ -52,7 +52,13 @@
 
   let view;
   if (mode === 'widget') view = Wave.mountWidget(root);
-  else if (mode === 'clock') { const c = Wave.mountClock(root); view = { render: () => c.update(new Date()) }; }
+  else if (mode === 'clock') {
+    const c = Wave.mountClock(root);
+    const grip = Wave.el('div', { class: 'resize-grip', title: 'Drag to resize' });
+    root.append(grip);
+    Wave.enableWindowDrag(root, grip);
+    view = { render: () => c.update(new Date()) };
+  }
   else if (mode === 'fullscreen') view = Wave.mountFullscreen(root);
   else if (mode === 'gallery') {
     // Every style at once (used for screenshots and the web page).

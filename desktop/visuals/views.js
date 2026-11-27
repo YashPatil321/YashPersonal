@@ -30,6 +30,34 @@
    * A canvas running one visualizer. opts: {style, theme (palette override), hole, density, glow}.
    * Read settings live unless the option is given.
    */
+  // Styles that orbit a centre: in the widget the album cover sits inside them.
+  const COVER_STYLES = ['ring', 'orb', 'particles'];
+
+  /** The cover as a slowly turning disc, like a record under the ring. */
+  function drawCoverDisc(ctx, hole, t, dpr) {
+    const img = Wave.coverImage;
+    ctx.save();
+    ctx.translate(hole.x, hole.y);
+    ctx.beginPath(); ctx.arc(0, 0, hole.r, 0, Math.PI * 2); ctx.clip();
+    if (img && img.complete && img.naturalWidth) {
+      const playing = !Wave.track || Wave.track.isPlaying !== false;
+      ctx.rotate(playing ? t * 0.25 : 0);
+      ctx.drawImage(img, -hole.r, -hole.r, hole.r * 2, hole.r * 2);
+    } else {
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, hole.r);
+      g.addColorStop(0, 'rgba(255,255,255,0.10)'); g.addColorStop(1, 'rgba(255,255,255,0.02)');
+      ctx.fillStyle = g; ctx.fillRect(-hole.r, -hole.r, hole.r * 2, hole.r * 2);
+    }
+    ctx.restore();
+    // spindle hole and a soft rim
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, Math.max(2 * dpr, hole.r * 0.06), 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath(); ctx.arc(hole.x, hole.y, hole.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
   Wave.mountVisualizer = function (root, opts = {}) {
     const { canvas, ctx, fit } = Wave.makeCanvas(root);
     canvas.className = 'viz';
@@ -47,7 +75,11 @@
         const viz = Wave.VISUALIZERS[id] || Wave.VISUALIZERS.bars;
         const pal = Wave.livePalette(opts.paletteKey || 'main' + (opts.theme || ''), Wave.palette(opts.theme));
         ctx.clearRect(0, 0, w, h);
-        const hole = typeof opts.hole === 'function' ? opts.hole(w, h, dpr) : null;
+        let hole = typeof opts.hole === 'function' ? opts.hole(w, h, dpr) : null;
+        if (!hole && opts.coverCentre && COVER_STYLES.includes(id)) {
+          hole = { x: w / 2, y: h / 2, r: Math.min(w, h) * 0.2 * (1 + Wave.audio.beat * 0.04) };
+          drawCoverDisc(ctx, hole, (now - t0) / 1000, dpr);
+        }
         viz.draw(ctx, w, h, Wave.audio, pal, (now - t0) / 1000, state, {
           density: opts.density ?? s.density,
           glow: opts.glow ?? s.glow,
@@ -65,7 +97,16 @@
     const title = el('div', { class: 'np-title' });
     const artist = el('div', { class: 'np-artist' });
     const bar = el('div', { class: 'np-bar' }, el('i'));
-    const card = el('div', { class: `np np-${layout}` }, art, el('div', { class: 'np-text' }, title, artist, bar));
+    const btn = (cmd, icon, label) => el('button', {
+      class: 'np-btn ' + cmd, title: label,
+      onmousedown: (e) => e.stopPropagation(),
+      onclick: (e) => { e.stopPropagation(); Wave.send({ cmd }); },
+    }, svgIcon(icon));
+    const play = btn('playpause', 'play', 'Play / pause');
+    const like = btn('like', 'heart', 'Save to Liked Songs');
+    const controls = el('div', { class: 'np-controls' }, btn('previous', 'prev', 'Previous'), play, btn('next', 'next', 'Next'), like);
+    const card = el('div', { class: `np np-${layout}` }, art, el('div', { class: 'np-text' }, title, artist, bar), controls);
+    let playing = null;
     return {
       el: card,
       update() {
@@ -75,6 +116,9 @@
         if (title.textContent !== t.title) title.textContent = t.title || '';
         if (artist.textContent !== t.artist) artist.textContent = t.artist || '';
         if (Wave.coverImage) art.style.backgroundImage = `url("${Wave.coverImage.src}")`;
+        if (playing !== !!t.isPlaying) { playing = !!t.isPlaying; play.replaceChildren(svgIcon(playing ? 'pause' : 'play')); }
+        like.style.display = Wave.status.spotify === 'connected' ? '' : 'none';
+        like.classList.toggle('on', !!t.liked);
         const p = t.duration ? Math.min(1, Wave.position() / t.duration) : 0;
         bar.firstChild.style.width = `${(p * 100).toFixed(2)}%`;
       },
@@ -89,8 +133,11 @@
     const stage = el('div', { class: 'stage' });
     const wrap = el('div', { class: 'widget' }, backdrop, glow, stage);
     root.append(wrap);
-    const viz = Wave.mountVisualizer(stage);
+    const viz = Wave.mountVisualizer(stage, { coverCentre: true });
     let card = null, cardLayout = '';
+    const grip = el('div', { class: 'resize-grip', title: 'Drag to resize' });
+    wrap.append(grip);
+    Wave.enableWindowDrag(wrap, grip);
 
     function layout() {
       const s = Wave.settings;
@@ -118,6 +165,21 @@
         glow.style.display = Wave.settings.albumGlow && t ? '' : 'none';
       },
     };
+  };
+
+  /**
+   * Grab anywhere to move the window, the corner grip to resize it. The host does the actual move
+   * (it starts a native drag), so it feels like dragging any window. Off when "Lock position" is on.
+   */
+  Wave.enableWindowDrag = function (surface, grip) {
+    surface.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || Wave.settings.widgetLocked || e.target.closest('button')) return;
+      e.preventDefault();
+      Wave.send({ cmd: e.target === grip ? 'resizeStart' : 'dragStart' });
+    });
+    const sync = () => document.documentElement.classList.toggle('locked', !!Wave.settings.widgetLocked);
+    Wave.subscribe(sync);
+    sync();
   };
 
   // -------------------------------------------------------------- full screen player

@@ -98,8 +98,10 @@
         row('Opacity', slider('opacity', 0.2, 1, 0.01, (v) => `${Math.round(v * 100)}%`))),
       section('Widget',
         row('Show on desktop', toggle('widgetEnabled')),
-        row('Where it lives', segmented('widgetPlacement', { wallpaper: 'On the wallpaper', top: 'Always on top', normal: 'Normal window' })),
-        row('Move and resize', el('button', { class: 'btn', onclick: () => Wave.send({ cmd: 'editLayout' }) }, 'Arrange widgets'), 'Brings the widgets forward so you can drag them. Click Done when finished.')));
+        row('Where it lives', segmented('widgetPlacement', { desktop: 'On the desktop', wallpaper: 'Behind icons', top: 'Always on top' }),
+          'On the desktop: behind your windows, and you can drag it and use its buttons. Behind icons: part of the wallpaper, click-through.'),
+        row('Lock position', toggle('widgetLocked'), 'Stop the widgets moving when you click them'),
+        row('Move and resize', el('button', { class: 'btn', onclick: () => Wave.send({ cmd: 'editLayout' }) }, 'Arrange widgets'), 'Or just drag the widget, and its bottom-right corner to resize.')));
   }
 
   function nowPlayingTab() {
@@ -123,7 +125,7 @@
         row('Show on desktop', toggle('clockEnabled')),
         row('Face', segmented('clockStyle', Wave.CLOCK_STYLES)),
         row('Font', segmented('clockFont', { system: 'System', rounded: 'Rounded', serif: 'Serif', mono: 'Mono', condensed: 'Condensed' })),
-        row('Where it lives', segmented('clockPlacement', { wallpaper: 'On the wallpaper', top: 'Floating on top' }))),
+        row('Where it lives', segmented('clockPlacement', { desktop: 'On the desktop', wallpaper: 'Behind icons', top: 'Floating on top' }))),
       section('Text',
         row('Size', slider('clockSize', 0.5, 2.5, 0.01, (v) => `${Math.round(v * 100)}%`)),
         row('Weight', slider('clockWeight', 200, 900, 100, (v) => String(v))),
