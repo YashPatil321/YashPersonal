@@ -164,24 +164,28 @@ class Space:
     def wants_desk(self):
         return self.active and self.source == "desk"
 
-    def feed_webcam(self, hands):
-        """hands: [landmarks] from the monitor webcam, already mirrored (your right is the screen's right)."""
+    def feed_webcam(self, hands, captured=None):
+        """hands: [landmarks] or [(landmarks, "Left"/"Right")] from the monitor webcam, already mirrored."""
         x0, y0, x1, y1 = SPACE_REGION
-        out = [{"pts": [[round((x - x0) / (x1 - x0), 4), round((y - y0) / (y1 - y0), 4)] for x, y in lm]} for lm in hands]
-        self._hands(out)
+        out = []
+        for h in hands:
+            lm, side = (h if isinstance(h, tuple) and len(h) == 2 and isinstance(h[1], str) else (h, ""))
+            out.append({"pts": [[round((x - x0) / (x1 - x0), 4), round((y - y0) / (y1 - y0), 4)] for x, y in lm], "side": side})
+        self._hands(out, captured)
 
-    def feed_desk(self, hands):
+    def feed_desk(self, hands, captured=None):
         """hands: [[(x, y) on the mat 0..1 or None] * 21] from the desk camera."""
         out = []
         for pts in hands:
             if any(p is None for p in pts):
                 continue
             out.append({"pts": [[round(p[0], 4), round(p[1], 4)] for p in pts]})
-        self._hands(out)
+        self._hands(out, captured)
 
-    def _hands(self, out):
+    def _hands(self, out, captured=None):
         with self.cond:
             self.hands, self.hands_t = out, time.time()
+            self.captured = captured or self.hands_t
             self.hands_seq += 1
             self.cond.notify_all()
 
@@ -228,6 +232,7 @@ class Space:
                         msg["ev"] = evs
                     if hands is not None:
                         msg["hands"] = hands
+                        msg["ct"] = int(getattr(space, "captured", time.time()) * 1000)
                     if msg or True:
                         msg["src"] = space.source
                         h.wfile.write(("data: " + json.dumps(msg) + "\n\n").encode())

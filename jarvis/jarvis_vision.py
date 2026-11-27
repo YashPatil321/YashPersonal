@@ -488,6 +488,32 @@ def model_path(name):
     return path
 
 
+class FastHands:
+    """The hand model alone, tuned for Atlas Space: both hands, which hand is which (so they never swap when they cross),
+    lower thresholds so a hand isn't dropped mid move, and a smaller copy of the frame in (the model looks at a few
+    hundred pixels anyway, so this is free speed)."""
+    def __init__(self, confidence=0.5):
+        import mediapipe as mp
+        from mediapipe.tasks.python import BaseOptions, vision
+        self.mp, self.ts = mp, 0
+        self.model = vision.HandLandmarker.create_from_options(vision.HandLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=model_path("hand")), running_mode=vision.RunningMode.VIDEO, num_hands=2,
+            min_hand_detection_confidence=confidence, min_hand_presence_confidence=confidence, min_tracking_confidence=confidence))
+
+    def run(self, rgb, ts):
+        import cv2
+        h, w = rgb.shape[:2]
+        if w > 960:
+            rgb = cv2.resize(rgb, (960, int(h * 960 / w)), interpolation=cv2.INTER_AREA)
+        self.ts = max(int(ts), self.ts + 1)
+        r = self.model.detect_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=rgb), self.ts)
+        out = []
+        for i, lm in enumerate(r.hand_landmarks):
+            side = r.handedness[i][0].category_name if i < len(r.handedness) and r.handedness[i] else ""
+            out.append(([(p.x, p.y) for p in lm], side))
+        return out
+
+
 class Detectors:
     """MediaPipe Tasks (mediapipe 0.10.14 and newer). Each call takes an RGB numpy frame and a timestamp in ms."""
     def __init__(self, hands=True, faces=True, gestures=True, confidence=0.6):
@@ -852,7 +878,16 @@ class Vision:
                 if not det.hands or getattr(self, "low_power", False):
                     continue
                 if self.space is not None and self.space.wants_webcam():
-                    self.space.feed_webcam(det.hands_all(rgb, ts))
+                    if getattr(self, "fast", None) is None:
+                        try:
+                            self.fast = FastHands()
+                        except Exception as e:
+                            _log(f"fast hands off: {e}")
+                            self.fast = False
+                    if self.fast:
+                        self.space.feed_webcam(self.fast.run(rgb, ts), captured=self.last_frame_t)
+                    else:
+                        self.space.feed_webcam(det.hands_all(rgb, ts), captured=self.last_frame_t)
                     continue
                 if self.cad and self.cad.active:
                     self.cad.set_hands(det.hands_all(rgb, ts))
@@ -1038,6 +1073,8 @@ class Vision:
         while True:
             time.sleep(0.33)
             f = getattr(self, "last_frame", None)
+            if self.space is not None and self.space.wants_webcam():
+                continue   # Space is using the camera: every bit of speed goes to your hands
             if f is None or self.enroll or not self.enabled or time.time() - getattr(self, "last_frame_t", 0) > 2:
                 continue
             try:

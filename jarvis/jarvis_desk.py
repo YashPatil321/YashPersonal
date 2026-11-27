@@ -526,6 +526,7 @@ class Desk:
                 continue
             n += 1
             self.stats.tick(grab.t if grab else last_t)
+            self.frame_t = grab.t if grab else last_t
             try:
                 self.step(frame, det, n)
             except Exception as e:
@@ -577,7 +578,7 @@ class Desk:
         if self.mode == "space" and self.space is not None:   # Atlas Space: every point of both hands, on the mat
             import jarvis_surface
             hands = [jarvis_surface.refine_tips(frame, lm, tips=((3, 4), (7, 8), (11, 12))) for lm in hands]
-            self.space.feed_desk([[self.cal.to_desk((x * w, y * h)) for x, y in lm] for lm in hands])
+            self.space.feed_desk([[self.cal.to_desk((x * w, y * h)) for x, y in lm] for lm in hands], captured=getattr(self, "frame_t", None))
             return
         if self.mode == "screen":   # the whole projected desktop is the touchscreen
             import jarvis_surface
