@@ -190,8 +190,12 @@ public sealed class AudioAnalyzer : IDisposable
         if (sender is not WasapiLoopbackCapture capture || e.BytesRecorded <= 0) return;
         var format = capture.WaveFormat;
         var channels = Math.Max(1, format.Channels);
+        // The loopback mix format is normally WAVE_FORMAT_EXTENSIBLE with an IEEE-float SubFormat; check the
+        // SubFormat rather than assume 32-bit means float (32-bit integer PCM exists on some drivers).
         var isFloat = format.Encoding == WaveFormatEncoding.IeeeFloat ||
-                      (format.Encoding == WaveFormatEncoding.Extensible && format.BitsPerSample == 32);
+                      (format is WaveFormatExtensible ext
+                          ? ext.SubFormat == NAudio.Dmo.AudioMediaSubtypes.MEDIASUBTYPE_IEEE_FLOAT
+                          : format.Encoding == WaveFormatEncoding.Extensible && format.BitsPerSample == 32);
         var bytesPerSample = format.BitsPerSample / 8;
         if (bytesPerSample is not (2 or 3 or 4)) return;
         var frameBytes = bytesPerSample * channels;

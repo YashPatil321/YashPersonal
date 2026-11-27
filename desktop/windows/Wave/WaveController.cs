@@ -37,6 +37,8 @@ public sealed class WaveController : IDisposable
     private readonly AudioAnalyzer _audio = new();
     private readonly SpotifyClient _spotify;
     private readonly MessageWindow _messages = new();
+    private readonly ForegroundWatcher _foreground = new();
+    private readonly WindowDragger _dragger = new();
     private readonly System.Windows.Threading.DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly string _visualsDir;
     private readonly string _version;
@@ -92,6 +94,13 @@ public sealed class WaveController : IDisposable
             System.Windows.Threading.DispatcherPriority.Background);
         _hotKeyFailures = _messages.RegisterHotKeys();
         SystemEvents.DisplaySettingsChanged += OnDisplaysChanged;
+        // Show Desktop (Win+D): keep desktop-placed widgets visible above the desktop until another app comes back.
+        _foreground.DesktopForegroundChanged += desktop =>
+        {
+            foreach (var p in new[] { _widget, _clock })
+                if (p?.Window is DesktopWidgetWindow w) w.SetDesktopRaised(desktop);
+            _lastCoverCheck = double.NegativeInfinity;
+        };
 
         ApplyWidgets();
         StartFrames();
@@ -155,6 +164,18 @@ public sealed class WaveController : IDisposable
 
     private static string KindKey(PanelKind kind) => kind == PanelKind.Clock ? "clock" : "widget";
 
+    /// <summary>
+    /// The widget's placement: <c>desktop</c> (default: behind all windows, clickable), <c>wallpaper</c> (behind the
+    /// icons, click-through) or <c>top</c> (always on top, clickable). The retired <c>normal</c> means desktop.
+    /// </summary>
+    private string PlacementOf(PanelKind kind) =>
+        _settings.String(kind == PanelKind.Clock ? "clockPlacement" : "widgetPlacement", "desktop") switch
+        {
+            "wallpaper" => "wallpaper",
+            "top" => "top",
+            _ => "desktop",
+        };
+
     private WebPanel CreateDesktopPanel(PanelKind kind)
     {
         var window = new DesktopWidgetWindow(kind == PanelKind.Clock ? "Wave clock" : "Wave visualizer");
@@ -182,8 +203,8 @@ public sealed class WaveController : IDisposable
         IntPtr host = IntPtr.Zero;
         foreach (var (panel, want, placement) in new[]
                  {
-                     (_widget, wantWidget, _settings.String("widgetPlacement", "wallpaper")),
-                     (_clock, wantClock, _settings.String("clockPlacement", "wallpaper")),
+                     (_widget, wantWidget, PlacementOf(PanelKind.Widget)),
+                     (_clock, wantClock, PlacementOf(PanelKind.Clock)),
                  })
         {
             if (panel?.Window is not DesktopWidgetWindow w) continue;
@@ -203,19 +224,27 @@ public sealed class WaveController : IDisposable
                 w.PlaceTopLevel(frame, Win32.HWND_TOPMOST);
                 continue;
             }
-            w.ClickThrough = true;
+            // Only the wallpaper placement is click-through; desktop and top take clicks (buttons, drag to move).
+            w.ClickThrough = placement == "wallpaper";
             switch (placement)
             {
                 case "top":
                     w.PlaceTopLevel(frame, Win32.HWND_TOPMOST);
                     break;
-                case "normal":
-                    w.PlaceTopLevel(frame, Win32.HWND_NOTOPMOST);
+                case "wallpaper":
+                    if (host == IntPtr.Zero) host = WallpaperHost.Find();
+                    if (host != IntPtr.Zero)
+                    {
+                        WallpaperHost.Attach(w.Handle, host, frame);
+                        w.Remember(frame);
+                    }
+                    else
+                    {
+                        w.PlaceOnDesktop(frame);
+                    }
                     break;
                 default:
-                    if (host == IntPtr.Zero) host = WallpaperHost.Find();
-                    if (host != IntPtr.Zero) WallpaperHost.Attach(w.Handle, host, frame);
-                    else w.PlaceTopLevel(frame, Win32.HWND_BOTTOM);
+                    w.PlaceOnDesktop(frame);
                     break;
             }
         }
@@ -362,6 +391,9 @@ public sealed class WaveController : IDisposable
             case "openFullscreen": if (_fullscreen is null) ToggleFullscreen(); break;
             case "closeFullscreen": if (_fullscreen is not null) ToggleFullscreen(); break;
             case "editLayout": SetEditing(!_editing); break;
+            case "dragStart" or "resizeStart":
+                StartDrag(panel, resize: cmd == "resizeStart");
+                break;
             case "spotifyConnect":
                 _spotify.ClientId = _settings.String("spotifyClientId", string.Empty);
                 _spotify.Connect();
@@ -409,6 +441,19 @@ public sealed class WaveController : IDisposable
         ApplySetting(key);
     }
 
+    /// <summary>The page saw a mouse-down on the widget (or its resize grip): move or resize until the button is released.</summary>
+    private void StartDrag(WebPanel panel, bool resize)
+    {
+        if (_editing || panel.Kind is not (PanelKind.Widget or PanelKind.Clock)) return;
+        if (panel.Window is not DesktopWidgetWindow w || w.Handle == IntPtr.Zero || !w.IsVisible) return;
+        if (PlacementOf(panel.Kind) == "wallpaper" || _settings.Bool("widgetLocked", false)) return;
+
+        var scale = DisplayInfo.ScaleFor(w.ScreenRect.Left + w.ScreenRect.Width / 2, w.ScreenRect.Top + w.ScreenRect.Height / 2);
+        var (minW, minH) = panel.Kind == PanelKind.Clock ? (200, 90) : (240, 120);
+        _dragger.Start(w, resize, (int)Math.Round(minW * scale), (int)Math.Round(minH * scale),
+            done => _layout.Set(KindKey(panel.Kind), done.ScreenRect));
+    }
+
     private void ApplySetting(string key)
     {
         if (key.StartsWith("glow", StringComparison.Ordinal)) ApplyFeatures(glow: true, lyrics: false);
@@ -417,6 +462,10 @@ public sealed class WaveController : IDisposable
         {
             case "widgetEnabled" or "clockEnabled" or "widgetPlacement" or "clockPlacement":
                 ApplyWidgets();
+                // Re-evaluate coverage now and resend setPaused, so a page paused under the old placement wakes up.
+                _covered.Clear();
+                _lastCoverCheck = double.NegativeInfinity;
+                foreach (var p in new[] { _widget, _clock }) if (p is not null) p.LastPaused = null;
                 break;
             case "launchAtLogin":
                 LaunchAtLogin.Set("Wave", _settings.Bool("launchAtLogin", false));
@@ -653,8 +702,9 @@ public sealed class WaveController : IDisposable
         foreach (var p in new[] { _widget, _clock })
         {
             if (p?.Window is not DesktopWidgetWindow w || w.Handle == IntPtr.Zero) continue;
-            var placement = _settings.String(p.Kind == PanelKind.Clock ? "clockPlacement" : "widgetPlacement", "wallpaper");
-            _covered[p.Kind] = !_editing && placement != "top" && Coverage.IsCovered(w.Handle);
+            var placement = PlacementOf(p.Kind);
+            // Top is never covered; a desktop widget lifted over the desktop by Show Desktop is not covered either.
+            _covered[p.Kind] = !_editing && placement != "top" && !w.DesktopRaised && Coverage.IsCovered(w.Handle);
         }
     }
 
@@ -771,6 +821,8 @@ public sealed class WaveController : IDisposable
             p.Window.Close();
         }
         _settings.Flush();
+        _dragger.Finish();
+        _foreground.Dispose();
         _messages.Dispose();
         _spotify.Dispose();
         _audio.Dispose();
