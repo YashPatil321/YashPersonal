@@ -1769,10 +1769,16 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
     if full:
         extra += (f" You have full access to Yash's Windows PC. To see or control the screen (windows, tabs, buttons, typing, "
                   f"shortcuts, screenshots) run: \"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" help. "
-                  "When Atlas Space is open (his glass workspace), put things worth seeing there as objects: jarvis_ctl.py "
-                  "space card --title T --body B, space list --title T item1 item2 ..., space image URL --title T, space link URL "
-                  "--title T, space gather / scatter / clear. Lists, plans, results, images and links go on Space; keep the spoken "
-                  "answer short. "
+                  "ATLAS SPACE is his glass screen on the Jarvis monitor. Whenever something is better seen than heard (numbers, "
+                  "comparisons, plans, steps, schedules, places, structures, designs), put it there with jarvis_ctl.py space, then "
+                  "keep the spoken answer to one line. Objects: card --title T --body B (markdown) | list --title T item1 item2 | "
+                  "chart --title T --type bar|line|area|pie|donut --labels a,b,c --values 1,2,3 (or --series \"Name:1,2,3;Other:4,5,6\") "
+                  "| table --title T --csv \"col1,col2\\nv1,v2\" | diagram --title T --code \"<mermaid: flowchart, sequence, timeline, "
+                  "mindmap, gantt, pie>\" | stats --title T --items \"Label=Value\" \"Label=Value\" | math --title T --body \"<LaTeX>\" | "
+                  "code --title T --lang python --body CODE | doc --title T --body MARKDOWN | map --title T --place \"Carlsbad, CA\" "
+                  "(or --lat --lon) | model --path FILE.glb/.gltf/.stl (or a URL) | image URL or --path FILE | video URL (YouTube "
+                  "works) | link URL --title T | file --path ANY_FILE | gather / scatter / clear. Files must be in Downloads, "
+                  "Documents, Desktop, Pictures, Videos, OneDrive or the vault. "
                   "For anything on screen, work in a loop: run jarvis_ctl.py look (a screenshot with a coordinate grid plus a "
                   "numbered list of everything clickable with positions), read the image, act with clicknum, typeinto, keys, "
                   "clickxy, drag or scroll, then look again to check it worked; use read to get the text of a page or doc. "
@@ -3124,6 +3130,29 @@ class Jarvis:
                 where_said = {"other": "the other screen", "next": "the next screen", "here": "this screen"}.get(where, f"the {where} screen")
                 say(("Everything's on " if h == "all" else "Moved it to ") + where_said + ".")
             return True
+        if action == "space_visual":   # "visualize ...", "chart ...", "diagram ...": Claude builds it on the glass screen
+            if not SPACE.active:
+                self.space_action("space_open", None, lambda *a: None)
+                time.sleep(2.5)
+            return self.ask(arg + ". Show this visually on Atlas Space with jarvis_ctl.py space (chart, table, diagram, timeline, "
+                                  "map, 3D model, math, code, stats, image, whatever shows it best, more than one object if it helps). "
+                                  "Then say one short line about it.")
+        if action == "space_file":
+            if not SPACE.active:
+                self.space_action("space_open", None, lambda *a: None)
+                time.sleep(2.5)
+            path = arg if os.path.isabs(arg) else next((os.path.join(r, arg) for r in jarvis_space.SPACE_FILE_ROOTS
+                                                        if os.path.exists(os.path.join(r, arg))), arg)
+            real = jarvis_space.allowed_file(path)
+            if not real:
+                say("I can't find that file in Downloads, Documents, Desktop, Pictures or your vault.")
+                return True
+            import urllib.parse
+            ext = os.path.splitext(real)[1].lower()
+            data = {"url": "/space/file?path=" + urllib.parse.quote(real), "title": os.path.basename(real), "ext": ext}
+            SPACE.add(jarvis_space.FILE_KINDS.get(ext, "doc"), **data)
+            say("It's on the screen.")
+            return True
         if action == "space_obj":
             what, oid, extra = arg
             if what == "widget":
@@ -3772,6 +3801,8 @@ def main():
                     jarvis.pc.key(phrase, 2 if phrase.startswith("vol") else 1)
                 else:
                     jarvis.remote_ask(phrase, speak=True)
+            if BRAIN and BRAIN.vault.root not in jarvis_space.SPACE_FILE_ROOTS:
+                jarvis_space.SPACE_FILE_ROOTS.append(BRAIN.vault.root)
             SPACE.register(bridge, act=space_act, open_url=jarvis.pc.open_url)
             jarvis_chatui.LISTENERS.append(SPACE.on_chat)
             threading.Thread(target=SPACE.watch, daemon=True).start()

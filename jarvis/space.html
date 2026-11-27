@@ -39,7 +39,33 @@
     background: rgba(255, 255, 255, .06); letter-spacing: 0; font-size: 1.6vh; }
   .obj .title { font-size: 2.6vh; font-weight: 600; line-height: 1.2; }
   .obj .body { margin-top: .8vh; white-space: pre-wrap; color: #ffe2d8; max-height: 40vh; overflow: hidden; }
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vh .8vw; }
+  .obj.wide { width: 34vw; }
+  .obj.tall .body { max-height: 60vh; }
+  .viz { margin-top: 1vh; position: relative; }
+  .viz svg { width: 100%; height: auto; max-height: 30vh; display: block; overflow: visible; }
+  .viz svg text { fill: #e9c9bf; font: 1.3vh Inter, sans-serif; }
+  .legend { display: flex; flex-wrap: wrap; gap: .4vh 1vw; margin-top: .8vh; font-size: 1.4vh; color: var(--dim); }
+  .legend i { display: inline-block; width: 1vh; height: 1vh; border-radius: .3vh; margin-right: .4vw; vertical-align: middle; }
+  table.t { width: 100%; border-collapse: collapse; margin-top: .6vh; font-size: 1.6vh; }
+  table.t th { text-align: left; color: var(--ember); font: 600 1.2vh "JetBrains Mono", monospace; letter-spacing: .12em; text-transform: uppercase; padding: .6vh .4vw; border-bottom: 1px solid rgba(255,255,255,.14); }
+  table.t td { padding: .7vh .4vw; border-bottom: 1px solid rgba(255,255,255,.07); }
+  table.t td.n { text-align: right; font-family: "JetBrains Mono", monospace; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(10vw, 1fr)); gap: 1.2vh .8vw; margin-top: .6vh; }
+  .kpi b { display: block; font: 700 3.6vh/1.1 Inter, sans-serif; background: linear-gradient(180deg, #fff1ea, #ffb84d); -webkit-background-clip: text; color: transparent; }
+  .kpi span { color: var(--dim); font-size: 1.4vh; }
+  .mer svg { max-width: 100%; height: auto; }
+  pre.code { margin-top: .8vh; padding: 1.2vh .8vw; border-radius: 1.4vh; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08);
+    font: 1.45vh/1.5 "JetBrains Mono", monospace; max-height: 55vh; overflow: hidden; white-space: pre-wrap; }
+  .docbody { max-height: 60vh; overflow: hidden; margin-top: .6vh; }
+  .docbody h1, .docbody h2, .docbody h3 { font-size: 2.2vh; margin: 1vh 0 .4vh; } .docbody p { margin: .5vh 0; }
+  .docbody ul { margin: .4vh 0 .4vh 1vw; list-style: disc; } .docbody li { border: 0; padding: .2vh 0; display: list-item; } .docbody li::before { display: none; }
+  .frame { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 1.6vh; margin-top: .6vh; background: #000; display: block; }
+  .mapbox { width: 100%; height: 32vh; border-radius: 1.6vh; margin-top: .6vh; overflow: hidden; }
+  model-viewer, .three { width: 100%; height: 38vh; display: block; border-radius: 1.6vh; margin-top: .6vh;
+    background: radial-gradient(circle at 50% 40%, rgba(255,106,77,.15), transparent 70%); --poster-color: transparent; }
+  .mathbox { font-size: 2.6vh; text-align: center; padding: 1.4vh 0; overflow: hidden; }
+  .err { color: var(--dim); font-size: 1.5vh; }
+  .sysgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vh .8vw; }
   .stat b { display: block; font: 600 3.4vh/1 "JetBrains Mono", monospace; }
   .stat span { color: var(--dim); font-size: 1.4vh; letter-spacing: .1em; text-transform: uppercase; }
   .bar { height: .6vh; border-radius: .3vh; background: rgba(255, 255, 255, .08); margin-top: .6vh; overflow: hidden; }
@@ -109,7 +135,7 @@ function html(d) {
     case "core": return `<canvas></canvas><div class="mid"><div class="clock">--:--</div><div class="date"></div><div class="st">READY</div></div>`;
     case "reply": return `<h4>Atlas${x}</h4>${d.q ? `<div class="q">${esc(d.q)}</div>` : ""}<div class="body">${fmt(d.text || "…")}</div>`;
     case "list": return `<h4>${esc(d.label || "List")}${x}</h4><div class="title">${esc(d.title || "")}</div><ul>${(d.items || []).map((i) => `<li>${fmt(i)}</li>`).join("")}</ul>`;
-    case "image": return `<h4>${esc(d.label || "Image")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<img src="${esc(d.url)}">`;
+    case "image": return `<h4>${esc(d.label || "Image")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<img src="${esc(src(d.url))}">`;
     case "link": return `<h4>${esc(d.label || "Link")}${x}</h4><div class="title">${esc(d.title || d.url)}</div><div class="url">${esc(d.url)}</div>${d.body ? `<div class="body">${fmt(d.body)}</div>` : ""}<div class="row"><div class="btn main" data-open="${esc(d.url)}">Open</div></div>`;
     case "music": return `<h4>Music${x}</h4><div class="title" data-f="song">Nothing playing</div><div class="q" data-f="artist"></div>
       <div class="row"><div class="btn" data-key="prev">&#9198;</div><div class="btn main" data-key="play_pause">&#9199;</div><div class="btn" data-key="next">&#9197;</div></div>
@@ -118,11 +144,162 @@ function html(d) {
     case "timer": return `<h4>Timer${x}</h4><div class="title" data-f="tleft" style="font:600 4.4vh 'JetBrains Mono',monospace">--:--</div><div class="q" data-f="tlabel">Pick a time</div>
       <div class="row"><div class="btn" data-timer="5">5m</div><div class="btn" data-timer="15">15m</div><div class="btn" data-timer="25">25 focus</div></div>
       <div class="row"><div class="btn" data-timer="0">Stop</div></div>`;
+    case "chart": return `<h4>${esc(d.label || "Chart")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<div class="viz">${chart(d)}</div>`;
+    case "table": return `<h4>${esc(d.label || "Table")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}${table(d)}`;
+    case "stats": return `<h4>${esc(d.label || "Numbers")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<div class="kpis">${list(d.items).map((i) => { const [k, ...v] = String(i).split("="); return `<div class="kpi"><b>${esc(v.join("=") || k)}</b><span>${esc(v.length ? k : "")}</span></div>`; }).join("")}</div>`;
+    case "diagram": return `<h4>${esc(d.label || "Diagram")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<div class="viz mer" data-mermaid="1"></div>`;
+    case "math": return `<h4>${esc(d.label || "Math")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<div class="mathbox" data-math="1"></div>`;
+    case "code": return `<h4>${esc(d.label || d.lang || "Code")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<pre class="code"><code data-code="1">${esc(d.body || d.code || "")}</code></pre>`;
+    case "doc": return `<h4>${esc(d.label || "Doc")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<div class="docbody" data-md="1"></div>`;
+    case "map": return `<h4>${esc(d.label || "Map")}${x}</h4>${d.title || d.place ? `<div class="title">${esc(d.title || d.place)}</div>` : ""}<div class="mapbox" data-map="1"></div>`;
+    case "model": return `<h4>${esc(d.label || "3D")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}<div data-model="1"></div><div class="q">Pinch and move to turn it</div>`;
+    case "video": return `<h4>${esc(d.label || "Video")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}${video(d)}`;
+    case "pdf": return `<h4>${esc(d.label || "PDF")}${x}</h4><div class="title">${esc(d.title || "")}</div><iframe class="frame" style="aspect-ratio:3/4" src="${esc(src(d.url))}"></iframe>`;
     case "agenda": return `<h4>Today${x}</h4><ul data-f="agenda"><li>Nothing on the calendar</li></ul>`;
-    case "system": return `<h4>This PC${x}</h4><div class="stats" data-f="system"></div>`;
+    case "system": return `<h4>This PC${x}</h4><div class="sysgrid" data-f="system"></div>`;
     case "notes": return `<h4>Inbox${x}</h4><ul data-f="notes"><li>Nothing captured yet</li></ul>`;
     default: return `<h4>${esc(d.label || "Note")}${x}</h4>${d.title ? `<div class="title">${esc(d.title)}</div>` : ""}${d.body || d.text ? `<div class="body">${fmt(d.body || d.text)}</div>` : ""}`;
   }
+}
+
+// ---------- visual objects ----------
+const PAL = ["#ff6a4d", "#ffb84d", "#ff9a7a", "#ffd6a8", "#e8573f", "#c9a7ff", "#7be0a6"];
+const src = (u) => (u || "").startsWith("/space/") ? q(u) : (u || "");
+const list = (v) => Array.isArray(v) ? v : String(v ?? "").split(/\n|\|/).map((x) => x.trim()).filter(Boolean);
+const nums = (v) => String(v ?? "").split(",").map((x) => parseFloat(x)).filter((x) => !isNaN(x));
+function series(d) {
+  if (d.series) return String(d.series).split(";").map((p) => { const [n, v] = p.split(":"); return { name: (n || "").trim(), v: nums(v) }; }).filter((s) => s.v.length);
+  return [{ name: d.title || "", v: nums(d.values) }];
+}
+function chart(d) {
+  const type = (d.type || "bar").toLowerCase(), S = series(d), labels = String(d.labels || "").split(",").map((x) => x.trim());
+  const n = Math.max(...S.map((s) => s.v.length), 0);
+  if (!n) return `<div class="err">No numbers to chart.</div>`;
+  const legend = (items) => `<div class="legend">${items.map((t, i) => `<span><i style="background:${PAL[i % PAL.length]}"></i>${esc(t)}</span>`).join("")}</div>`;
+  if (type === "pie" || type === "donut") {
+    const v = S[0].v, tot = v.reduce((a, b) => a + Math.max(0, b), 0) || 1; let a0 = -Math.PI / 2, out = "";
+    v.forEach((x, i) => { const a1 = a0 + Math.max(0, x) / tot * Math.PI * 2, big = a1 - a0 > Math.PI ? 1 : 0, R = 90, r = type === "donut" ? 55 : 0;
+      const P = (a, rr) => [100 + Math.cos(a) * rr, 100 + Math.sin(a) * rr], [x0, y0] = P(a0, R), [x1, y1] = P(a1, R), [x2, y2] = P(a1, r), [x3, y3] = P(a0, r);
+      out += `<path d="M${x0},${y0} A${R},${R} 0 ${big} 1 ${x1},${y1} L${x2},${y2} ${r ? `A${r},${r} 0 ${big} 0 ${x3},${y3}` : ""} Z" fill="${PAL[i % PAL.length]}" opacity=".9" stroke="rgba(0,0,0,.35)"><animate attributeName="opacity" from="0" to=".9" dur=".6s"/></path>`; a0 = a1; });
+    return `<svg viewBox="0 0 200 200" style="max-width:30vh;margin:auto">${out}${type === "donut" ? `<text x="100" y="106" text-anchor="middle" style="font:600 18px Inter;fill:#fff1ea">${+tot.toFixed(2)}</text>` : ""}</svg>${legend(v.map((x, i) => `${labels[i] || i + 1}  ${x}`))}`;
+  }
+  const W2 = 400, H2 = 210, padL = 34, padB = 26, all = S.flatMap((s) => s.v);
+  let mx = Math.max(...all), mn = Math.min(...all);
+  if (type === "bar") { mx = Math.max(mx, 0); mn = Math.min(mn, 0); }
+  else { const pad = (mx - mn) * .15 || Math.abs(mx) * .1 || 1; mx += pad; mn -= pad; }   // lines zoom to the data
+  const span = (mx - mn) || 1;
+  const X = (i) => padL + (n === 1 ? (W2 - padL) / 2 : i * (W2 - padL - 10) / (n - 1)), Y = (v) => (H2 - padB) - (v - mn) / span * (H2 - padB - 10);
+  let g = "";
+  for (let k = 0; k <= 4; k++) { const v = mn + span * k / 4, y = Y(v); g += `<line x1="${padL}" x2="${W2}" y1="${y}" y2="${y}" stroke="rgba(255,255,255,.08)"/><text x="${padL - 6}" y="${y + 4}" text-anchor="end">${+v.toPrecision(3)}</text>`; }
+  labels.slice(0, n).forEach((l, i) => { if (n <= 12 || i % Math.ceil(n / 12) === 0) g += `<text x="${type === "bar" ? padL + (i + .5) * (W2 - padL) / n : X(i)}" y="${H2 - 8}" text-anchor="middle">${esc(l)}</text>`; });
+  S.forEach((s, si) => {
+    const c = PAL[si % PAL.length];
+    if (type === "bar") {
+      const bw = (W2 - padL) / n / (S.length + .6);
+      s.v.forEach((v, i) => { const x = padL + i * (W2 - padL) / n + bw * (.3 + si), y = Y(Math.max(v, 0)), h = Math.abs(Y(v) - Y(0)) || 1;
+        g += `<rect x="${x}" y="${v >= 0 ? y : Y(0)}" width="${bw * .9}" height="${h}" rx="3" fill="${c}" opacity=".9"><animate attributeName="height" from="0" to="${h}" dur=".6s"/></rect>`; });
+    } else {
+      const pts = s.v.map((v, i) => `${X(i)},${Y(v)}`).join(" ");
+      if (type === "area") g += `<polygon points="${X(0)},${Y(mn)} ${pts} ${X(s.v.length - 1)},${Y(mn)}" fill="${c}" opacity=".22"/>`;
+      g += `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${c})" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"><animate attributeName="stroke-dashoffset" from="1" to="0" dur=".9s" fill="freeze"/></polyline>`;
+      s.v.forEach((v, i) => g += `<circle cx="${X(i)}" cy="${Y(v)}" r="2.6" fill="#fff1ea"/>`);
+    }
+  });
+  return `<svg viewBox="0 0 ${W2} ${H2}">${g}</svg>${S.length > 1 || S[0].name ? legend(S.map((s) => s.name)) : ""}`;
+}
+function table(d) {
+  let rows = [];
+  if (d.rows) rows = typeof d.rows === "string" ? JSON.parse(d.rows) : d.rows;
+  else rows = String(d.csv || "").replace(/\\n/g, "\n").split(/\r?\n/).filter((l) => l.trim()).map((l) => l.match(/("([^"]|"")*"|[^,]*)(,|$)/g).slice(0, -1).map((c) => c.replace(/,$/, "").replace(/^"|"$/g, "").replace(/""/g, '"').trim()));
+  if (!rows.length) return `<div class="err">Empty table.</div>`;
+  const [head, ...body] = rows, isN = (v) => /^[-$€£]?\d[\d,.]*%?$/.test(v);
+  return `<table class="t"><tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr>${body.slice(0, 30).map((r) => `<tr>${r.map((c) => `<td class="${isN(c) ? "n" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+function video(d) {
+  const u = d.url || "", yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{6,})/);
+  if (yt) return `<iframe class="frame" src="https://www.youtube.com/embed/${yt[1]}?autoplay=1&mute=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+  return `<video class="frame" src="${esc(src(u))}" autoplay muted loop controls></video>`;
+}
+const LOADED = {};
+function load(url, css) {
+  if (LOADED[url]) return LOADED[url];
+  return LOADED[url] = new Promise((ok, no) => {
+    const el = document.createElement(css ? "link" : "script");
+    if (css) { el.rel = "stylesheet"; el.href = url; } else { el.src = url; if (url.includes("model-viewer")) el.type = "module"; }
+    el.onload = ok; el.onerror = no; document.head.appendChild(el);
+  });
+}
+async function enhance(o) {
+  const d = o.data, el = o.el;
+  try {
+    const mer = el.querySelector("[data-mermaid]");
+    if (mer) {
+      await load("https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js");
+      mermaid.initialize({ startOnLoad: false, theme: "dark", themeVariables: { primaryColor: "#3a1610", primaryTextColor: "#fff1ea", primaryBorderColor: "#ff6a4d",
+        lineColor: "#ffb84d", secondaryColor: "#2a120c", tertiaryColor: "#1c0c08", fontFamily: "Inter", background: "transparent" } });
+      const { svg } = await mermaid.render("m" + d.id + Date.now(), String(d.code || d.body || "").replace(/\\n/g, "\n"));
+      mer.innerHTML = svg; o.el.classList.add("wide");
+    }
+    const mt = el.querySelector("[data-math]");
+    if (mt) {
+      await load("https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css", true);
+      await load("https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js");
+      katex.render(String(d.body || d.tex || ""), mt, { throwOnError: false, displayMode: true });
+    }
+    const cd = el.querySelector("[data-code]");
+    if (cd) {
+      await load("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css", true);
+      await load("https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js");
+      hljs.highlightElement(cd); o.el.classList.add("wide");
+    }
+    const md = el.querySelector("[data-md]");
+    if (md) {
+      await load("https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js");
+      md.innerHTML = marked.parse(esc(String(d.body || d.text || "")).replace(/&gt;/g, ">")); o.el.classList.add("wide", "tall");
+    }
+    const mp = el.querySelector("[data-map]");
+    if (mp) {
+      await load("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css", true);
+      await load("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js");
+      let lat = parseFloat(d.lat), lon = parseFloat(d.lon);
+      if ((isNaN(lat) || isNaN(lon)) && d.place) {
+        try {
+          const r = await (await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(d.place))).json();
+          if (r[0]) { lat = +r[0].lat; lon = +r[0].lon; }
+        } catch (e) { mp.outerHTML = `<div class="err">The map service didn't answer. Check the internet.</div>`; return; }
+      }
+      if (isNaN(lat)) { mp.outerHTML = `<div class="err">Couldn't find that place.</div>`; return; }
+      const m = L.map(mp, { zoomControl: false, attributionControl: false }).setView([lat, lon], +d.zoom || 13);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(m);
+      L.circleMarker([lat, lon], { radius: 9, color: "#ff6a4d", fillColor: "#ffb84d", fillOpacity: .9 }).addTo(m);
+      o.map = m; o.el.classList.add("wide");
+    }
+    const md3 = el.querySelector("[data-model]");
+    if (md3) {
+      o.el.classList.add("wide");
+      const url = src(d.url), stl = (d.ext || url.split("?")[0].split(".").pop()).toLowerCase().includes("stl");
+      if (!stl) {
+        await load("https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js");
+        md3.innerHTML = `<model-viewer src="${esc(url)}" auto-rotate rotation-per-second="20deg" shadow-intensity="1" exposure="1.1" environment-image="neutral" interaction-prompt="none"></model-viewer>`;
+        o.turn = (dx, dy) => { const mv = md3.querySelector("model-viewer"); if (!mv) return; const c = mv.getCameraOrbit(); mv.cameraOrbit = `${c.theta - dx * .01}rad ${Math.max(.2, Math.min(2.9, c.phi - dy * .01))}rad auto`; mv.autoRotate = false; };
+      } else await stlView(md3, url, o);
+    }
+  } catch (e) { console.log("enhance", e); }
+}
+async function stlView(box, url, o) {
+  const THREE = await import("https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js");
+  const { STLLoader } = await import("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/STLLoader.js");
+  const w = box.clientWidth || 500, h = Math.round(innerHeight * .38);
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true }); r.setSize(w, h); r.setPixelRatio(devicePixelRatio);
+  r.domElement.className = "three"; box.appendChild(r.domElement);
+  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(40, w / h, .1, 5000);
+  scene.add(new THREE.HemisphereLight(0xffe6dc, 0x220a05, 1.4)); const dl = new THREE.DirectionalLight(0xffffff, 1.6); dl.position.set(3, 5, 4); scene.add(dl);
+  const geo = new STLLoader().parse(await (await fetch(url)).arrayBuffer()); geo.computeVertexNormals(); geo.center();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xffb08f, metalness: .25, roughness: .45 })); scene.add(mesh);
+  geo.computeBoundingSphere(); const R = geo.boundingSphere.radius || 1; cam.position.set(0, R * .8, R * 2.6); cam.lookAt(0, 0, 0);
+  mesh.rotation.x = -Math.PI / 2; let spin = true;
+  o.turn = (dx, dy) => { spin = false; mesh.rotation.z += dx * .01; mesh.rotation.x += dy * .01; };
+  (function tick() { if (!o.el.isConnected) return; if (spin) mesh.rotation.z += .006; r.render(scene, cam); requestAnimationFrame(tick); })();
 }
 
 function place(o) {
@@ -137,13 +314,14 @@ function spawn(d, at) {
   const n = objs.size;
   const p = at || { x: W() * (0.2 + 0.6 * Math.random()), y: H() * (0.25 + 0.5 * Math.random()) };
   const o = { el, data: d, x: p.x, y: p.y, vx: (Math.random() - .5) * 4, vy: (Math.random() - .5) * 4, rot: 0, vr: 0, s: 1, held: null };
-  objs.set(d.id, o); place(o);
+  if (["chart", "table", "diagram", "map", "model", "video", "pdf", "doc", "code", "stats"].includes(d.kind)) el.classList.add("wide");
+  objs.set(d.id, o); place(o); enhance(o);
   setTimeout(() => el.classList.remove("new"), 600);
   return o;
 }
 function update(id, patch) {
   const o = objs.get(id); if (!o) return;
-  Object.assign(o.data, patch); o.el.innerHTML = html(o.data); hydrate(o);
+  Object.assign(o.data, patch); o.el.innerHTML = html(o.data); hydrate(o); enhance(o);
 }
 function remove(o, fly) {
   o.el.classList.add("gone"); objs.delete(o.data.id);
@@ -329,7 +507,9 @@ function handsLogic() {
     } else if (!isGrab(h.shape) && h.grab) {
       const o = h.grab.o; if (o.two) o.two = null; release(h);
     }
-    if (h.changed && h.shape === "pinch" && !h.grab) press(document.elementFromPoint(x, y));
+    if (h.changed && h.shape === "pinch" && !h.grab) { h.turnO = under && under.turn ? under : null; if (!h.turnO) press(document.elementFromPoint(x, y)); h.lastXY = [x, y]; }
+    if (h.shape === "pinch" && h.turnO) { h.turnO.turn(x - h.lastXY[0], y - h.lastXY[1]); h.lastXY = [x, y]; }
+    if (h.shape !== "pinch") h.turnO = null;
     h.changed = false;
   }
   // move held objects

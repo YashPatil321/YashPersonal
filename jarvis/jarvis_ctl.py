@@ -329,13 +329,19 @@ def space(args):
             continue
         items.append(a)
         i += 1
-    if kind in ("image", "link") and items:
-        data.setdefault("url", items.pop(0))
-    if kind == "list":
-        data["items"] = "\n".join(items)
+    if kind in ("image", "link", "video", "model") and items:
+        v = items.pop(0)
+        data.setdefault("path" if os.path.exists(v) else "url", os.path.abspath(v) if os.path.exists(v) else v)
+    if kind == "file" and items:
+        data.setdefault("path", os.path.abspath(items.pop(0)))
+    if "path" in data:
+        data["path"] = os.path.abspath(data["path"])
+    if kind in ("list", "stats"):
+        data["items"] = "\n".join(([data.pop("items")] if "items" in data else []) + items)
     elif items and "body" not in data:
         data["body"] = " ".join(items)
-    data["kind"] = {"card": "card", "note": "card", "text": "card"}.get(kind, kind)
+    data["kind"] = {"card": "card", "note": "card", "text": "card", "graph": "chart", "flowchart": "diagram", "mermaid": "diagram",
+                    "md": "doc", "markdown": "doc", "3d": "model", "kpi": "stats", "latex": "math"}.get(kind, kind)
     req = urllib.request.Request(f"{base}/space/push?token={tok}", data=json.dumps(data).encode(), headers={"Content-Type": "application/json"})
     print("added " + urllib.request.urlopen(req, timeout=10).read().decode())
     return 0

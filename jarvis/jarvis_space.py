@@ -36,6 +36,33 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 JARVIS_DISPLAY = None
 SPACE_HANDS = "auto"
 SPACE_REGION = (0.15, 0.12, 0.85, 0.82)
+HOME = os.path.expanduser("~")
+SPACE_FILE_ROOTS = [os.path.join(HOME, d) for d in ("Downloads", "Documents", "Desktop", "Pictures", "Videos", "OneDrive")] + \
+    [os.path.join(HERE, "notes"), os.path.join(HERE, ".cache")]   # files Space may show (the vault is added at start)
+FILE_KINDS = {".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image", ".webp": "image", ".svg": "image",
+              ".glb": "model", ".gltf": "model", ".stl": "model", ".pdf": "pdf", ".csv": "table", ".md": "doc", ".txt": "doc",
+              ".mp4": "video", ".webm": "video", ".mov": "video", ".py": "code", ".js": "code", ".ts": "code", ".json": "code"}
+TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
+         ".svg": "image/svg+xml", ".glb": "model/gltf-binary", ".gltf": "model/gltf+json", ".stl": "model/stl", ".pdf": "application/pdf",
+         ".csv": "text/csv; charset=utf-8", ".md": "text/plain; charset=utf-8", ".txt": "text/plain; charset=utf-8", ".mp4": "video/mp4",
+         ".webm": "video/webm", ".mov": "video/quicktime", ".py": "text/plain; charset=utf-8", ".js": "text/plain; charset=utf-8",
+         ".ts": "text/plain; charset=utf-8", ".json": "text/plain; charset=utf-8"}
+
+
+def allowed_file(path):
+    """Only files under the folders Space may show, with a type it knows. No way out with .. or links."""
+    try:
+        real = os.path.realpath(path)
+    except Exception:
+        return None
+    ext = os.path.splitext(real)[1].lower()
+    if ext not in TYPES or not os.path.isfile(real):
+        return None
+    for root in SPACE_FILE_ROOTS:
+        r = os.path.realpath(root)
+        if real == r or real.startswith(r + os.sep):
+            return real
+    return None
 
 
 def _log(msg):
@@ -206,9 +233,33 @@ class Space:
                 if time.time() - space.last_seen_page > 2:
                     space.active = False
 
+        def file(h, q):
+            real = allowed_file(q.get("path", ""))
+            if not real:
+                return send(h, 404, "not a file Space can show", "text/plain")
+            with open(real, "rb") as f:
+                data = f.read(200_000_000)
+            send(h, 200, data, TYPES[os.path.splitext(real)[1].lower()])
+
         def push(h, q):
             kind = q.pop("kind", "card")
             q.pop("token", None)
+            if q.get("path"):   # a file on the PC: shown through /space/file, its kind from its type
+                import urllib.parse
+                real = allowed_file(q["path"])
+                if not real:
+                    return send(h, 400, "Space can't show that file (wrong folder or type)", "text/plain")
+                ext = os.path.splitext(real)[1].lower()
+                if kind in ("file", "card"):
+                    kind = FILE_KINDS.get(ext, "doc")
+                q["url"] = "/space/file?path=" + urllib.parse.quote(real)
+                q.setdefault("title", os.path.basename(real))
+                q["ext"] = ext
+                if kind in ("doc", "code", "table") and os.path.getsize(real) < 400_000:
+                    q["body"] = open(real, encoding="utf-8", errors="replace").read()
+                    if kind == "table":
+                        q["csv"] = q.pop("body")
+                q.pop("path")
             for k in ("items",):
                 if isinstance(q.get(k), str):
                     try:
@@ -231,7 +282,8 @@ class Space:
             send(h, 200, "ok", "text/plain")
 
         bridge.routes.update({"/space": page, "/space/state": state, "/space/stream": stream,
-                              "/space/push": push, "/space/cmd": cmd, "/space/do": do})
+                              "/space/push": push, "/space/cmd": cmd, "/space/do": do,
+                              "/space/file": file})
 
     # keep "active" honest when the page closes without a clean disconnect
     def watch(self):
@@ -275,6 +327,11 @@ def route_space(t):
         if m:
             wid = next(w for w, words in WIDGETS.items() if m.group(1).split()[0] in words or m.group(1) in words)
             return ("space_obj", ("widget", wid, None))
+    if re.match(r"(?:visualize|visualise|chart|graph|plot|diagram|map out|draw|sketch|show (?:me )?(?:a |the )?(?:chart|graph|diagram|map|table|timeline|mind ?map|3d|model|picture|breakdown|comparison|flowchart)|make (?:me )?(?:a |an )?(?:chart|graph|diagram|table|timeline|mind ?map|flowchart|visual))\b", t):
+        return ("space_visual", t)
+    m = re.fullmatch(r"(?:show|open|put|load) (.+\.(?:png|jpe?g|gif|webp|svg|glb|gltf|stl|pdf|csv|md|txt|mp4|webm|mov))(?: on (?:the )?(?:space|screen|jarvis screen))?", t)
+    if m:
+        return ("space_file", m.group(1))
     if re.fullmatch(r"(?:open|start|show|launch) (?:the |atlas )?space|space mode|(?:open )?atlas space|workspace mode", t):
         return ("space_open", None)
     if re.fullmatch(r"(?:close|stop|hide) (?:the )?space|space off", t):
