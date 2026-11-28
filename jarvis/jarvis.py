@@ -56,6 +56,7 @@ import jarvis_chats
 import jarvis_chatui
 import jarvis_space
 import jarvis_monitors
+import jarvis_gaze
 import jarvis_evolve
 import jarvis_multi
 import jarvis_persona
@@ -165,13 +166,14 @@ try:
 except ImportError:
     _mine = {}
 globals().update(_mine)
-for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio, jarvis_routines, jarvis_trust, jarvis_space):
+for _mod in (jarvis_room, jarvis_orb, jarvis_claude, jarvis_screen, jarvis_brain, jarvis_extras, jarvis_phone, jarvis_vision, jarvis_faces, jarvis_touch, jarvis_desk, jarvis_cad, jarvis_autostart, jarvis_hqsync, jarvis_activity, jarvis_memory, jarvis_wake, jarvis_chats, jarvis_evolve, jarvis_multi, jarvis_persona, jarvis_vaultstyle, jarvis_learn, jarvis_audio, jarvis_routines, jarvis_trust, jarvis_space, jarvis_gaze):
     for _k, _v in _mine.items():
         if hasattr(_mod, _k):
             setattr(_mod, _k, _v)
 
 
 SPACE = jarvis_space.Space()
+GAZE = jarvis_gaze.Gaze()
 
 
 _CPU = {"t": None}
@@ -1142,7 +1144,7 @@ def _route(text):
         return ("chat_open", None)
     if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:command center|command centre|mission control|atlas dashboard|your dashboard)", t):
         return ("command_center", None)
-    cc = cc or jarvis_space.route_space(t) or jarvis_monitors.route_monitors(t) or jarvis_trust.route_trust(t) or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
+    cc = cc or jarvis_space.route_space(t) or jarvis_gaze.route_gaze(t) or jarvis_monitors.route_monitors(t) or jarvis_trust.route_trust(t) or jarvis_routines.route_routines(t) or jarvis_learn.route_learn(t) or jarvis_vaultstyle.route_vault(t) or jarvis_multi.route_model(t) or jarvis_persona.route_persona(t) or jarvis_multi.route_jobs(t) or jarvis_evolve.route_evolve(t) or jarvis_memory.route_memory(t) or jarvis_chats.route_chats(t) or jarvis_claude.route_claude(t) or jarvis_screen.route_screen(t) or jarvis_uia.route_uia(t) \
         or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_activity.route_activity(t) \
         or jarvis_brain.route_brain(t) or jarvis_phone.route_phone(t) or jarvis_cad.route_cad(t) or jarvis_desk.route_desk(t) \
         or jarvis_touch.route_touch(t) or jarvis_faces.route_faces(t) or jarvis_vision.route_vision(t) or jarvis_extras.route_extras(t)
@@ -3122,12 +3124,18 @@ class Jarvis:
                 return True
             sc = jarvis_screen.Screen()
             hs = [w for w, exe, t in sc.windows() if not t.lower().startswith(jarvis_monitors.MINE)] if h == "all" else [h]
+            if where == "gaze" or (where == "here" and GAZE.current is not None):
+                if GAZE.current is None:
+                    say("I can't tell which screen you're looking at. Say calibrate my eyes first." if not GAZE.ready else "Look at the screen you want, then say it again.")
+                    return True
+                where = GAZE.current
             done = [jarvis_monitors.move(w, where, jscr, sc) for w in hs]
             if all(d is None for d in done):
                 n = len(jarvis_monitors.screens())
                 say("You only have one screen." if n < 2 else f"There's no {where} screen from there.")
             else:
-                where_said = {"other": "the other screen", "next": "the next screen", "here": "this screen"}.get(where, f"the {where} screen")
+                where_said = "the screen you're looking at" if isinstance(where, int) else \
+                    {"other": "the other screen", "next": "the next screen", "here": "this screen"}.get(where, f"the {where} screen")
                 say(("Everything's on " if h == "all" else "Moved it to ") + where_said + ".")
             return True
         if action == "space_visual":   # "visualize ...", "chart ...", "diagram ...": Claude builds it on the glass screen
@@ -3152,6 +3160,26 @@ class Jarvis:
             data = {"url": "/space/file?path=" + urllib.parse.quote(real), "title": os.path.basename(real), "ext": ext}
             SPACE.add(jarvis_space.FILE_KINDS.get(ext, "doc"), **data)
             say("It's on the screen.")
+            return True
+        if action == "gaze_cal":
+            if not (self.vision and getattr(self.vision, "ok", False)):
+                say("The webcam isn't on, so I can't see where you're looking.")
+                return True
+            GAZE.calibrate(say)
+            return True
+        if action == "gaze_follow":
+            if arg and not GAZE.ready:
+                say("First say calibrate my eyes, so I learn where your screens are.")
+                return True
+            GAZE.follow = bool(arg)
+            say("The mouse follows your eyes now. Turn to a screen and it's there." if arg else "Mouse is yours again.")
+            return True
+        if action == "gaze_which":
+            if GAZE.current is None:
+                say("I can't tell right now." + ("" if GAZE.ready else " Say calibrate my eyes first."))
+            else:
+                n = len(jarvis_monitors.screens())
+                say(f"The {'left' if GAZE.current == 0 else 'right' if GAZE.current == n - 1 else 'middle'} one." if n <= 3 else f"Screen {GAZE.current + 1}.")
             return True
         if action == "space_obj":
             what, oid, extra = arg
@@ -3807,6 +3835,12 @@ def main():
             jarvis_chatui.LISTENERS.append(SPACE.on_chat)
             threading.Thread(target=SPACE.watch, daemon=True).start()
             jarvis_monitors.track_last(None)
+
+            def head_now():
+                v = jarvis.vision
+                return v.head if v is not None and getattr(v, "head", None) and time.time() - getattr(v, "head_t", 0) < 0.5 else None
+            GAZE.head, GAZE.screens = head_now, jarvis_monitors.screens
+            threading.Thread(target=GAZE.watch, daemon=True).start()
             if JARVIS_SCREEN_ON_START and len(jarvis_desk.monitors()) > 1:   # the glass screen is always up on the Jarvis monitor
                 threading.Timer(8.0, lambda: jarvis.space_action("space_open", None, lambda *a: None)).start()
             if CHAT_ON_START or not VOICE_INPUT:   # the chat window opens with Atlas

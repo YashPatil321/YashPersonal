@@ -987,7 +987,7 @@ class Vision:
                 me = self.owner_center()
                 got = fs.read(cv2.cvtColor(small, cv2.COLOR_BGR2RGB), near=me)
                 if got:
-                    self.head = got
+                    self.head, self.head_t = got, time.time()
                     e = reader.feed(*got)
                     if e and self.on_gesture:
                         threading.Thread(target=self.on_gesture, args=(e,), daemon=True).start()

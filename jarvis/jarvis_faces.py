@@ -36,6 +36,9 @@ STRONG = 0.55                # a match this strong counts even without the margi
 MIN_FACE_PX = 30             # faces smaller than this (far away) aren't judged at all, they just wait for a better look
 MIN_SHARPNESS = 35           # motion blur check on the face crop
 MAX_SAMPLES = 80             # samples kept per person (it keeps learning you in new light)
+LOW_LIGHT_FIX = True         # even out a dim or backlit face before reading it
+MIRROR_AVERAGE = True        # read the face and its mirror image and average them (steadier when your head is turned)
+DARK_ROOM_BOOST = True       # brighten a dark picture before looking for faces at all
 ADAPT = True                 # keep learning known faces from confident sightings
 FACE_DIR = os.path.join(HERE, ".cache", "faces")
 MODEL_URLS = {
@@ -192,6 +195,10 @@ class FaceID:
         h, w = bgr.shape[:2]
         k = min(1.0, 1280 / w)
         img = bgr if k == 1.0 else self.cv2.resize(bgr, (int(w * k), int(h * k)), interpolation=self.cv2.INTER_AREA)
+        if DARK_ROOM_BOOST and img.mean() < 70:   # dark room: lift the shadows so faces can be found at all
+            import numpy as np
+            lut = np.array([min(255, int(((i / 255.0) ** 0.6) * 255)) for i in range(256)], np.uint8)
+            img = self.cv2.LUT(img, lut)
         self.det.setInputSize((img.shape[1], img.shape[0]))
         _, found = self.det.detect(img)
         if found is None:
@@ -202,7 +209,20 @@ class FaceID:
         return list(found)
 
     def feature(self, bgr, face):
-        return self.rec.feature(self.rec.alignCrop(bgr, face)).ravel()
+        """The face's fingerprint, made sturdier two ways: a dim face gets its contrast evened out first (a dark room
+        or a bright window behind you no longer throws it off), and the face and its mirror image are both read and
+        averaged, which steadies the match when your head is a little turned."""
+        import numpy as np
+        crop = self.rec.alignCrop(bgr, face)
+        if LOW_LIGHT_FIX:
+            lab = self.cv2.cvtColor(crop, self.cv2.COLOR_BGR2LAB)
+            if lab[:, :, 0].mean() < 95 or lab[:, :, 0].std() < 28:
+                lab[:, :, 0] = self.cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4)).apply(lab[:, :, 0])
+                crop = self.cv2.cvtColor(lab, self.cv2.COLOR_LAB2BGR)
+        f = self.rec.feature(crop).ravel()
+        if MIRROR_AVERAGE:
+            f = f + self.rec.feature(self.cv2.flip(crop, 1)).ravel()
+        return f / (np.linalg.norm(f) or 1.0)
 
     def quality(self, bgr, face):
         """How judgeable a face is: (ok, why). Too small, turned away or blurry faces wait instead of becoming strangers."""

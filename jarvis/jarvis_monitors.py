@@ -63,6 +63,8 @@ def screen_of(rect, mons):
 def target_index(where, cur, mons, jarvis=None, cursor=None):
     """Which screen 'where' means, from the screen the window is on now."""
     n = len(mons)
+    if isinstance(where, int):   # a screen picked some other way (where you're looking)
+        return where if 0 <= where < n else None
     w = where.strip().lower()
     if n < 2 and w not in ("main", "primary"):
         return None
@@ -165,6 +167,9 @@ def route_monitors(t):
         re.fullmatch(r"(?:move|send|put|throw|take|shift|push) (.+?) (?:to|on|onto) (?:the |my )?(?:screen|monitor|display) " + WHERE, t)
     if m:
         return ("monitor_move", (m.group(1).strip(), m.group(2)))
+    m = re.fullmatch(r"(?:move|send|put|throw|bring|take) (.+?) (?:to )?(?:where i'?m looking|the screen i'?m (?:looking at|facing)|where i'?m facing)", t)
+    if m:
+        return ("monitor_move", (m.group(1).strip(), "gaze"))
     m = re.fullmatch(r"(?:bring|pull) (.+?) (?:here|over here|to this screen|to me)", t)
     if m:
         return ("monitor_move", (m.group(1).strip(), "here"))
