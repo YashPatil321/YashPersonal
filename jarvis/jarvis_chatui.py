@@ -52,7 +52,7 @@ def register(bridge, jarvis, orb_state=lambda: "idle"):
         h.wfile.write(body)
 
     def page(h, q):
-        with open(os.path.join(HERE, "chat.html"), encoding="utf-8") as f:
+        with open(os.path.join(HERE, "hq.html"), encoding="utf-8") as f:
             send(h, 200, f.read(), "text/html; charset=utf-8")
 
     def post(h, q):

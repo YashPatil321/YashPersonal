@@ -107,7 +107,7 @@ TELEGRAM_TOKEN = ""          # your own Telegram bot (from @BotFather) to talk t
 TELEGRAM_CHAT_ID = 0         # filled in automatically when you pair
 PUSH_TO_TALK = True          # Ctrl+Alt+Space anywhere in Windows = talk to Atlas (no wake word, works with loud music)
 VOICE_INPUT = True           # False = no mic at all: you type to Atlas in its window (say or type "voice off" / "voice on")
-JARVIS_SCREEN_ON_START = True   # with more than one screen, Atlas Space opens on the Jarvis monitor every start
+HQ_ON_START = True           # open HQ every time Atlas starts (full screen on the Jarvis monitor when you have one)
 CHAT_ON_START = True         # open the Atlas chat window every time Atlas starts
 TYPE_TO_ATLAS = True         # type commands into the Atlas window too (handy with no mic or no GPU)
 FOLLOWUP_SECONDS = 6         # after Atlas talks, just keep talking: no need to say its name again for this long (0 = off)
@@ -1176,7 +1176,7 @@ def _route(text):
         return ("session_send", (m.group(1), m.group(2)))
     if re.search(r"\bnew conversation\b|\bstart over\b|\bfresh start\b", t):
         return ("reset", None)
-    if re.fullmatch(r"(?:open|show|pull up|bring up) (?:the |my )?(?:hq|dashboard)", t):
+    if re.fullmatch(r"(?:open|show|pull up|bring up|launch) (?:the |my |atlas )?(?:hq|dashboard|chat|chat window|command center|command centre|space|atlas space|jarvis screen|glass screen)|hq|hq mode", t):
         return ("hq_open", None)
     if re.fullmatch(r"wake (?:everything|the room|up the room|up)(?: everything)?|wake everything up|"
                     r"(?:ok(?:ay)? )?i'?m (?:home|back)|wakey wakey|rise and shine|systems? on(?:line)?", t):
@@ -1771,7 +1771,7 @@ def ask_claude(prompt, session_id, claude=None, tools=None, full=False, on_text=
     if full:
         extra += (f" You have full access to Yash's Windows PC. To see or control the screen (windows, tabs, buttons, typing, "
                   f"shortcuts, screenshots) run: \"{sys.executable}\" \"{os.path.join(WORKDIR, 'jarvis_ctl.py')}\" help. "
-                  "ATLAS SPACE is his glass screen on the Jarvis monitor. Whenever something is better seen than heard (numbers, "
+                  "ATLAS HQ is his glass screen on the Jarvis monitor (it shows your answer plus any objects you make). Whenever something is better seen than heard (numbers, "
                   "comparisons, plans, steps, schedules, places, structures, designs), put it there with jarvis_ctl.py space, then "
                   "keep the spoken answer to one line. Objects: card --title T --body B (markdown) | list --title T item1 item2 | "
                   "chart --title T --type bar|line|area|pie|donut --labels a,b,c --values 1,2,3 (or --series \"Name:1,2,3;Other:4,5,6\") "
@@ -2236,7 +2236,7 @@ class Jarvis:
                 time.sleep(3)
                 sc = jarvis_screen.Screen()
                 for hwnd, _, title in sc.windows():
-                    if title.startswith(("Jarvis Desk", "Jarvis Hologram", "Atlas Space")):
+                    if title.startswith(("Jarvis Desk", "Jarvis Hologram", "Atlas Space", "Atlas HQ")):
                         sc.place(hwnd, (x, y, w, h))
                         sc.focus(hwnd)
                         time.sleep(0.3)
@@ -2274,11 +2274,27 @@ class Jarvis:
             d.start()
         elif src == "webcam" and self.vision is not None:
             self.vision.space = sp
-        self.close_desk_page()
-        self.open_desk_page("/space", scr)
-        how = "on the mat" if src == "desk" else "in the air in front of the camera"
-        say(f"Space is up. Hands {how}: squeeze three fingers to grab, throw to move, bring both hands together to gather.")
+        self.open_hq(scr)
+        say("HQ is up.")
         return True
+
+    def open_hq(self, scr=None):
+        """HQ: the one Atlas screen (conversation, your day, music, the PC, memory, and everything Atlas shows you).
+        Full screen on the Jarvis monitor when there's more than one screen, else a normal window."""
+        SPACE.source = "webcam"
+        if self.vision is not None:
+            self.vision.space = SPACE
+        mons = jarvis_desk.monitors()
+        if scr is None and len(mons) > 1:
+            scr = jarvis_space.jarvis_screen(mons, jarvis_desk.projector_screen())
+        for hwnd, _, title in (jarvis_screen.Screen().windows() if IS_WIN else []):
+            if title.startswith("Atlas HQ"):   # already open: bring it up instead of opening a second one
+                jarvis_screen.Screen().focus(hwnd)
+                return
+        if scr is not None:
+            self.open_desk_page("/hq", scr)
+        else:
+            self.pc.open_window(self.local_url("/hq"), 1500, 950)
 
     def desk_calibrate(self, d, say):
         """Projects the markers (or, with the laser, 4 dots to touch), lines the camera up, then gets out of the way."""
@@ -2803,12 +2819,12 @@ class Jarvis:
                 self.jobs.start("install vision clicking", go)
             return True
         if action == "chat_open":
-            pc.open_window(self.local_url("/chat"))
-            say("Chat's open.")
+            self.open_hq()
+            say("HQ is up.")
             return True
         if action == "command_center":
-            pc.open_url(self.local_url("/command"), app_window=True)
-            say("Command center's up.")
+            self.open_hq()
+            say("HQ is up.")
             return True
         if action == "obs_plugins":
             if not self.brain:
@@ -3200,8 +3216,8 @@ class Jarvis:
                 SPACE.command("front", id=oid)
                 say("Here.")
             return True
-        if action in ("space_open", "space_close", "space_cmd") or (action == "desk" and arg is True):
-            return self.space_action("space_open" if action == "desk" else action, arg, say)
+        if action in ("space_open", "space_close", "space_cmd"):
+            return self.space_action(action, arg, say)
         if action == "desk_status":
             say(self.desk.status() if self.desk else "The desk isn't set up. It needs the phone bridge on.")
             return True
@@ -3420,7 +3436,7 @@ class Jarvis:
         elif action == "hq":
             self.wake_room(force=True)
         elif action == "hq_open":
-            pc.open_url(HQ_URL, app_window=HQ_FULLSCREEN)
+            self.open_hq()
             say("HQ is up.")
         elif action == "lock":
             say("Locking.")
@@ -3791,7 +3807,7 @@ def main():
             bridge.routes["/camera.jpg"] = camera_jpg
 
             def command_page(h, q):
-                body = open(os.path.join(WORKDIR, "command.html"), encoding="utf-8").read().encode("utf-8")
+                body = open(os.path.join(WORKDIR, "hq.html"), encoding="utf-8").read().encode("utf-8")
                 h.send_response(200)
                 h.send_header("Content-Type", "text/html; charset=utf-8")
                 h.send_header("Content-Length", str(len(body)))
@@ -3841,11 +3857,19 @@ def main():
                 return v.head if v is not None and getattr(v, "head", None) and time.time() - getattr(v, "head_t", 0) < 0.5 else None
             GAZE.head, GAZE.screens = head_now, jarvis_monitors.screens
             threading.Thread(target=GAZE.watch, daemon=True).start()
-            if JARVIS_SCREEN_ON_START and len(jarvis_desk.monitors()) > 1:   # the glass screen is always up on the Jarvis monitor
-                threading.Timer(8.0, lambda: jarvis.space_action("space_open", None, lambda *a: None)).start()
-            if CHAT_ON_START or not VOICE_INPUT:   # the chat window opens with Atlas
-                threading.Timer(2.0, lambda: jarvis.pc.open_window(jarvis.local_url("/chat"))).start()
+            if HQ_ON_START or not VOICE_INPUT:   # HQ opens with Atlas (full screen on the Jarvis monitor if you have one)
+                threading.Timer(6.0, jarvis.open_hq).start()
             bridge.routes["/command/state"] = command_json
+            def hq_page(h, q):
+                body = open(os.path.join(WORKDIR, "hq.html"), encoding="utf-8").read().encode("utf-8")
+                h.send_response(200)
+                h.send_header("Content-Type", "text/html; charset=utf-8")
+                h.send_header("Content-Length", str(len(body)))
+                h.send_header("Cache-Control", "no-store")
+                h.end_headers()
+                h.wfile.write(body)
+            for path in ("/hq", "/chat", "/command", "/space"):   # one screen now: every old link opens HQ
+                bridge.routes[path] = hq_page
             jarvis.cad = jarvis_cad.CadHub(say=speaker.say)
             jarvis_cad.SNAP_DIR = os.path.join(BRAIN.vault.root, "CAD")
             if BRAIN.vault.root not in jarvis_cad.CAD_FOLDERS:

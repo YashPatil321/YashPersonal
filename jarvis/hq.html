@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Atlas Space</title>
+<title>Atlas HQ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -15,8 +15,9 @@
   body.hands { cursor: none; }
   /* the room behind the glass: slow drifting embers, so the frosted panes have something to frost */
   #bg { position: fixed; inset: 0; z-index: 0; }
-  #world { position: fixed; inset: 0; z-index: 1; }
-  #handsFx { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+  #world { position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+  #world .obj { pointer-events: auto; }
+  #handsFx { position: fixed; inset: 0; z-index: 8; pointer-events: none; }
 
   .obj { position: absolute; left: 0; top: 0; width: 24vw; transform-origin: 50% 50%; will-change: transform;
     border-radius: 2.6vh; padding: 2vh 1.4vw 1.8vh;
@@ -94,7 +95,7 @@
   .obj.core .date { font: 500 1.2vh/1 "JetBrains Mono", monospace; letter-spacing: .26em; text-transform: uppercase; color: var(--ember); margin-top: .5vh; }
   .obj.core .st { font: 500 1.1vh/1 "JetBrains Mono", monospace; letter-spacing: .3em; color: var(--dim); margin-top: 1vh; }
 
-  #hint { position: fixed; left: 50%; bottom: 2vh; transform: translateX(-50%); z-index: 2; white-space: nowrap; padding: 1vh 1.4vw; border-radius: 1.6vh;
+  #hint { position: fixed; left: 50%; top: 9vh; bottom: auto; transform: translateX(-50%); z-index: 2; white-space: nowrap; padding: 1vh 1.4vw; border-radius: 1.6vh;
     font: 1.4vh "JetBrains Mono", monospace; letter-spacing: .08em; color: var(--dim);
     background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)); border: 1px solid rgba(255, 255, 255, .1);
     backdrop-filter: blur(16px); transition: opacity 1s; }
@@ -116,17 +117,129 @@
   #track { position: fixed; right: 1.6vw; bottom: 1.6vh; z-index: 2; font: 1.1vh "JetBrains Mono", monospace; letter-spacing: .2em; color: rgba(255, 200, 180, .4); }
   #flash { position: fixed; left: 50%; top: 4vh; transform: translateX(-50%); z-index: 4; font: 600 1.6vh "JetBrains Mono", monospace;
     letter-spacing: .25em; color: var(--amber); opacity: 0; transition: opacity .3s; text-transform: uppercase; }
+
+  /* ===== HQ layout: header, your day on the left, Atlas in the middle, the machine on the right ===== */
+  #hq { position: fixed; inset: 0; z-index: 2; display: grid; grid-template-columns: 22vw 1fr 22vw; grid-template-rows: auto 1fr;
+    gap: 1.6vh 1.2vw; padding: 2vh 1.6vw; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 1.2vw; }
+  .mark { font: 700 2.2vh/1 Inter, sans-serif; letter-spacing: .32em; }
+  .mark i { font-style: normal; color: var(--ember); }
+  #status { font: 500 1.3vh "JetBrains Mono", monospace; letter-spacing: .2em; color: var(--dim); display: flex; align-items: center; gap: .6vw; }
+  #status::before { content: ""; width: .9vh; height: .9vh; border-radius: 50%; background: #7be0a6; box-shadow: 0 0 1vh #7be0a6; }
+  body.thinking #status::before { background: var(--amber); box-shadow: 0 0 1.2vh var(--amber); animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  header .sp { flex: 1; }
+  header .now { font: 600 2.2vh/1 Inter, sans-serif; } header .now span { color: var(--dim); font-weight: 400; margin-left: .6vw; font-size: 1.6vh; }
+  .pill { font: 600 1.4vh Inter, sans-serif; padding: .9vh 1vw; border-radius: 999px; color: var(--text); cursor: pointer;
+    background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.03)); border: 1px solid rgba(255,255,255,.14); }
+  .pill.on { background: linear-gradient(180deg, rgba(255,106,77,.5), rgba(255,106,77,.2)); border-color: rgba(255,150,120,.6); }
+  .col { display: flex; flex-direction: column; gap: 1.6vh; min-height: 0; overflow: hidden; }
+  .pane { border-radius: 2.2vh; padding: 1.8vh 1.2vw; position: relative;
+    background: linear-gradient(155deg, rgba(255,255,255,.11), rgba(255,255,255,.03) 45%, rgba(255,106,77,.04));
+    border: 1px solid rgba(255,255,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 2vh 5vh rgba(0,0,0,.45);
+    backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); }
+  .pane h4 { font: 600 1.15vh/1 "JetBrains Mono", monospace; letter-spacing: .24em; text-transform: uppercase; color: var(--ember); margin-bottom: 1.2vh;
+    display: flex; align-items: center; gap: .6vw; }
+  .pane h4 small { margin-left: auto; color: var(--dim); letter-spacing: .1em; font-size: 1.1vh; }
+  .pane .title { font-size: 2.3vh; font-weight: 600; line-height: 1.2; }
+  .pane .q { color: var(--dim); font-size: 1.5vh; margin-top: .4vh; }
+  .pane ul { list-style: none; }
+  .pane li { padding: .65vh 0; border-bottom: 1px solid rgba(255,255,255,.07); display: flex; gap: .8vw; font-size: 1.65vh; }
+  .pane li:last-child { border-bottom: 0; }
+  .pane li em { font-style: normal; color: var(--ember); font-family: "JetBrains Mono", monospace; font-size: 1.45vh; min-width: 5.6vw; }
+  .pane li.past { opacity: .4; }
+  .grow { flex: 1; min-height: 0; overflow: hidden; }
+  .row { display: flex; gap: .5vw; margin-top: 1.2vh; }
+  .pane .btn { min-height: 5vh; font-size: 1.6vh; }
+  #tleft { font: 600 4vh/1 "JetBrains Mono", monospace; }
+  .kv { display: flex; justify-content: space-between; font-size: 1.55vh; padding: .5vh 0; color: var(--dim); }
+  .kv b { color: var(--text); font-weight: 500; }
+
+  /* the middle: Atlas, the conversation, and everything it shows you */
+  #mid { display: flex; flex-direction: column; min-height: 0; gap: 1.4vh; }
+  #coreWrap { display: flex; align-items: center; gap: 1.4vw; padding: 0 .4vw; }
+  #coreCv { width: 9vh; height: 9vh; flex: none; }
+  #said { color: var(--dim); font-size: 1.6vh; max-height: 6.4vh; overflow: hidden; }
+  #thread { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1.4vh; padding: .4vh .4vw 1vh; scroll-behavior: smooth;
+    mask-image: linear-gradient(180deg, transparent 0, #000 3vh, #000 calc(100% - 2vh), transparent); }
+  #thread::-webkit-scrollbar { width: 0; }
+  .you { align-self: flex-end; max-width: 75%; padding: 1vh 1.1vw; border-radius: 1.8vh 1.8vh .5vh 1.8vh; font-size: 1.75vh;
+    background: linear-gradient(180deg, rgba(255,106,77,.24), rgba(255,106,77,.09)); border: 1px solid rgba(255,150,120,.25); }
+  .say { font-size: 1.95vh; line-height: 1.5; max-width: 92%; white-space: pre-wrap; }
+  .say::before { content: "ATLAS"; display: block; font: 600 1.1vh "JetBrains Mono", monospace; letter-spacing: .24em; color: var(--ember); margin-bottom: .5vh; }
+  #thread .obj { position: relative; left: auto; top: auto; transform: none !important; width: auto; max-width: 100%; animation: none; }
+  #thread .obj.out { opacity: .25; filter: grayscale(.6); }
+  #thread .obj h4 .x { display: none; }
+  .empty { margin: auto; text-align: center; color: var(--dim); }
+  .empty b { display: block; font-size: 3vh; color: var(--text); font-weight: 600; margin-bottom: .6vh; }
+  #chips { display: flex; flex-wrap: wrap; gap: .5vw; }
+  #chips .pill { font-weight: 500; }
+  .composer { display: flex; gap: .6vw; align-items: flex-end; padding: 1vh .6vw 1vh 1.1vw; border-radius: 2.2vh;
+    background: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.03)); border: 1px solid rgba(255,255,255,.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.2); backdrop-filter: blur(20px); }
+  .composer:focus-within { border-color: rgba(255,150,120,.55); }
+  #box { flex: 1; background: transparent; border: 0; outline: 0; color: var(--text); font: 1.85vh/1.45 Inter, sans-serif; resize: none; max-height: 16vh; padding: .6vh 0; user-select: text; }
+  #box::placeholder { color: rgba(255,220,210,.35); }
+  #send { width: 5vh; height: 5vh; border-radius: 1.4vh; border: 0; background: var(--ember); color: #1c0803; font-size: 2.2vh; cursor: pointer; }
+
+  /* memory drawer */
+  #mem { position: fixed; top: 0; right: 0; bottom: 0; width: 30vw; z-index: 9; transform: translateX(105%); transition: transform .3s; overflow-y: auto;
+    padding: 3vh 1.6vw; background: rgba(20,10,7,.82); backdrop-filter: blur(26px); border-left: 1px solid rgba(255,255,255,.12); }
+  #mem.open { transform: none; }
+  #mem h3 { font-size: 2.4vh; margin-bottom: 1.6vh; display: flex; align-items: center; }
+  #mem h3 .pill { margin-left: auto; }
+  #mem .f { display: flex; gap: .8vw; align-items: flex-start; padding: 1vh 0; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 1.6vh; }
+  #mem .f span { flex: 1; } #mem .f small { color: var(--ember); font: 1.1vh "JetBrains Mono", monospace; letter-spacing: .14em; }
+  #mem .f button { background: none; border: 1px solid rgba(255,255,255,.15); color: var(--dim); border-radius: 1vh; padding: .3vh .6vw; cursor: pointer; }
+  @media (max-aspect-ratio: 1/1) { #hq { grid-template-columns: 1fr; overflow-y: auto; } .col { overflow: visible; } }
 </style>
 </head>
 <body>
 <canvas id="bg"></canvas>
+<div id="hq">
+  <header>
+    <div class="mark">ATLAS <i>HQ</i></div>
+    <div id="status">READY</div>
+    <div class="sp"></div>
+    <div class="now" id="now">--:--<span id="today"></span></div>
+    <div class="pill" id="speakBtn" title="Also say replies out loud">Speak replies</div>
+    <div class="pill" id="memBtn">Memory</div>
+    <div class="pill" data-chat="desk mode">Desk view</div>
+  </header>
+
+  <section class="col">
+    <div class="pane"><h4>Next up<small id="leave"></small></h4><div class="title" id="nextTitle">Nothing else today</div><div class="q" id="nextWhen"></div><div class="q" id="weather"></div></div>
+    <div class="pane grow"><h4>Today<small id="focusToday"></small></h4><ul id="agenda"><li>Nothing on the calendar</li></ul></div>
+    <div class="pane"><h4>Focus<small id="tlabel">ready</small></h4><div id="tleft">--:--</div>
+      <div class="row"><div class="btn" data-timer="5">5m</div><div class="btn" data-timer="25">25</div><div class="btn" data-timer="50">50</div><div class="btn" data-timer="0">Stop</div></div></div>
+  </section>
+
+  <section id="mid">
+    <div id="coreWrap"><canvas id="coreCv"></canvas><div id="said">Say "Atlas" or type below. Answers, charts, plans and files land here.<br>Press <b>/</b> to type, <b>G</b> to put everything back.</div></div>
+    <div id="thread"><div class="empty" id="empty"><b>What do you need?</b>Grab anything Atlas shows you and pull it out to keep it in view.</div></div>
+    <div id="chips"><div class="pill" data-chat="what's my day look like">My day</div><div class="pill" data-chat="what's due">What's due</div>
+      <div class="pill" data-chat="visualize my week">Visualize my week</div><div class="pill" data-chat="anything at the shop">Shop</div>
+      <div class="pill" data-chat="pull everything together">Gather</div></div>
+    <div class="composer"><textarea id="box" rows="1" placeholder="Message Atlas"></textarea><button id="send" aria-label="Send">&#8593;</button></div>
+  </section>
+
+  <section class="col">
+    <div class="pane"><h4>Music</h4><div class="title" id="song">Nothing playing</div><div class="q" id="artist"></div>
+      <div class="row"><div class="btn" data-key="prev">&#9198;</div><div class="btn main" data-key="play_pause">&#9199;</div><div class="btn" data-key="next">&#9197;</div></div>
+      <div class="row"><div class="btn" data-key="vol_down">&minus;</div><div class="btn" data-key="mute">Mute</div><div class="btn" data-key="vol_up">+</div></div></div>
+    <div class="pane"><h4>Working on<small id="jobsN"></small></h4><ul id="jobs"><li style="color:var(--dim)">Nothing running</li></ul></div>
+    <div class="pane"><h4>This PC</h4><div id="sys"></div></div>
+    <div class="pane grow"><h4>Atlas<small id="spice"></small></h4><div id="self"></div><ul id="research"></ul></div>
+  </section>
+</div>
+<div id="mem"><h3>What Atlas knows <span class="pill" id="memClose">Close</span></h3><div id="memList"></div></div>
 <div id="world"></div>
 <canvas id="handsFx"></canvas>
 <div id="flash"></div>
 <div id="track"></div>
 <div id="calib"><div class="tgt" id="tgt"></div><p><b>Fit Space to your reach</b><span id="calibMsg">Point at the glowing circle and hold still.</span></p></div>
-<div id="hint">CLOSE YOUR HAND TO GRAB · OPEN TO LET GO · PUSH TOWARD THE SCREEN TO PRESS · DOUBLE PINCH TO FOCUS · BOTH HANDS TOGETHER TO GATHER</div>
-<div id="coach"><b>Grab anything</b><span>Hold your hand up. Move it over a card, then close your hand like you're picking it up.</span></div>
+<div id="hint">PUSH TO PRESS · CLOSE YOUR HAND ON A CARD TO PULL IT OUT · BOTH HANDS TOGETHER TO PUT EVERYTHING BACK</div>
+<div id="coach"><b>Your hands work here</b><span>Point and push toward the screen to press anything. Close your hand on a card to pull it out.</span></div>
 
 <script>
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
@@ -359,24 +472,21 @@ function update(id, patch) {
 function remove(o, fly) {
   o.el.classList.add("gone"); objs.delete(o.data.id);
   setTimeout(() => o.el.remove(), 400);
+  const t = THREAD.get(o.data.id); if (t) { t.el.remove(); THREAD.delete(o.data.id); }
+}
+function dock(o) {   // a pulled out card flies home into the conversation
+  const t = THREAD.get(o.data.id);
+  if (!t) return remove(o);
+  const r = t.el.getBoundingClientRect();
+  o.target = { x: r.left + r.width / 2, y: r.top + r.height / 2, s: .6, rot: 0 };
+  o.docking = true;
+  setTimeout(() => { if (objs.get(o.data.id) === o) { o.el.remove(); objs.delete(o.data.id); t.el.classList.remove("out"); } }, 650);
 }
 function hydrate(o) { if (o.data.kind === "core") o.cv = o.el.querySelector("canvas"); }
 
 // built in objects: Atlas core, next up, music, timer
-function defaults() {
-  // the Jarvis screen's home layout: Atlas in the middle, your day on the left, the PC and music on the right
-  spawn({ id: "core", kind: "core", pinned: 1 }, { x: W() * .5, y: H() * .34 });
-  spawn({ id: "next", kind: "next" }, { x: W() * .17, y: H() * .17 });
-  spawn({ id: "agenda", kind: "agenda" }, { x: W() * .17, y: H() * .5 });
-  spawn({ id: "timer", kind: "timer" }, { x: W() * .17, y: H() * .83 });
-  spawn({ id: "music", kind: "music" }, { x: W() * .83, y: H() * .2 });
-  spawn({ id: "system", kind: "system" }, { x: W() * .83, y: H() * .52 });
-  spawn({ id: "notes", kind: "notes" }, { x: W() * .83, y: H() * .8 });
-  for (const o of objs.values()) { o.vx = o.vy = 0; }
-  objs.forEach(hydrate);
-}
-const WIDGET = { core: "core", next: "next", agenda: "agenda", timer: "timer", music: "music", system: "system", notes: "notes" };
-
+function defaults() {}
+const WIDGET = {};
 // ================= physics =================
 function step(dt) {
   for (const o of objs.values()) {
@@ -386,7 +496,8 @@ function step(dt) {
     o.vx *= f; o.vy *= f; o.vr *= Math.pow(0.02, dt);
     const hw = o.el.offsetWidth * o.s / 2, hh = o.el.offsetHeight * o.s / 2;
     const fast = Math.hypot(o.vx, o.vy) > 2400;
-    if (!o.data.pinned && fast && (o.x < -hw * .2 || o.x > W() + hw * .2 || o.y < -hh * .2 || o.y > H() + hh * .2)) { remove(o); continue; }   // flicked away
+    if (!o.docking && !o.data.pinned && fast && (o.x < -hw * .2 || o.x > W() + hw * .2 || o.y < -hh * .2 || o.y > H() + hh * .2)) { remove(o); continue; }   // flicked away
+    if (o.docking && o.target) { o.x += (o.target.x - o.x) * .25; o.y += (o.target.y - o.y) * .25; o.s += (o.target.s - o.s) * .25; place(o); continue; }
     if (o.x < hw * .5) { o.x = hw * .5; o.vx = Math.abs(o.vx) * .5; }
     if (o.x > W() - hw * .5) { o.x = W() - hw * .5; o.vx = -Math.abs(o.vx) * .5; }
     if (o.y < hh * .5) { o.y = hh * .5; o.vy = Math.abs(o.vy) * .5; }
@@ -416,30 +527,22 @@ function unfocus() {
 }
 const ripples = [];
 function ripple(x, y) { ripples.push({ x, y, t: performance.now() }); }
-function gather(at) {
-  const c = at || { x: W() / 2, y: H() / 2 };
-  let i = 0;
-  for (const o of objs.values()) {
-    if (o.data.kind === "core") { o.target = { x: c.x, y: c.y - H() * .3, s: .7 }; continue; }
-    o.target = { x: c.x + (i % 2 ? 6 : -6) * i, y: c.y + i * 5, rot: (i % 2 ? .04 : -.04), s: .9 }; o.el.style.zIndex = ++zTop; i++;
-  }
-  flash("gathered");
+function gather() {
+  for (const o of [...objs.values()]) dock(o);
+  unfocus(); flash("back in place");
 }
 function scatter() {
-  const list = [...objs.values()].filter((o) => o.data.kind !== "core"), n = list.length;
-  const cols = Math.max(1, Math.ceil(Math.sqrt(n * W() / H() / 1.3))), rows = Math.ceil(n / cols);
-  list.forEach((o, i) => {
-    const c = i % cols, r = Math.floor(i / cols);
-    o.target = { x: W() * (c + .5) / cols, y: H() * (.12 + .8 * (r + .5) / rows), rot: 0, s: Math.min(1, 1.6 / Math.max(cols, rows)) + .2 };
-  });
-  const core = objs.get("core"); if (core) core.target = { x: W() / 2, y: H() / 2, s: .8 };
+  const ids = [...THREAD.keys()].filter((id) => VISUAL.includes(THREAD.get(id).data.kind)).slice(-6);
+  if (!ids.length) return flash("nothing to spread");
+  const cols = Math.min(3, ids.length), rows = Math.ceil(ids.length / cols);
+  ids.forEach((id, i) => { const o = pullOut(id); o.target = { x: W() * (i % cols + .5) / cols, y: H() * (.2 + .65 * (Math.floor(i / cols) + .5) / rows), s: .9, rot: 0 }; });
   flash("spread out");
 }
 
 // ================= pressing buttons inside objects =================
 function act(say) { return fetch(q("/space/do?say=" + encodeURIComponent(say)), { method: "POST" }).catch(() => {}); }
 function press(el) {
-  const b = el && el.closest("[data-act],[data-key],[data-timer],[data-open],.btn");
+  const b = el && el.closest("[data-act],[data-key],[data-timer],[data-open],[data-chat],[data-say],.btn,.pill");
   if (!b) return false;
   b.classList.add("hot"); setTimeout(() => b.classList.remove("hot"), 220);
   const o = objs.get(b.closest(".obj")?.dataset.id);
@@ -447,13 +550,17 @@ function press(el) {
   else if (b.dataset.key) act(b.dataset.key);
   else if (b.dataset.open) fetch(q("/space/do?url=" + encodeURIComponent(b.dataset.open)), { method: "POST" });
   else if (b.dataset.timer !== undefined) startTimer(+b.dataset.timer);
+  else if (b.dataset.chat) send(b.dataset.chat);
+  else if (b.dataset.say) act(b.dataset.say);
+  else if (b.id === "memBtn") openMem(); else if (b.id === "memClose") $("mem").classList.remove("open");
+  else if (b.id === "speakBtn") toggleSpeak();
   return true;
 }
 let timer = null;
 function startTimer(min) {
-  if (!min) { timer = null; act("cancel the timer"); return; }
-  timer = { end: Date.now() + min * 60000, label: min === 25 ? "Focus" : min + " minute timer" };
-  act(min === 25 ? "lock in for 25 minutes" : `set a timer for ${min} minutes`);
+  if (!min) { timer = null; act("cancel the timer"); act("stop focus"); $("tleft").textContent = "--:--"; $("tlabel").textContent = "ready"; return; }
+  timer = { end: Date.now() + min * 60000, label: min >= 25 ? "focus" : min + " min timer" };
+  act(min >= 25 ? `lock in for ${min} minutes` : `set a timer for ${min} minutes`);
 }
 
 // ================= hands =================
@@ -498,6 +605,13 @@ function grabPoint(h) {
 function objAt(x, y, pad = 0) {
   // magnetic: a hand near an object (within pad px) counts as on it, so you don't have to be pixel perfect
   let best = null, bestD = 1e9;
+  for (const [id, t] of THREAD) {
+    if (objs.has(id) || t.el.classList.contains("out")) continue;
+    const r = t.el.getBoundingClientRect(), th = $("thread").getBoundingClientRect();
+    if (r.bottom < th.top || r.top > th.bottom) continue;
+    if (x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad) { best = { thread: true, el: t.el, data: t.data }; bestD = 0; }
+  }
+  if (best) return best;
   for (const o of objs.values()) {
     const r = o.el.getBoundingClientRect();
     const dx = Math.max(r.left - x, 0, x - r.right), dy = Math.max(r.top - y, 0, y - r.bottom), d = Math.hypot(dx, dy);
@@ -561,6 +675,7 @@ let twoOpen = null;   // both hands open: watching the gap between them for gath
 function handsLogic() {
   const now = performance.now(), hands = [...HAND.values()];
   for (const o of objs.values()) o.el.classList.remove("hover");
+  for (const t of THREAD.values()) t.el.classList.remove("hover");
   for (const h of hands) {
     const [x, y] = grabPoint(h);
     h.hist.push({ x, y, t: now }); h.hist = h.hist.filter((p) => now - p.t < 200);
@@ -573,12 +688,13 @@ function handsLogic() {
     if (h.push >= 1 && !h.grab && (h.shape === "point" || h.shape === "open") && now - (h.pushed || 0) > 700) {
       h.pushed = now; h.L = [{ v: size, t: now }];
       const tip = h.pts[8], el = document.elementFromPoint(tip[0], tip[1]);
-      if (!press(el)) { const o = objAt(tip[0], tip[1], W() * .03); if (o) focus(o); }
+      if (!press(el)) { let o = objAt(tip[0], tip[1], W() * .03); if (o && o.thread) o = pullOut(o.data.id); if (o) focus(o); }
       ripple(tip[0], tip[1]);
     }
-    const under = objAt(x, y, W() * .035);
+    let under = objAt(x, y, W() * .035);
     if (under && !h.grab) under.el.classList.add("hover");
     if (isGrab(h.shape) && !h.grab && under && !coach.grabbed) { coach.grabbed = true; coachDone(); }
+    if (isGrab(h.shape) && !h.grab && under && under.thread) under = pullOut(under.data.id);
     if (isGrab(h.shape) && !h.grab && under) {
       // grab. If another hand already holds it: two hand mode (resize + rotate)
       h.grab = { o: under, dx: under.x - x, dy: under.y - y };
@@ -592,7 +708,7 @@ function handsLogic() {
     if (h.changed && h.shape === "pinch" && !h.grab) {
       h.turnO = under && under.turn ? under : null;
       if (!h.turnO && !press(document.elementFromPoint(x, y))) {
-        if (now - (h.lastPinch || 0) < 450) { under ? focus(under) : unfocus(); h.lastPinch = 0; }   // double pinch: focus / back
+        if (now - (h.lastPinch || 0) < 450) { under ? focus(under.thread ? pullOut(under.data.id) : under) : unfocus(); h.lastPinch = 0; }   // double pinch: focus / back
         else h.lastPinch = now;
       }
       h.lastXY = [x, y];
@@ -710,20 +826,23 @@ function drawBg(t) {
 // the core object's rings
 let orb = "idle";
 function drawCore(t) {
-  const o = objs.get("core"); if (!o || !o.cv) return;
-  const c = o.cv, k = devicePixelRatio, box = c.getBoundingClientRect();
-  if (c.width !== Math.round(o.el.offsetWidth * k)) { c.width = o.el.offsetWidth * k; c.height = o.el.offsetHeight * k; }
-  const g = c.getContext("2d"), R = c.width / 2, sp = { thinking: 4, speaking: 2.5 }[orb] || 1, glow = orb === "idle" ? .5 : 1;
+  const c = $("coreCv"), k = devicePixelRatio;
+  if (c.width !== Math.round(c.offsetWidth * k)) { c.width = c.offsetWidth * k; c.height = c.offsetHeight * k; }
+  const g = c.getContext("2d"), R = c.width / 2, sp = { thinking: 4, speaking: 2.5 }[orb] || 1, glow = orb === "idle" ? .55 : 1;
   g.clearRect(0, 0, c.width, c.height); g.save(); g.translate(R, R);
-  [[.94, 80, 1.2, .5], [.85, 3, 4, .9], [.76, 50, 2, .45]].forEach(([rr, n, wd, a], i) => {
+  [[.94, 60, 1.2, .55], [.8, 3, 3, .95], [.64, 36, 1.6, .5]].forEach(([rr, n, wd, a], i) => {
     g.strokeStyle = `rgba(255,106,77,${a * glow})`; g.lineWidth = wd * k; const dir = i % 2 ? -1 : 1;
     for (let s = 0; s < n; s += n > 4 ? 2 : 1) { const a0 = s / n * Math.PI * 2 + t / 1000 * sp * (n > 4 ? .15 : .5) * dir; g.beginPath(); g.arc(0, 0, R * rr, a0, a0 + (n > 4 ? Math.PI / n : Math.PI * 2 / n * .62)); g.stroke(); }
   });
+  g.fillStyle = `rgba(255,150,110,${.35 * glow})`; g.beginPath(); g.arc(0, 0, R * .22 * (1 + .08 * Math.sin(t / 300 * sp)), 0, 7); g.fill();
   g.restore();
-  const d = new Date();
-  o.el.querySelector(".clock").textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/ ?[AP]M/, "");
-  o.el.querySelector(".date").textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
-  o.el.querySelector(".st").textContent = ({ thinking: "THINKING", speaking: "ANSWERING" })[orb] || "READY";
+  if (!drawCore.n || t - drawCore.n > 1000) {
+    drawCore.n = t; const d = new Date();
+    $("now").firstChild.textContent = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    $("today").textContent = d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+  }
+  $("status").textContent = ({ thinking: "THINKING", speaking: "ANSWERING", listening: "LISTENING" })[orb] || "READY";
+  document.body.classList.toggle("thinking", orb === "thinking" || orb === "speaking");
 }
 
 // ================= fitting Space to your reach =================
@@ -776,8 +895,8 @@ function frame(t) {
   matchHands(); if (calib) calibStep(t); else handsLogic(); step(dt); tilt();
   drawBg(t); drawLinks(t); drawHands(); drawCore(t);
   if (timer) {
-    const left = Math.max(0, timer.end - Date.now()), s = Math.ceil(left / 1000), o = objs.get("timer");
-    if (o) { const f = (n) => o.el.querySelector(`[data-f=${n}]`); f("tleft").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; f("tlabel").textContent = left ? timer.label : "Done"; }
+    const left = Math.max(0, timer.end - Date.now()), s = Math.ceil(left / 1000);
+    $("tleft").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; $("tlabel").textContent = left ? timer.label : "done";
   }
   requestAnimationFrame(frame);
 }
@@ -802,29 +921,106 @@ addEventListener("pointerup", () => {
 });
 world.addEventListener("wheel", (e) => { const el = e.target.closest(".obj"); if (!el) return; const o = objs.get(el.dataset.id); o.s = Math.max(.35, Math.min(3, o.s * (e.deltaY < 0 ? 1.08 : .93))); place(o); });
 world.addEventListener("dblclick", (e) => { const el = e.target.closest(".obj"); const o = el && objs.get(el.dataset.id); if (o && !o.data.pinned) remove(o); });
-addEventListener("keydown", (e) => { if (e.key === "g") gather(); if (e.key === "s") scatter(); });
+addEventListener("keydown", (e) => { if (e.target.closest && e.target.closest("textarea,input")) return; if (e.key === "g") gather(); if (e.key === "s") scatter(); });
 
-// ================= Atlas =================
+// ================= Atlas: the conversation and everything it shows =================
+const THREAD = new Map();   // id -> {el, data}: replies and the visuals made for them, in order
+const VISUAL = ["chart", "table", "diagram", "stats", "math", "code", "doc", "map", "model", "video", "pdf", "image", "list", "link", "card"];
+function threadAdd(d) {
+  $("empty")?.remove();
+  if (THREAD.has(d.id)) return;
+  const th = $("thread"), stick = th.scrollHeight - th.scrollTop - th.clientHeight < 120;
+  let el;
+  if (d.kind === "reply") {
+    el = document.createElement("div"); el.className = "turn"; el.dataset.id = d.id;
+    el.innerHTML = (d.q ? `<div class="you">${esc(d.q)}</div>` : "") + `<div class="say">${fmt(d.text || "…")}</div>`;
+    el.style.display = "flex"; el.style.flexDirection = "column"; el.style.gap = "1vh";
+  } else {
+    el = document.createElement("div"); el.className = "obj " + d.kind; el.dataset.id = d.id; el.innerHTML = html(d);
+    if (d.kind === "model") el.style.minHeight = "40vh";
+  }
+  th.appendChild(el);
+  const t = { el, data: d }; THREAD.set(d.id, t);
+  if (d.kind !== "reply") enhance({ el, data: d });
+  if (stick) th.scrollTop = th.scrollHeight;
+}
+function threadUpdate(id, patch) {
+  const t = THREAD.get(id); if (!t) return;
+  Object.assign(t.data, patch);
+  if (t.data.kind === "reply") t.el.querySelector(".say").innerHTML = fmt(t.data.text || "…");
+  else { t.el.innerHTML = html(t.data); enhance({ el: t.el, data: t.data }); }
+  const th = $("thread"); if (th.scrollHeight - th.scrollTop - th.clientHeight < 240) th.scrollTop = th.scrollHeight;
+}
+function pullOut(id) {
+  // a card leaves the conversation and floats on top, where your hands can move, throw, resize and focus it
+  if (objs.has(id)) return objs.get(id);
+  const t = THREAD.get(id); if (!t) return null;
+  const r = t.el.getBoundingClientRect();
+  const o = spawn({ ...t.data }, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+  o.vx = o.vy = 0; o.s = Math.min(1, r.width / Math.max(1, o.el.offsetWidth)); place(o); hydrate(o);
+  t.el.classList.add("out");
+  return o;
+}
 function onEvent(ev) {
-  if (ev.type === "add") { const o = spawn(ev.obj, { x: W() * (.35 + .3 * Math.random()), y: H() * .82 }); o.vy = -900 - Math.random() * 400; o.vx = (Math.random() - .5) * 500; hydrate(o); }
-  else if (ev.type === "update") update(ev.id, ev.patch);
+  if (ev.type === "add") threadAdd(ev.obj);
+  else if (ev.type === "update") { threadUpdate(ev.id, ev.patch); if (objs.has(ev.id)) update(ev.id, ev.patch); }
   else if (ev.type === "cmd") {
-    const o = ev.id && objs.get(ev.id);
-    if (ev.do === "widget") { const w = objs.get(ev.id) || spawn({ id: ev.id, kind: WIDGET[ev.id] || ev.id }, { x: W() / 2, y: H() * .85 }); hydrate(w); w.target = { x: W() / 2, y: H() / 2, s: 1.15 }; w.el.style.zIndex = ++zTop; refresh(); return; }
-    if (ev.do === "close" && o) { if (!o.data.pinned) { o.vy = -3000; remove(o); } return; }
+    let o = ev.id && (objs.get(ev.id) || (THREAD.has(ev.id) ? null : null));
+    if (ev.do === "widget") { flash(ev.id); return; }
+    if (ev.do === "close" && ev.id) { const f = objs.get(ev.id); if (f) remove(f); else { const t = THREAD.get(ev.id); if (t) { t.el.remove(); THREAD.delete(ev.id); } } return; }
+    if (["move", "scale", "front"].includes(ev.do) && ev.id && !objs.get(ev.id)) o = pullOut(ev.id);
     if (ev.do === "move" && o) { o.target = { x: W() * ev.where[0], y: H() * ev.where[1], s: o.s, rot: 0 }; o.el.style.zIndex = ++zTop; return; }
-    if (ev.do === "scale" && o) { o.target = { x: o.x, y: o.y, s: ev.reset ? 1 : Math.max(.4, Math.min(3, o.s * ev.by)), rot: o.rot }; o.el.style.zIndex = ++zTop; return; }
+    if (ev.do === "scale" && o) { o.target = { x: o.x, y: o.y, s: ev.reset ? 1 : Math.max(.4, Math.min(3, o.s * ev.by)), rot: o.rot }; return; }
     if (ev.do === "front" && o) { focus(o); return; }
     if (ev.do === "unfocus") { unfocus(); return; }
     if (ev.do === "calibrate") { startCalib(ev.region); return; }
     if (ev.do === "gather") gather(); else if (ev.do === "scatter") scatter();
-    else if (ev.do === "clear") for (const o of [...objs.values()]) if (!["core", "next", "music", "timer"].includes(o.data.id)) { o.vy = -3000; remove(o); }
+    else if (ev.do === "clear") { for (const o of [...objs.values()]) remove(o); for (const [id, t] of [...THREAD]) { t.el.remove(); THREAD.delete(id); } }
   }
 }
+
+// typing to Atlas
+let speak = false;
+try { speak = localStorage.getItem("hqSpeak") === "1"; } catch (e) {}
+function toggleSpeak() { speak = !speak; $("speakBtn").classList.toggle("on", speak); try { localStorage.setItem("hqSpeak", speak ? "1" : "0"); } catch (e) {} }
+$("speakBtn").classList.toggle("on", speak);
+let sent = [], si = -1;
+function send(text) {
+  text = (text ?? $("box").value).trim(); if (!text) return;
+  sent.push(text); si = -1; $("box").value = ""; grow(); orb = "thinking";
+  fetch(q("/chat/send"), { method: "POST", body: JSON.stringify({ text, speak: speak ? "1" : "0" }) }).catch(() => flash("Atlas isn't reachable"));
+}
+function grow() { const b = $("box"); b.style.height = "auto"; b.style.height = Math.min(b.scrollHeight, innerHeight * .16) + "px"; }
+$("box").addEventListener("input", grow);
+$("box").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  else if (e.key === "ArrowUp" && !$("box").value && sent.length) { e.preventDefault(); si = si < 0 ? sent.length - 1 : Math.max(0, si - 1); $("box").value = sent[si]; }
+  else if (e.key === "Escape") { unfocus(); $("mem").classList.remove("open"); }
+});
+$("send").onclick = () => send();
+document.addEventListener("pointerdown", (e) => { if (!e.target.closest("#world") && e.target.closest("[data-chat],[data-key],[data-timer],[data-say],.pill")) press(e.target); });
+$("thread").addEventListener("pointerdown", (e) => {
+  const el = e.target.closest(".obj"); if (!el || el.classList.contains("out") || e.target.closest(".btn,[data-open]")) return;
+  const o = pullOut(el.dataset.id); if (!o) return;
+  drag = { o, dx: o.x - e.clientX, dy: o.y - e.clientY, hist: [] }; o.held = "mouse"; o.el.classList.add("held");
+});
+addEventListener("keydown", (e) => { if (e.target === $("box")) return; if (e.key === "/") { e.preventDefault(); $("box").focus(); } });
+
+// memory
+async function openMem() {
+  $("mem").classList.add("open");
+  let f = []; try { f = await (await fetch(q("/command/memory"))).json(); } catch (e) {}
+  $("memList").innerHTML = f.length ? f.map((x, i) => `<div class="f"><span><small>${x.kind === "lesson" ? "LESSON" : "FACT"}</small><br>${esc(x.text)}</span><button data-i="${i}">Forget</button></div>`).join("")
+    : `<div class="f"><span>Nothing yet. Tell Atlas to remember something.</span></div>`;
+  $("memList").querySelectorAll("button").forEach((b) => b.onclick = async () => {
+    const x = f[+b.dataset.i]; await fetch(q("/command/memory?delete=" + encodeURIComponent(x.text) + "&kind=" + x.kind)); openMem();
+  });
+}
+
 async function boot() {
-  defaults();
+  $("box").focus();
   if (!TOKEN) return;
-  try { const s = await (await fetch(q("/space/state"))).json(); if (s.region) region = s.region; for (const d of s.objects) spawn(d); objs.forEach(hydrate); } catch (e) {}
+  try { const s = await (await fetch(q("/space/state"))).json(); if (s.region) region = s.region; for (const d of s.objects) threadAdd(d); } catch (e) {}
   const es = new EventSource(q("/space/stream"));
   es.onmessage = (e) => { const d = JSON.parse(e.data); (d.ev || []).forEach(onEvent); if (d.hands) onHands(d.hands, d.ct); };
   es.onerror = () => { es.close(); setTimeout(boot2, 2000); };
@@ -835,27 +1031,34 @@ async function boot() {
 function boot2() { const es = new EventSource(q("/space/stream")); es.onmessage = (e) => { const d = JSON.parse(e.data); (d.ev || []).forEach(onEvent); if (d.hands) onHands(d.hands, d.ct); }; es.onerror = () => { es.close(); setTimeout(boot2, 2000); }; }
 let cpuHist = [];
 async function refresh() {
-  let s; try { s = await (await fetch(q("/desk/state"))).json(); } catch (e) { return; }
-  const set = (id, f, v) => { const o = objs.get(id); const el = o && o.el.querySelector(`[data-f=${f}]`); if (el) el.textContent = v; };
+  let s; try { s = await (await fetch(q("/command/state"))).json(); } catch (e) { return; }
+  render(s);
+}
+function render(s) {
+  const nx = s.next;
+  $("nextTitle").textContent = nx ? nx.title : "Nothing else today";
+  $("nextWhen").textContent = nx ? nx.when || "" : "";
+  $("leave").textContent = nx && nx.leave_in != null ? (nx.leave_in <= 0 ? "leave now" : `leave in ${nx.leave_in} min`) : "";
+  $("weather").textContent = s.weather || "";
+  $("agenda").innerHTML = (s.agenda || []).length ? s.agenda.map((e) => `<li class="${e.past ? "past" : ""}"><em>${esc(e.when)}</em>${esc(e.title)}</li>`).join("") : "<li style='color:var(--dim)'>Nothing on the calendar</li>";
+  $("focusToday").textContent = s.focus_today ? s.focus_today + " min focused" : "";
+  if (s.focus && s.focus.total && !timer) timer = { end: Date.now() + (s.focus.total - s.focus.done) * 60000, label: "focus" };
   const m = (s.music || "").split(" - ");
-  set("music", "song", m.length > 1 ? m.slice(1).join(" - ") : (s.music || "Nothing playing")); set("music", "artist", m.length > 1 ? m[0] : "");
-  set("next", "nextTitle", s.next ? s.next.title : "Nothing else today");
-  set("next", "nextWhen", s.next ? (s.next.when || "") + (s.next.leave_in != null ? ` · leave in ${s.next.leave_in} min` : "") : "");
-  set("next", "weather", s.weather || "");
-  const html = (id, f, v) => { const o = objs.get(id); const el = o && o.el.querySelector(`[data-f=${f}]`); if (el) el.innerHTML = v; };
-  if (s.agenda) html("agenda", "agenda", s.agenda.length ? s.agenda.map((e) => `<li class="${e.past ? "past" : ""}"><em>${esc(e.when)}</em>${esc(e.title)}</li>`).join("") : "<li>Nothing on the calendar</li>");
-  if (s.notes) html("notes", "notes", s.notes.length ? s.notes.map((n) => `<li>${fmt(n)}</li>`).join("") : "<li>Nothing captured yet</li>");
+  $("song").textContent = m.length > 1 ? m.slice(1).join(" - ") : (s.music || "Nothing playing"); $("artist").textContent = m.length > 1 ? m[0] : "";
+  const jobs = s.jobs || [];
+  $("jobsN").textContent = jobs.length ? jobs.length + " running" : "";
+  $("jobs").innerHTML = jobs.length ? jobs.map((j) => `<li><em>${Math.floor(j.secs / 60)}m</em>${esc(j.text)}</li>`).join("") : "<li style='color:var(--dim)'>Nothing running</li>";
   const y = s.system || {};
-  const st = (k, v, pct) => `<div class="stat"><span>${k}</span><b>${v}</b>${pct != null ? `<div class="bar"><i style="width:${pct}%"></i></div>` : ""}</div>`;
   if (y.cpu != null) { cpuHist.push(y.cpu); cpuHist = cpuHist.slice(-40); }
-  const spark = cpuHist.length > 1 ? `<svg viewBox="0 0 200 40" style="grid-column:1/-1;width:100%;height:5vh"><polyline fill="none" stroke="#ff6a4d" stroke-width="2"
-    style="filter:drop-shadow(0 0 3px #ff6a4d)" points="${cpuHist.map((v, i) => `${i * 200 / 39},${38 - v * .36}`).join(" ")}"/></svg>` : "";
-  html("system", "system", spark + st("CPU", (y.cpu ?? "--") + "%", y.cpu) + st("Memory", (y.ram ?? "--") + "%", y.ram) +
-       st("Disk free", (y.disk_free_gb ?? "--") + " GB") + st("Up", (y.uptime_h ?? "--") + " h"));
+  const spark = cpuHist.length > 1 ? `<svg viewBox="0 0 200 36" style="width:100%;height:4.5vh;display:block"><polyline fill="none" stroke="#ff6a4d" stroke-width="2" style="filter:drop-shadow(0 0 3px #ff6a4d)" points="${cpuHist.map((v, i) => `${i * 200 / 39},${34 - v * .32}`).join(" ")}"/></svg>` : "";
+  $("sys").innerHTML = spark + [["CPU", (y.cpu ?? "--") + "%"], ["Memory", (y.ram ?? "--") + "%"], ["Disk free", (y.disk_free_gb ?? "--") + " GB"], ["Camera", s.camera ? "on" : "off"]].map(([k, v]) => `<div class="kv">${k}<b>${v}</b></div>`).join("");
+  $("spice").textContent = s.spice ? "spice " + s.spice + "/5" : "";
+  $("self").innerHTML = (s.self || []).map(([k, v]) => `<div class="kv">${esc(k)}<b>${esc(v)}</b></div>`).join("") + (s.model ? `<div class="kv">Model<b>${esc(s.model)}</b></div>` : "");
+  $("research").innerHTML = (s.research || []).length ? `<li style="color:var(--ember);font:600 1.1vh 'JetBrains Mono';letter-spacing:.2em;border:0;padding-top:1.2vh">RESEARCH</li>` + s.research.map((r) => `<li>${esc(r)}</li>`).join("") : "";
 }
 setTimeout(() => $("hint").style.opacity = 0, 12000);
 boot(); requestAnimationFrame(frame);
-window.__hands = onHands; window.__event = onEvent;   // for previews and tests
+window.__hands = onHands; window.__event = onEvent; window.__render = render;   // for previews and tests
 </script>
 </body>
 </html>
